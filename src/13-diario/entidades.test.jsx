@@ -29,9 +29,11 @@ afterEach(cleanup);
 const cruine = () => window.ENTIDADES.find((e) => e.slug === 'cruine');
 
 describe('o catálogo', () => {
-  it('as treze entidades, todas com os tópicos preenchidos', () => {
+  /* 13/11/2026: os oito deuses que faltavam do deuses.pdf (Crizagom, Ganis,
+     Lena, Liris, Parom, Quiris, Selimom e Sevides) — o livro inteiro. */
+  it('as vinte e uma entidades, todas com os tópicos preenchidos', () => {
     const slugs = window.ENTIDADES.map((e) => e.slug).sort();
-    expect(slugs).toEqual(['anasmadis', 'antredom', 'blator', 'branaxis', 'cambu', 'crezir', 'cruine', 'heldrom', 'maira', 'mocna', 'palier', 'plandis', 'ricutatis']);
+    expect(slugs).toEqual(['anasmadis', 'antredom', 'blator', 'branaxis', 'cambu', 'crezir', 'crizagom', 'cruine', 'ganis', 'heldrom', 'lena', 'liris', 'maira', 'mocna', 'palier', 'parom', 'plandis', 'quiris', 'ricutatis', 'selimom', 'sevides']);
     for (const e of window.ENTIDADES) {
       expect(window.ENTIDADE_CLASSES[e.classe], e.slug).toBeTruthy();
       expect(e.prefacio.texto.length, e.slug).toBeGreaterThan(200);
@@ -70,6 +72,22 @@ describe('o feriado entra no calendário', () => {
   it('a Noite dos Perversos cai em toda passagem de mês, nunca na noite de Cruine', () => {
     for (let m = 1; m <= 12; m++) expect(window.feriadosDoDia(30, m), 'mês ' + m).toContain('Noite dos Perversos');
     expect(window.feriadosDoDia(1, 13)).not.toContain('Noite dos Perversos');
+  });
+  /* Os feriados dos oito deuses saíram da lista fixa (13/11/2026): cada um
+     aparece UMA vez, vindo da entidade, com o nome do livro. */
+  it('os feriados dos deuses novos aparecem uma vez, com o nome do livro', () => {
+    const casos = [
+      [1, 2, 'Dia do Mar'], [11, 2, 'Festa da Carne'], [9, 3, 'Vitória da Justiça'],
+      [15, 3, 'Festa da Prosperidade'], [20, 3, 'Dia do Amor e da Paz'], [7, 4, 'Festa da Fertilidade'],
+      [13, 4, 'Festival da Purificação de Parom'], [20, 6, 'Jornada de Paz'], [24, 6, 'Festa dos Artífices'],
+      [30, 6, 'Festa da Colheita'], [1, 7, 'Noite dos Prazeres'], [4, 9, 'Memorial dos Ancestrais'],
+      [1, 10, 'Festa do Plantio'], [12, 10, 'Festa dos Amantes'], [26, 11, 'Dia da Sobra'],
+      [16, 12, 'Festa dos Povos'], [29, 12, 'Noite dos Justos'],
+    ];
+    for (const [d, m, nome] of casos) {
+      expect(window.feriadosDoDia(d, m).filter((n) => n === nome), nome).toHaveLength(1);
+    }
+    expect(window.feriadosDoDia(13, 4)).not.toContain('Festa da Purificação de Parom');
   });
   it('as entidades novas trazem os seus feriados', () => {
     expect(window.feriadosDoDia(2, 8)).toContain('Festa do Ódio');          // Mocna

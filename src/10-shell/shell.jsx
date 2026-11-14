@@ -2004,30 +2004,15 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
    Festival de Renascimento de Maira estava em 3 do mês do Sangue; o livro diz
    "3º dia do mês da Rosa" (deuses.pdf, Maira), e passou para 3/10. */
 const FERIADOS_FANTASY = [
-  /* Os feriados de Blator, Cambu e Crezir saíram daqui em 08/11/2026: vêm
-     das ENTIDADES deles (01-core/entidades.jsx), com os nomes do livro. */
-  { dia:  1, mes:  2, nome: 'Dia do Mar' },
+  /* Os feriados dos deuses saíram daqui (Blator, Cambu e Crezir em
+     08/11/2026; os outros doze em 13/11/2026): vêm das ENTIDADES deles
+     (01-core/entidades.jsx), com os nomes do livro. Ficam só as estações
+     e as festas dos príncipes que ainda não viraram entidade. */
   { dia:  5, mes:  2, nome: 'Solstício de Verão' },
-  { dia: 11, mes:  2, nome: 'Festa da Carne' },
-  { dia:  9, mes:  3, nome: 'Vitória da Justiça' },
-  { dia: 15, mes:  3, nome: 'Festa da Prosperidade' },
-  { dia: 20, mes:  3, nome: 'Dia do Amor e Paz' },
-  { dia:  7, mes:  4, nome: 'Festa da Fertilidade' },
-  { dia: 13, mes:  4, nome: 'Festa da Purificação de Parom' },
   { dia:  5, mes:  5, nome: 'Equinócio de Outono' },
-  { dia: 20, mes:  6, nome: 'Jornada da Paz' },
-  { dia: 24, mes:  6, nome: 'Festa dos Artífices' },
-  { dia: 30, mes:  6, nome: 'Festa da Colheita' },
-  { dia:  1, mes:  7, nome: 'Noite dos Prazeres' },
   { dia:  5, mes:  8, nome: 'Solstício de Inverno' },
-  { dia:  4, mes:  9, nome: 'Memorial dos Ancestrais' },
   { dia: 20, mes:  9, nome: 'Prisão Dourada' },   // de Morrigalti; a Adoração a Maira Nil vem da entidade dela
-  { dia:  1, mes: 10, nome: 'Festa do Plantio' },
-  { dia: 12, mes: 10, nome: 'Festa dos Amantes' },
   { dia:  6, mes: 11, nome: 'Equinócio de Primavera' },
-  { dia: 26, mes: 11, nome: 'Dia da Sobra' },
-  { dia: 16, mes: 12, nome: 'Festa dos Povos' },
-  { dia: 29, mes: 12, nome: 'Noite dos Justos' },
   /* O último dia do ano juntava duas festas num nome só ("Dia de Cruine e
      Retorno da Escuridão"). Separadas em 08/11/2026: o Retorno à Escuridão é
      de Morrigalti (principes.pdf) e fica aqui; a de Cruine, a Festa do Ciclo

@@ -244,7 +244,7 @@ const ENTIDADES = [
       { nome: 'Maira',
         texto: 'Relação difícil, ainda que respeitosa. Maira não entende a destruição que Crezir impõe, e as duas discordam por isso.' },
       { nome: 'Ganis',
-        texto: 'Crezir acredita ter algo em comum com ele no fundo.' },
+        texto: 'Crezir acredita ter algo em comum com ela no fundo.' },
       { nome: 'Cruine',
         texto: 'Para Crezir, é o elo que fecha o ciclo da destruição, ainda que ele ache que ela exagera. Dizem que é a preferida dele: depois de longos anos imóvel, Cruine ergueu a cabeça só para vê-la entrar, quando ela veio pedir que um sacerdote seu voltasse ao mundo para cumprir sua vingança.' },
       { nome: 'Diatrimis',
@@ -282,6 +282,98 @@ const ENTIDADES = [
         texto: 'Armas que os sacerdotes da deusa consagraram pela magia. São tidas por capazes de decidir o rumo de uma batalha.' },
       { nome: 'Vasilha da Oferenda',
         texto: 'O vaso de ouro ornado de pedras em que se recolhe o sangue do touro na Oferenda de Sangue.' },
+    ],
+  },
+{
+    slug: 'crizagom',
+    nome: 'Crizagom',
+    classe: 'deus',
+    titulo: 'Honra e Justiça',
+    imagem: null,
+    // Fonte: deuses.pdf, págs. 34–38 (3.4 Crizagom); Blator, Crezir, Cruine, Selimom (relações);
+    // principes.pdf, Heldrom (o julgamento do Caído); reinos.pdf, Azanti (Zanta, Magnus Supramati, Mil Mártires).
+
+    prefacio: {
+      texto:
+        'Depois de mais um dia no castelo prateado, o senhor da honra e da justiça recolheu-se para dormir, e outra vez o sono lhe trouxe as lembranças antigas. Viu-se de novo entre corpos amontoados aos milhares, com a garganta seca e o cheiro de sangue em tudo. A espada pesava na mão, e o instinto a fazia descer uma, duas, dez, trinta vezes, até que os atacantes jazessem com os outros. Exausto e coberto de sangue, avistou os irmãos e as irmãs celebrando, cada um a seu modo, a vitória sobre os titãs.\n' +
+        'O sonho terminava sempre do mesmo jeito: cada deus tomava o seu lugar sobre o mapa do mundo, como peças num tabuleiro, e os reinos ganhavam as cores dos seus guardiões. Daquela vez, porém, uma sombra brotou e correu sobre Tagmar, apagando as cores. Quando Crizagom viu que ela avançava justamente sobre a parte que lhe cabia, sentiu nas costas um golpe de punhal envenenado, e uma gargalhada falsa ecoou enquanto a escuridão escorria para as outras cores.\n' +
+        'Acordou banhado em suor. Saltou do leito e saiu a caminhar com uma determinação de ferro, certo de que algo muito errado acontecia em seus domínios.',
+      fonte: 'Extraído do livro «A Origem dos Deuses» — Acervo da Biblioteca de Portis.',
+    },
+
+    descricao:
+      'Crizagom é a honra e a justiça em pessoa, o regente da balança. Vive no coração dos que cultivam os sentimentos mais nobres e fazem da defesa deles a sua batalha. Por isso muitos o chamam deus da nobreza, mas não da nobreza do sangue azul: é o deus de quem traz dentro de si sentimentos puros e justos e os mostra nos atos. Seus cavaleiros, sacerdotes e paladinos estão entre os que guardam os princípios mais altos do mundo conhecido.\n' +
+      'Age nos tribunais, nas casas de comércio e em todo lugar onde a lei é invocada no dia a dia. No campo de batalha está sempre presente, e divide esse chão com o pai, Blator, e a irmã, Crezir. Mas o seu campo maior é o modo de vida que os seus preceitos exigem, pois todo ato de bravura e de honra é, de algum modo, ligado a ele.\n' +
+      'É determinado e forte, de vontade férrea na defesa do que é justo, e implacável contra o mal e a injustiça. Para quem se esforça por viver à altura dos seus preceitos, a graça dele não tem fim; para quem escolhe o caminho mais fácil, resta só a justiça. Ser justo e imparcial como Crizagom é o mais perto que se chega da perfeição.\n' +
+      'Todos os que juram tê-lo visto falam do mesmo guerreiro altivo, de armadura prateada impecável e capa azul ao vento, com um escudo triangular reluzente no braço esquerdo e um martelo de guerra cravejado de gemas. Às vezes aparece montado num alazão enorme. Entre os povos, o seu símbolo é a balança, o equilíbrio que permite viver em paz; entre os guerreiros, é uma espada com a ponta apoiada no chão, o equilíbrio entre bravura, nobreza de espírito, honra e justiça. Sua cor é a prata, a pureza do espírito.\n' +
+      'É muito popular entre os que já pisaram um campo de batalha, ainda que divida a fama com Blator e Crezir, e mais ainda onde os seus devotos servem como magistrados e regentes. No campo, onde a guerra é sempre vista como desgraça, é pouco querido. Os elfos, que têm um senso próprio de justiça, não o veem com bons olhos, e os navegantes preferem crer na justiça de Ganis. A religião atua sobretudo em Azanti e Filanti, mas há congregações em todo o mundo conhecido.\n' +
+      'A Ordem Sagrada dos Bravos Cavaleiros da Justiça tem hoje pouca influência política, até em Azanti, a sua terra natal. Os seus membros, porém, são bem recebidos em qualquer corte, e pesam mais nos tribunais e nas armas que nos conselhos.\n' +
+      'O culto exige o compromisso com a verdade, a honra e a justiça: quem nunca mente e jamais comete ato desonroso dificilmente trai os ideais do deus. Os paladinos são a imagem mais alta de Crizagom e o exemplo para os demais fiéis.\n' +
+      'Os templos se resumem numa palavra: força. Têm paredes grossas de pedra, com reforços de metal nos suportes, e janelas bastantes para que a nave central fique clara e arejada de dia e mais grave à noite. Os Grandes Templos se confundem com fortes de guerra e, em tempo de guerra, servem de fortaleza aos cavaleiros e paladinos e de abrigo aos camponeses e a quem não pode lutar.\n' +
+      'Em tempo de paz, os sacerdotes vestem túnica azul-escura com detalhes em prata. Quando partem em missão, levam uma armadura prateada chamada Honra, um grande escudo triangular chamado Bravura e uma arma chamada Justiça, quase sempre um martelo de guerra.\n' +
+      'As doutrinas são quatro: defender a verdade a qualquer custo, viver os preceitos de honra e justiça, levar a mensagem de Crizagom a todos os lugares e ser exemplo de honestidade e coragem em cada atitude.',
+
+    relacoes: [
+      { nome: 'Blator',
+        texto: 'O pai, de cujo indicador direito nasceu. Blator vê com orgulho, elevadas no filho, algumas das suas melhores virtudes. Com Crezir, os três formam a tríade dos deuses da guerra.' },
+      { nome: 'Crezir',
+        texto: 'A irmã, que não demonstra respeito a ninguém além dele. Procura-o quando precisa de conselho para o que a força não resolve, ou de um pouco de descanso, e a relação entre os dois é razoavelmente boa, embora cada um tenha escolhido o seu caminho.' },
+      { nome: 'Selimom e Sevides',
+        texto: 'Os dois amigos de Crizagom no Panteão, que têm grande respeito pelo jovem deus. Com Selimom a amizade é de irmãos, ainda que divirjam sobre os mortais e o modo de lidar com eles.' },
+      { nome: 'Cruine',
+        texto: 'Uma relação incomum com o juiz das almas: Crizagom intercede pelos mortais no Tribunal dos Mortos e é o primeiro rosto que eles veem ao chegar para o Julgamento Final. Pede clemência pelos que agiram com justiça e penas duras para os que agiram com malícia.' },
+      { nome: 'Cambu e Lena',
+        texto: 'Evitam-no o quanto podem: a natureza intransigente do jovem deus torna os encontros desagradáveis.' },
+      { nome: 'Maira e Ganis',
+        texto: 'Raramente se relacionam com ele, porque Crizagom não tem por dignas de atenção as criaturas delas, que em sua maioria não sabem julgar.' },
+      { nome: 'Palier',
+        texto: 'Nunca demonstrou se importar muito com ele.' },
+      { nome: 'Parom',
+        texto: 'Mantém com ele, ao que parece, uma relação sem hostilidade.' },
+      { nome: 'Plandis',
+        texto: 'O sobrinho simplesmente ignora a existência do tio.' },
+      { nome: 'O Panteão',
+        texto: 'Dá-se bem com todos os deuses e nunca julga nenhum dos seus pares pela natureza divina de cada um.' },
+      { nome: 'Heldrom',
+        texto: 'Quando o irmão quis tomar à força o poder de Gênese, foi Crizagom quem lembrou que aquilo não era justo. Escolhido juiz pelos deuses depois da derrota do traidor, mandou que o apagassem da memória e o chamassem de A Mancha da Corrupção. Deixou-lhe uma cicatriz no rosto, e Heldrom o odeia mais que a qualquer outro; seus templos e devotos são o alvo preferido da seita.' },
+      { nome: 'Descendentes',
+        texto: 'Não há sinal de que Crizagom tenha descendentes.' },
+    ],
+
+    locais: [
+      { nome: 'Castelo prateado', onde: 'Morada dos deuses',
+        texto: 'O castelo de Crizagom, onde ele recebe os outros deuses e pede que a paz seja mantida em seus corredores.' },
+      { nome: 'Catedral de Crizagom', onde: 'Zanta, Azanti',
+        texto: 'A grande catedral, para os fiéis o lugar mais sagrado do culto. Ali o sumo sacerdote conduz em pessoa a Vitória da Justiça.' },
+      { nome: 'Muro dos Campeões', onde: 'Zanta, Azanti',
+        texto: 'Diz-se que há em Zanta um muro de mármore branco com os nomes de todos os campeões da justiça. Cada nome, contam, é gravado por um enviado que desce do céu quando um campeão parte para o Tribunal de Cruine.' },
+      { nome: 'Monumento aos Mil Mártires', onde: 'Sede da Ordem Sagrada dos Bravos Cavaleiros da Justiça',
+        texto: 'Para o clero, um dos lugares mais importantes da fé. Honra os paladinos que deram a vida para derrotar um Príncipe do Inferno na defesa de Zanta.' },
+      { nome: 'Grandes Templos', onde: 'Por toda Tagmar',
+        texto: 'Tão sagrados quanto a catedral. Erguidos como fortes de guerra, abrigam os cavaleiros e o povo quando a guerra chega.' },
+      { nome: 'Criptas e monumentos dos guerreiros de Crizagom', onde: 'Por toda Tagmar',
+        texto: 'Toda cripta ou monumento erguido a um guerreiro do deus é lugar sagrado, e os devotos o respeitam e o protegem.' },
+    ],
+
+    feriados: [
+      { dia: 9, mes: 3, nome: 'Vitória da Justiça',
+        texto: 'Celebra a derrota da Seita e a sua expulsão de Tagmar, na grande catedral de Zanta, com o sumo sacerdote presente. Primeiro vêm jejum, vigília e oração, lembrando a chegada da Seita e o seu alastrar pelo mundo; depois, cânticos e louvores dos que ficam na catedral. Ao fim da vigília, os voluntários marcham a pé e a cavalo por Zanta, de norte a sul e de leste a oeste, e voltam à catedral, como os exércitos da resistência que investiram contra a Seita. Por último, a festa: mesas enormes ao redor da catedral, um grande banquete, a pregação depois da refeição e, noite adentro, fogueiras, vinho e disputas de contos animadas por bardos da terra e de passagem.' },
+      { dia: 4, mes: 9, nome: 'Memorial dos Ancestrais',
+        texto: 'Honra todos os que deram a vida pela causa, tombando em batalha ou dedicando a ela a existência, e lembra os nomes dos campeões da justiça, pequenos e grandes. O nome mais celebrado é o de Magnus Supramati, o primeiro paladino e fundador da Ordem Sagrada dos Bravos Cavaleiros da Justiça.' },
+      { dia: 29, mes: 12, nome: 'Noite dos Justos',
+        texto: 'Mais rito que festa, dois dias antes do Dia de Cruine. Já foi guardada por todos os devotos; hoje, só pelo clero. Antes dela vêm sete dias de jejum de carne, de bebida e dos prazeres da carne, em que os fiéis apenas meditam e rezam, para reforçar os laços com a honra e a bravura e enfrentar o mal sem esmorecer.' },
+      { quando: 'No dia em que a cidade foi salva, a cada ano',
+        nome: 'Lembrança dos Mártires da Cidade',
+        texto: 'As cidades protegidas pela intervenção dos guerreiros sagrados de Crizagom lembram o feito no fim do dia correspondente, com pequenas celebrações e orações de gratidão. A bebida é proibida, em respeito ao sacrifício dos mártires, mas os bardos que recontam os feitos se encarregam de alegrar a todos.' },
+    ],
+
+    itens: [
+      { nome: 'Alma dos Mártires',
+        texto: 'Uma espada de mão e meia que o deus cedeu a um dos seus paladinos durante a guerra contra a Seita.' },
+      { nome: 'Chifre de unicórnio',
+        texto: 'Fala-se, sem muita certeza, de um chifre de unicórnio guardado pela Ordem dos Cavaleiros da Justiça. Ninguém conhece os seus poderes, mas dizem que são muitos.' },
+      { nome: 'Armadura, Escudo e Martelo do Sumo Sacerdote',
+        texto: 'A maior relíquia da ordem, forjada num dos Templos de Todos os Deuses durante a guerra contra a Seita e vestida pelo sumo sacerdote. Perdeu-se quando os demonistas tomaram Zanta, e ninguém sabe onde está. Dizem que os seus poderes eram enormes, mas ninguém sabe ao certo quais.' },
     ],
   },
   {
@@ -357,6 +449,240 @@ const ENTIDADES = [
         texto: 'Um grande espelho que seria a porta para o reino dos mortos. Ninguém sabe se existe. Dizem que no alto da moldura está escrito: «Deixai para trás toda esperança, vós que entrais no Reino de Cruine.»' },
       { nome: 'Joia de Cruine',
         texto: 'Uma pedra negra e ovalada. Diz-se que por ela se fala com o próprio deus, em seu reino.' },
+    ],
+  },
+  {
+    slug: 'ganis',
+    nome: 'Ganis',
+    classe: 'deusa',
+    titulo: 'Águas',
+    imagem: null,
+    // Fonte: deuses.pdf, págs. 45–49 (3.6 Ganis); Crezir, Liris, Maira, Quiris e Sevides (relações);
+    // principes.pdf, Vouxiz (Concepção e Relação com os deuses) e Antredom.
+
+    prefacio: {
+      texto:
+        'O barco tinha resistido inteiro àquela tempestade. Raios por todos os lados, um deles na vela menor; chuva quase de granizo; ondas enormes que arrastaram para o mar vários dos meus homens. Depois de horas de desespero, as águas se acalmaram e o céu se abriu. Contei a tripulação: três tinham descido às profundezas, e dois deles eram os que mais tinham lutado para salvar o navio. Não morreram sem honra, mas todos estavam abatidos.\n' +
+        'Deixei os marujos consertando o que se partira e fiquei pensando. Por que a impiedosa Ganis faria aquilo comigo? Por que ela, tão pacífica, pedia vidas em troca de vidas? Ao longe, golfinhos saltavam, felizes e do mar, como eu. Então uma cabeça humana despontou das águas, e eu vi os cabelos lindos de uma mulher, com tristeza e pena estampadas no rosto. Ela cantou. Perdi o fôlego, fechei os olhos e só ouvi, até não ouvir mais nada.\n' +
+        'Acordei na minha cabine; os homens disseram que eu tinha caído de exaustão no convés. Entendi então o que me afligia. Ganis, a caprichosa deusa dos mares, não é má: faz o que é preciso para manter o equilíbrio, ainda que deixe vítimas. Ajoelhei-me e rezei a ela, pedindo perdão pelas tolices que pensara. Naquele instante, um arco-íris raiou.',
+      fonte: 'Extraído do livro «Minhas Andanças», de autor desconhecido, capítulo 3 — O Mar.',
+    },
+
+    descricao:
+      'Ganis é a bela deusa das águas, senhora absoluta dos rios e dos oceanos, que leva as suas águas cheias de vida a todos os cantos do mundo conhecido. O seu reino rivaliza em esplendor e extensão com a própria Tagmar. Governa o leito dos rios, o vaivém das marés, o refluir das ondas e a temida fúria do oceano. Quem vive das águas, e sobretudo quem arrisca a vida todo dia sobre as ondas, tem por ela um temor e uma veneração fanáticos, e nunca deixa de lhe agradecer.\n' +
+      'Ensina que a água é o mais importante dos elementos, mas que o mundo só fica de pé se houver equilíbrio entre todos eles. Ensina também a respeitar o mar, os rios e os lagos: não desviá-los sem motivo nem sujá-los por ganância.\n' +
+      'É instável e caprichosa. Mãe zelosa e benevolente com os seus filhos queridos, é também severa com eles, revolta-se à menor desobediência e mostra o desgosto numa fúria que os homens do mar conhecem bem; os poucos que sobreviveram a ela contam histórias fantásticas. Ainda assim, cuida bem dos seus, e quem é dela navega a salvo.\n' +
+      'Velhos lobos do mar juram que, depois das grandes tempestades, quando os primeiros raios de sol anunciam o fim da tormenta, já viram caminhar sobre as águas uma mulher de beleza esplêndida: cabelos longos e loiros, pele branca, olhos de um verde tão fundo que pareciam esmeraldas, vestido branco translúcido e, na cabeça, uma coroa de ouro cravejada de pérolas e pedras preciosas. O seu símbolo é a água, e tudo o que a lembra pode representá-la, de uma fonte a uma criatura marinha; o mais popular é o náutilo, o caracol do mar. Sua cor é o azul, qualquer azul, e hoje sobretudo o azul-marinho, o dos mares e dos rios.\n' +
+      'Como todos sabem quanto a vida depende dos frutos da água, quase todo habitante de Tagmar a respeita. Os navegantes que querem seguir no ofício lhe fazem oferendas para que ela não mande uma tempestade no seu turno no mar, e a veneram quase todos os que vivem em portos, na costa ou à beira de rios e lagos importantes. Os devotos mais fervorosos estão em Conti e em Porto Livre; neste último, o culto tem ganhado um traço mais guerreiro.\n' +
+      'A influência dela chega até os reinos do interior, sem saída para o mar. Secas longas e a falta de rios subterrâneos para irrigar são tidas como desagrado da deusa, e por isso os seus sacerdotes são respeitados em todo o continente.\n' +
+      'A Ordem de Ganis existe para levar a palavra da deusa e espalhar a sua fé por Tagmar, e ela tem grande orgulho desses filhos, que creem com fervor em cada palavra sua. A sede fica em Conti, a cidade de mais devotos. O culto se volta ao respeito ao mar e à preservação dos seres marinhos: a água é o princípio da vida, e para os fiéis Ganis é a mãe de tudo o que vive, até dos que se dizem filhos de outros deuses. Preservar a vida é doutrina fundamental.\n' +
+      'Os templos ficam em geral perto da costa e usam muito vidro, para que a vista do mar seja de todos. Em alguns há piscinas ou espelhos d\'água no centro, e o sacerdote preside o culto com os pés dentro da água.\n' +
+      'As sacerdotisas vestem togas amplas que cobrem o corpo todo, de azul mais escuro para as mais experientes e mais claro para as novas. Usam joias azuladas, violeta ou brancas, colares e pulseiras de conchas, pérolas e pequenas estrelas-do-mar. Dentro do templo andam sempre descalças, depois de lavar os pés à entrada.\n' +
+      'As doutrinas são quatro: proteção nos mares, respeito aos rios, lagoas e oceanos, busca da pureza da alma e bondade para com os viajantes.',
+
+    relacoes: [
+      { nome: 'Sevides',
+        texto: 'O irmão e companheiro, a quem ama muito. Quando ele, por razões que ninguém conhece, ficou estéril como as areias do deserto de Blirga, foi a Ganis que pediu ajuda, e ela se uniu a ele para que voltasse a ser fértil como as suas águas. Ela se enfurece com o pouco caso dele diante de assuntos maiores que a colheita, e grandes brigas agitam o céu quando ela lhe cobra uma postura mais ativa no Panteão.' },
+      { nome: 'Liris',
+        texto: 'A filha, com quem tem uma relação conturbada. Dizem que Liris herdou da mãe as mudanças bruscas de humor.' },
+      { nome: 'Quiris',
+        texto: 'O filho, a quem ama muito pela obediência. Ele, porém, sente pela mãe uma tensão que não sente pelo pai, pelo modo ríspido como ela trata Sevides e pelos humores com que trata os seres de Tagmar.' },
+      { nome: 'Maira',
+        texto: 'Foi a seu chamado que Ganis encheu de água o vazio entre as terras e formou os rios, os lagos e os oceanos. Respeita-a em muitos assuntos dos mortais, mas guarda opinião e interesses próprios.' },
+      { nome: 'Crezir e Blator',
+        texto: 'Agrada-lhes o lado irado da deusa. Crezir acredita ter, no fundo, algo em comum com ela.' },
+      { nome: 'Selimom e Crizagom',
+        texto: 'Preferem a face bondosa e serena de Ganis. Crizagom, porém, raramente a procura: não tem por dignas de atenção as criaturas dela, que em sua maioria não sabem julgar.' },
+      { nome: 'O Panteão',
+        texto: 'Com os demais deuses, a relação é estável e diplomática.' },
+      { nome: 'Vouxiz',
+        texto: 'A filha involuntária. Na guerra contra os titãs, Antredom engoliu às escondidas respingos do sangue de Ganis, e deles nasceu, no estômago do príncipe, a titã-segunda que herdou da deusa o poder sobre névoas e brumas. Vouxiz passou a devorar as ninfas e as enviadas de Ganis para tomar o seu poder; a deusa, com a ajuda de outros deuses, a amaldiçoou e a baniu para o Inferno. A rivalidade dura séculos.' },
+      { nome: 'Descendentes',
+        texto: 'Da união com Sevides nasceram Quiris e Liris, de beleza e doçura incomuns. No primeiro aniversário deles, Ganis criou as ninfas dos fios dourados dos próprios cabelos e as deu aos filhos como companhia.' },
+    ],
+
+    locais: [
+      { nome: 'Templo Costeiro', onde: 'Conti',
+        texto: 'O mais belo templo da deusa, erguido a pouca distância de uma praia rochosa e ligado ao oceano por um canal largo, por onde o mar entra todo dia. No primeiro andar, canais e pontes ligam ilhas de jardins tranquilos à entrada; no segundo, onde se fazem as liturgias, os fiéis deixam moedinhas nas fontes, e uma estátua de bronze da deusa, de várias vezes a altura de um homem, ergue-se de cada lado do salão. Uma cabeça de peixe de pedra verte sem parar uma cortina de água, passagem dos sacerdotes para o terceiro andar, cercado de muros e vedado a quem não é do templo. Ali, numa câmara de pedra dentro de um lago, as sacerdotisas fazem os ritos mais secretos nas noites de lua cheia.' },
+      { nome: 'Conti', onde: 'Conti',
+        texto: 'A cidade de mais devotos da deusa e sede da Ordem de Ganis. É ali a maior festa do Dia do Mar.' },
+      { nome: 'Porto Livre', onde: 'Porto Livre',
+        texto: 'O outro grande centro do culto, onde a fé em Ganis tem ganhado um traço mais guerreiro.' },
+      { nome: 'Dartel', onde: 'Dartel',
+        texto: 'Comuns antes do Cataclismo, as ninfas criadas dos cabelos da deusa hoje só se encontram ali.' },
+    ],
+
+    feriados: [
+      { dia: 1, mes: 2, nome: 'Dia do Mar',
+        texto: 'Os navegantes se reúnem no cais mais próximo e fazem oferendas a Ganis, pedindo perdão ou agradecendo tudo o que ela faz por eles. Diz-se que o dia vem sempre depois da primeira tempestade do solstício. Em Conti há grande celebração, com danças e bebida à farta.' },
+      { dia: 15, mes: 3, nome: 'Festa da Prosperidade',
+        texto: 'Em honra de Sevides e de Ganis, muito querida no litoral e nas terras à beira de grandes águas. No meio da manhã, os sacerdotes dos dois deuses levam o povo ao mar ou ao rio, entoando cânticos e preces ao casal celeste da fertilidade. Leva-se à água o que dão as lavouras e as criações, e leva-se água às plantações e aos pastos, sinal da união eterna de Sevides e Ganis.' },
+      { dia: 26, mes: 11, nome: 'Dia da Sobra',
+        texto: 'O dia em que os peixes do mar quase dobram, e os pescadores passam o dia inteiro pescando. Não era tão festejado antigamente; foram os sacerdotes de Ganis que incentivaram a festa. Há torneios de quem pega o maior peixe, o comércio também dobra, e o melhor vem no fim, quando as famílias dos pescadores se reúnem para a grande refeição.' },
+    ],
+
+    itens: [
+      { nome: 'Bastão das Tempestades',
+        texto: 'Um bastão de ouro com uma joia azul em cada ponta, que dá a quem o empunha poder sobre tempestades, furacões, mares e rios, e sobre a água em todas as suas formas.' },
+    ],
+  },
+{
+    slug: 'lena',
+    nome: 'Lena',
+    classe: 'deusa',
+    titulo: 'Prazer e Perfeição',
+    imagem: null,
+    // Fonte: deuses.pdf, págs. 51–57 (3.7 Lena); Blator, Crezir, Crizagom, Maira, Palier, Parom, Plandis e Selimom (relações);
+    // principes.pdf, Anasmadis e Fulvina.
+
+    prefacio: {
+      texto:
+        'Quase todas as noites, uma voz corria pelo sono dos Filhos de Lena: «Venham a mim, meus Filhos; liberem a vontade de seus corpos e viajem com a noite pelo doce mundo do prazer que lhes proporciono.» Só o fundo da alma a entendia. Do alto, a deusa olhava a intimidade dos casais, e os seus olhos cor de violeta brilhavam a cada prazer novo que encontrava.\n' +
+        'Crezir chegou por trás. Disse que aquilo era perda de tempo, que o que os mortais querem de verdade é o sangue dos semelhantes no chão de Tagmar, e que a filha só fazia aquilo para afrontá-la. Lena não tirou os olhos do oráculo. Respondeu que nem o guerreiro mais sanguinário aguenta lutar sem parar, nem vive sem festejar, e que quando ele dorme é ela quem está nos seus sonhos. Duvidava que algum fiel dela sonhasse com a mãe.\n' +
+        'Crezir ensaiou a réplica, mas Selimom chegou chamando a esposa para recebê-la com honras, e ela saiu queixando-se ao marido da filha impossível que os dois tinham feito. Lena os viu partir juntos, a fúria pelo braço da paz, e sorriu: ali estava a resposta à dúvida que a mãe lhe plantara. Voltou a olhar os seus Filhos, que celebravam mais uma noite em seu nome.',
+      fonte: 'Extraído de «O Livro dos Céus», de Pero Maltus — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Lena é a deusa do perfeccionismo, do prazer erótico e do prazer no trabalho. Quer a felicidade dos seres pela busca da perfeição, e a perfeição, para ela, é o belo: a beleza máxima é perfeita, e a perfeição máxima é bela. Só se chega a ela numa atividade que dê prazer aos dois lados. Por isso abençoa o trabalho bem feito e o amor feito com carinho e paixão, e abomina a guerra, que dá prazer a uns e dor a outros.\n' +
+      'Isso não a faz mansa. Buscar o belo obriga a enfrentar o que é corrupto, de armas na mão se preciso, e Lena é inimiga mortal dos demônios. Não conhece justo e injusto, valores que lhe parecem passageiros e mudam com o tempo e o lugar; pergunta só se o seu povo está feliz ou infeliz. Os fiéis a têm, por isso mesmo, pela mais justa dos deuses, e ela está entre os que mais andam perto dos seus, protegendo-os e mantendo-os na trilha.\n' +
+      'É paciente, de atitude e iniciativa, mas herdou da mãe um gênio que passa da calma à fúria quando algo a indigna. Defende o que pensa diante dos outros deuses, às vezes com dureza, sem perder a simpatia. Com os adoradores é vigilante e de um amor zeloso.\n' +
+      'Não distingue classe, riqueza, sexo ou raça: todos têm o direito de dar e receber prazer. Onde houver povo há Lena, seja qual for o deus da terra, e os mestiços são sempre bem recebidos entre os seus. Dos ofícios, os bardos são os que mais se reconhecem nela. Ainda assim, há quem a compare aos demônios, como tentadora dos puros: os que veem no trabalho penoso a sina dos pobres, os senhores de escravos, os que usam o sexo como arma e os que o têm por pecado ou só por meio de gerar filhos.\n' +
+      'Quem a viu a descreve de jeitos diferentes, mesmo quando muitos a viam juntos, mas sempre de uma beleza além da medida dos mortais. Nas aparições veste um manto vermelho, delicado e quase transparente; os olhos são sempre violeta, e um perfume sedutor fica no ar. Os fiéis evitam esculpi-la ou pintá-la, por vergonha de figurar a perfeição com coisa imperfeita, e criticam duramente quem tenta. Preferem um abraço, um beijo e uma rosa posta em algum canto da obra, que quer dizer «Lena está presente». Já os artistas de fora a esculpem com frequência, sensual e rica em detalhes, a mão direita erguida segurando uma rosa.\n' +
+      'Seu símbolo é uma rosa dentro de um círculo. A rosa, flor de espinhos, é ao mesmo tempo a beleza e a defesa do que é perfeito, belo e bom; o círculo é a perfeição. Sua cor é o rosa, do feminino e da alegria das festas.\n' +
+      'É razoavelmente popular, e cada vez mais: até os fiéis de outros deuses, em algum momento da vida, se consolam na sua doutrina. Nos reinos que cultivam o prazer e a amizade, dentro e fora das fronteiras, os seus sacerdotes são aliados poderosos; para os belicosos e escravagistas, são uma pedra no sapato.\n' +
+      'Os caminhos da fé são vários: há vertentes que põem à frente o prazer no trabalho, outras o prazer erótico, outras o equilíbrio dos dois, e os ritos mudam conforme o sacerdote. Uns percorrem o mundo como missionários; outros protegem o povo para lhe garantir o direito sagrado de gozar a vida. Os fiéis vão com fervor às reuniões de toda semana e louvam a deusa com canto, dança, música, poesia, escultura e pintura. Costuma-se chamar ao sacerdócio as beldades e os artistas de talento da comunidade.\n' +
+      'Há bardos seus que, na busca do belo, pecam pelo virtuosismo e cobram dos colegas o mesmo apuro. Encantam todo mundo, mas os outros bardos os acham arrogantes, e eles se julgam vítimas de inveja.\n' +
+      'Os templos imitam em pequeno o Jardim das Rosas, o grande templo de Porto Livre. Não há veste da ordem: cada fiel se veste segundo a sua classe, a sua terra e o seu modo de vida, mas sempre em busca do belo.\n' +
+      'As doutrinas do culto são estas: amar; trazer a felicidade pela perfeição e pelo belo, numa atividade de prazer mútuo; entender e evitar os opostos — a insensibilidade, a escravidão e a corrupção; louvar o belo, pois acima de toda beleza está a de Lena; ser perfeccionista em tudo; buscar um trabalho guiado pelo prazer e não pelo poder; escolher as melhores companhias; e ter compaixão de quem não conhece a alegria dessas dádivas.',
+
+    relacoes: [
+      { nome: 'Crezir',
+        texto: 'A mãe, de quem herdou o gênio forte. Lena queria a sua aprovação, mas Crezir, que a ama muito, discorda do caminho da filha e a critica, muitas vezes com desdém; as discussões entre as duas não têm fim. Às vezes, raramente, fazem as pazes.' },
+      { nome: 'Selimom',
+        texto: 'O pai, deus da paz e do amor, a quem recorre pela sua sabedoria e luz e a quem respeita muito, embora o ache brando demais. Selimom a tem por filha querida, mas irresponsável e travessa.' },
+      { nome: 'Plandis',
+        texto: 'O irmão e o grande companheiro no Panteão. Os dois agem juntos no mundo dos mortais muitas vezes, e riem depois das próprias travessuras. Plandis sente ciúme quando ela dá atenção a Parom.' },
+      { nome: 'Parom',
+        texto: 'Parom a ama, e todos sabem. Lena diz vê-lo como um grande amigo, quase um irmão, que partilha alguns dos seus ideais; mas os sacerdotes de Parom falam de um amor de milênios, e foi ele quem fez, a pedido dela, o manto que a deixa andar sem ser vista por deus nenhum — para surpreendê-lo, diz ela. Palier, o pai dele, afirma gostar do romance, mas os olhos dizem outra coisa. Foi Parom quem lhe deu o Cálice de Lena.' },
+      { nome: 'Blator',
+        texto: 'O avô. Segundo a seção do próprio Blator, há entre os dois um amor que os outros deuses desconhecem, de encontros escondidos no salão de Goldonor; daí, dizem, a antipatia entre ele e Parom.' },
+      { nome: 'Cambu',
+        texto: 'Cambu é apaixonado por ela, mas Lena desaprova o rumo de muitos seguidores dele: mercadores que esgotam os empregados até lhes tirar o gosto pelo trabalho, e até os escravizam. O que mais a enoja são os que fazem do prazer moeda de troca, no comércio ou na diplomacia. Ela não condena quem vive dos prazeres; condena o prazer que serve ao dinheiro e não ao gozo dos dois lados. Mesmo assim, faz questão de ser boa companhia, o que lhe abre portas para interceder pelos seus.' },
+      { nome: 'Crizagom',
+        texto: 'O tio, por quem sente uma admiração que às vezes beira a paixão escondida. A seção de Crizagom conta outra coisa: que os dois evitam se encontrar, pela intransigência dele.' },
+      { nome: 'Sevides, Liris e Quiris',
+        texto: 'Vê sabedoria nos conselhos de Sevides e tem estima especial pelos filhos dele, Liris e Quiris, com quem ela e Plandis passam o tempo. Liris a procura para aprender a fundo a arte da sedução.' },
+      { nome: 'Maira',
+        texto: 'Vê Lena e Plandis como crianças brincalhonas, flagradas muitas vezes em travessuras com os Filhos dos deuses. Dizem as más línguas que Maira copiou o corpo de Lena ao criar as ninfas.' },
+      { nome: 'O Panteão',
+        texto: 'Com quase todos os deuses é simpática e amiga; as exceções são a mãe e Cambu.' },
+      { nome: 'Anasmadis',
+        texto: 'A Donzela das Delícias, sua arqui-inimiga entre os demônios: usa o vício, a culpa e o arrependimento onde Lena dá prazer sem culpa. Consome almas para se manter mais sedutora que a deusa, e corromper um sacerdote de Lena é a sua maior satisfação. Seu símbolo é uma rosa negra num triângulo de lados desiguais, a imperfeição.' },
+      { nome: 'Fulvina',
+        texto: 'A demônia tentou seduzir Parom e foi recusada, porque ele amava Lena. Escolheu de propósito o dia da Noite dos Prazeres para o seu próprio culto, em afronta à deusa.' },
+      { nome: 'Descendentes',
+        texto: 'Não tem descendentes conhecidos.' },
+    ],
+
+    locais: [
+      { nome: 'Jardim das Rosas', onde: 'Porto Livre',
+        texto: 'O templo principal e o lugar mais sagrado da ordem, tido por uma das maravilhas do mundo pela grandeza, pela arquitetura, pela decoração e pelos jardins. Fundou-o Alina, a seguidora que a própria deusa escolheu para continuar a sua obra quando deixou o mundo físico; o desenho é do mestre de obras Alkaism, sábio em geometria.' },
+      { nome: 'Labirinto de Roseiras', onde: 'Cordilheira da Navalha',
+        texto: 'Chega-se a ele pela Trilha das Pétalas, que rasga a cordilheira. Dentro estaria a única imagem verdadeira de Lena, feita de roseiras nascidas de uma lágrima que a deusa derramou por pena de uma serva. Dizem que quem achar a estátua pode pedir o prazer que quiser.' },
+      { nome: 'Montes dos Seios Divinos', onde: 'Perto de Fontenova',
+        texto: 'Dois montes idênticos em forma de seios. Acredita-se que ganharam essa forma quando a deusa pisou o chão de Tagmar pela primeira vez.' },
+      { nome: 'Ludgrim', onde: 'Ludgrim',
+        texto: 'Uma das terras onde a religião mais atua.' },
+      { nome: 'Calco', onde: 'Abrasil',
+        texto: 'Outro dos lugares de culto mais forte. Abrasil é também a terra da Festa da Carne.' },
+      { nome: 'Verrogar', onde: 'Verrogar',
+        texto: 'Sacerdotes de Crezir e de Lena disputam ali o coração do povo; junto à nobreza verrogari, raramente se vê um ou outro.' },
+    ],
+
+    feriados: [
+      { dia: 11, mes: 2, nome: 'Festa da Carne',
+        texto: 'Celebra o prazer da união da carne e, por isso, a família, sobretudo em Abrasil. Todas as gerações de uma casa se reúnem para assar o boi mais viril e bonito que puderem comprar; entre os pequeninos, amigos de um bom banquete, a festa ganha ares de grandeza. O símbolo são dois bois de ouro frente a frente, em pose de combate, com uma flor dourada entre eles: força e fertilidade. Dizem que o cheiro da carne sobe aos céus e alimenta também a deusa.' },
+      { dia: 1, mes: 7, nome: 'Noite dos Prazeres',
+        texto: 'Marca o começo do inverno e vai de um nascer do sol ao outro, numa quermesse sob uma grande lona armada em campo aberto, com a estátua de um guerreiro ajoelhado diante de uma rosa ao centro. Até o anoitecer faz-se a troca de prazeres: cada um ensina e presenteia o que sabe e gosta, e o sacerdote ensina um remédio ao guerreiro, que lhe ensina a afiar a espada. As barracas de comida e bebida são famosas em toda Tagmar. No fim da tarde, os sacerdotes julgam as melhores refeições, doces e salgadas. À noite todos recebem máscaras, para que ninguém seja mais que ninguém diante de Lena: há dança, malabarismo, canto e teatro em volta da rosa, e quem quiser se recolhe às tendas vermelhas. Ninguém pode ser forçado a nada; dizem os Filhos de Lena que «o sim é sim, e o não é não». Nas cidades sem praça, a festa vai para a casa do fiel que comportar mais gente, e cada um leva um prato, bebida e flores.' },
+      { dia: 12, mes: 10, nome: 'Festa dos Amantes',
+        texto: 'Encerra o mês da Rosa, e só os fiéis adultos tomam parte. Diante da estátua de dois amantes que seguram a mesma rosa armam-se tendas brancas e rosadas, e ali se juntam os sacerdotes da cidade e os tonéis de água. O sacerdote mais graduado fala das vontades da deusa; vem então a purificação, em que todos bebem dos tonéis enquanto o clero canta o amor de Lena, e os casais seguem para as tendas brancas. Os que ficaram sós vão, mascarados, para as tendas rosadas, e ninguém fica sozinho: quem sobra é levado pelos próprios sacerdotes. Muitos casais saem dali. A festa dura até o sol nascer. Onde a ordem é pequena, os homens enfeitam a porta com véu rosa, se solteiros, ou branco, se casados, e as solteiras, de máscara, visitam uma casa de véu rosa.' },
+    ],
+
+    itens: [
+      { nome: 'Tiara Rósea',
+        texto: 'Cravejada de diamantes vermelhos, foi usada por Lena e deixada à sua ordem. Quem a põe muda à vontade o próprio feitio: rosto, cor da pele e dos olhos, beleza.' },
+      { nome: 'Cálice de Lena',
+        texto: 'Um cálice dourado, entalhado de rosas e cravejado de rubis, presente de Parom que Lena usou na sua forma mortal. Quem bebe dele trabalha ou faz qualquer esforço por seis horas sem se cansar.' },
+    ],
+  },
+  {
+    slug: 'liris',
+    nome: 'Liris',
+    classe: 'deusa',
+    titulo: 'Colheita',
+    imagem: null,
+    // Fonte: deuses.pdf, págs. 59–62 (3.8 Liris); Ganis, Maira, Quiris e Sevides (relações e concepção);
+    // principes.pdf, Antredom.
+
+    prefacio: {
+      texto:
+        'No segundo ciclo, Magis era famosa pelo grande teatro, pelas festas de todo ano e pelos vinhedos que davam os melhores vinhos da região. No centro da cidade, onde as festas aconteciam, ficavam a estátua de pedra de Liris e o templo onde o povo a venerava.\n' +
+        'O governador Henris viu nas festas um jeito fácil de encher os cofres, e demonistas de Morrigalti o seduziram sem esforço. A estátua da deusa foi levada para uma praça distante e esquecida, e no lugar dela ergueram a de Morrigalti. Os sacerdotes de Liris protestaram e foram postos para fora da casa do governador.\n' +
+        'Tempos depois, muitos viram uma névoa fantasmagórica atravessar a cidade de noite, vagar pelos campos e sumir ao raiar do dia. Na manhã seguinte, tudo o que Henris tocava no seu desjejum apodrecia na mão. Um oráculo lhe disse quem o amaldiçoara: a própria Liris, coberta de ira. Ele mandou devolver a estátua ao seu lugar e suplicou o perdão, mas nada melhorou. Com toda a comida que lhe podiam servir e todo o ouro para comprá-la, morreu de fome na semana seguinte. Ninguém voltou a irritar a deusa.',
+      fonte: 'Extraído de «A Formação do Mundo», Livro de Maudi — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Quando o mundo já estava partido em água, terra e céu, mas ainda sem vida e em silêncio, três figuras surgiram. Ao tocarem a água, ela borbulhou e a vida começou pequena; ao tocarem a terra, veio um tremor e uma onda de calor e fertilidade, e brotaram as plantas. Por séculos encheram o mundo de bichos de toda forma, até que os demais deuses desceram e criaram os seus Filhos. Entre as três figuras havia uma bela mulher feita de fogo e luz, com uma foice dourada como o sol, que tornava próspero tudo o que tocava. Quando os Filhos dos deuses se aproximaram, ela os olhou com cuidado e disse o seu nome: Liris.\n' +
+      'Liris é a deusa da colheita das plantas e dos frutos, a que traz a fartura à mesa. Ensina a colher cada coisa na sua estação e desperta nos seguidores o amor pela lavoura e a sabedoria da natureza que gira em ciclos: tudo amadurece na hora certa, e é preciso esperar.\n' +
+      'É o avesso do irmão Quiris: onde ele é calado, ela é efusiva e alegre, mas tem mudanças bruscas de humor, que parece ter herdado da mãe, Ganis. Como o irmão e o pai, quer acima de tudo a paz e a natureza. E a sua cólera é a mais perigosa do Panteão, porque traz morte e devastação a tudo o que vive; pobre de quem a despreza ou a esquece.\n' +
+      'É pintada como uma moça bela e jovem, presente em toda colheita; a sua força está em quem carrega os fardos de sementes e as sacas de frutos, e nas camponesas que cuidam da roça e veem os frutos nascer. Representa o alimento, o ciclo das safras e a guarda do que se colheu. Seu símbolo mais conhecido é a foice que corta os cereais; menos comum, uma foice estilizada. Sua cor é o lilás.\n' +
+      'A sua fé, como a do pai e do irmão, chega a todos os reinos, sobretudo às terras de lavoura, e todo aquele que cria ou planta tem a bênção dela. É mais querida entre os pobres, os lavradores e os pastores. Nos reinos de vocação agrária os seus sacerdotes pesam muito, pois a presença deles pode trazer fartura a todos, ou miséria aos infiéis.\n' +
+      'Os sacerdotes abençoam as colheitas e a guarda dos grãos e legumes, e também as refeições dos dias de festa. O templo fica sempre à esquerda do de Sevides, como a filha fica ao lado do pai, e é feito do mesmo: pedra, tijolo cozido ou madeira. Na entrada arde uma pequena chama, onde se lançam grãos para alimentar os deuses. Diante do altar ficam grandes jarros com as sementes do lugar, ofertas dos lavradores; no plantio seguinte vão para o templo de Quiris, que as reparte entre os agricultores para abençoar as lavouras.\n' +
+      'Os sacerdotes vestem algodão cru, com uma faixa no ombro esquerdo presa por um cordão de linho lilás; a faixa é estampada de frutos e pequenas flores. O grau se conta pelos nós do cordão de linho da cintura, no máximo cinco. Calçam chinelos de couro curtido e levam um cesto para as colheitas, um incensório e uma lâmina que, nas cerimônias, figura o gesto de colher.\n' +
+      'As doutrinas do culto são quatro: zelar pela colheita, buscar a abundância, contribuir para a paz dos povos e guardar o equilíbrio da vida.',
+
+    relacoes: [
+      { nome: 'Quiris',
+        texto: 'O irmão, deus do plantio, que anda sempre um pouco atrás dela, seguindo-a com os olhos. Nele Liris acha paz e sossego, e só ele a acalma quando se zanga. Dizem que o amor entre os dois é maior que o de irmãos; a seção de Quiris confirma um amor de homem, correspondido e escondido dos deuses.' },
+      { nome: 'Sevides',
+        texto: 'O pai. Liris o respeita, mas acha que ele age sempre devagar demais. Sevides tem pelos filhos um afeto que vai além do comum: os três são partes de um mesmo ciclo. Ela ocupa o lado esquerdo do pai; Quiris, o direito.' },
+      { nome: 'Ganis',
+        texto: 'A mãe, de quem herdou as mudanças de humor. A relação é instável, de discussões sem fim, e cada encontro vira campo de batalha. Conta-se que, no primeiro aniversário dos gêmeos, Ganis criou as ninfas dos fios dourados do próprio cabelo e as deu de presente aos filhos.' },
+      { nome: 'Cambu',
+        texto: 'Há alguns séculos tentou seduzi-la, sem sucesso, e se meteu em grandes problemas. Desde então há mal-entendidos entre os dois, e Quiris lhe guarda indisposição.' },
+      { nome: 'Lena',
+        texto: 'Uma amiga, com quem Liris busca aprender a fundo a arte da sedução. Lena e Plandis passam o tempo com ela e Quiris.' },
+      { nome: 'Maira',
+        texto: 'Com Sevides, Liris e Quiris, ajudou Maira a povoar as terras e as águas de bichos e plantas antes da chegada dos Filhos. Maira os tem pelos amigos mais prezados na tarefa de guardar o equilíbrio da vida.' },
+      { nome: 'O Panteão',
+        texto: 'É cordial com todos. Aparece quase sempre ao lado do pai e do irmão.' },
+      { nome: 'Antredom',
+        texto: 'O príncipe da fome, da miséria e da avareza odeia a tríade da agricultura. Manda pragas e enxames de insetos famintos devastar as lavouras antes da colheita.' },
+      { nome: 'Morrigalti',
+        texto: 'Foi a estátua de Morrigalti que tomou o lugar da de Liris em Magis, e o governador que a ergueu morreu de fome.' },
+      { nome: 'Descendentes',
+        texto: 'Não tem descendentes.' },
+    ],
+
+    locais: [
+      { nome: 'Nascente do Rio Sevides', onde: 'Aos pés de uma grande árvore que se divide em três',
+        texto: 'Acredita-se que as águas do Rio Sevides dão às terras da bacia a sua fertilidade, e camponeses de toda Tagmar creem que um pouco delas, regado na seca ou na praga, faz a terra voltar a dar safra. A trezentos passos da nascente, na margem esquerda, um grande platô de pedra traz incrustado no chão, em meia-lua, o símbolo de Liris: um dos lugares mais sagrados da ordem, onde os altos sacerdotes celebram as grandes cerimônias.' },
+      { nome: 'Magis', onde: 'Cidade do segundo ciclo',
+        texto: 'Cidade de teatro, festas e vinhedos, onde a estátua da deusa ficava no centro, junto ao templo. Ali o governador Henris a trocou pela de Morrigalti e morreu de fome amaldiçoado.' },
+      { nome: 'Dartel', onde: 'Dartel',
+        texto: 'O único lugar onde ainda se acham ninfas, o presente de Ganis aos gêmeos; antes do Cataclismo eram comuns.' },
+    ],
+
+    feriados: [
+      { dia: 30, mes: 6, nome: 'Festa da Colheita',
+        texto: 'O dia é simbólico, porque cada planta tem a sua hora de ser colhida, e a festa se repete a cada colheita feita. Nesse dia as plantações são abençoadas com fartura. Nas fazendas há danças e, à noite, derrama-se uma mistura de leite com vinho de qualquer fruta diante da porteira e em parte do campo cultivado. Nos armazéns, penduram-se atrás das portas pequenos objetos de madeira com o símbolo da deusa.' },
+    ],
+
+    itens: [
+      { nome: 'Aksas',
+        texto: 'O amuleto sagrado dos altos sacerdotes, capaz de duplicar a produção: sacas de cereal se multiplicam, e uns poucos campos matam a fome de milhares; mal usado, destrói a colheita ou mata os animais. Está enterrado num templo de Liris, guardado em segredo pelos membros mais altos da ordem. Muitos dizem que, unido a Hudrar, o amuleto de Quiris, abriria os portões celestiais e expulsaria de Tagmar todos os demônios, mas talvez à custa de uma nova era que apagaria todas as espécies vivas.' },
     ],
   },
   {
@@ -533,6 +859,100 @@ const ENTIDADES = [
         texto: 'Também chamado Livro das Sagradas Escrituras: um tomo enorme com toda a história do mundo desde o Primeiro Ciclo, deixado por Palier aos elfos para que o guardassem. Quando os mortais se afastaram dos deuses e os deuses vieram a Tagmar trazendo o Cataclismo, o livro se perdeu. Só alguns pergaminhos de sacerdotes do Segundo Ciclo ainda o citam como a maior relíquia que um servo poderia guardar.' },
     ],
   },
+{
+    slug: 'parom',
+    nome: 'Parom',
+    classe: 'deus',
+    titulo: 'Artífices',
+    imagem: null,
+    // Fonte: deuses.pdf, págs. 75–78 (3.11 Parom); Blator, Cambu, Crezir, Crizagom, Lena, Maira, Palier, Plandis e Selimom;
+    // principes.pdf, Fulvina (3.6), Heldrom (3.7) e Seinoniz (3.11).
+
+    prefacio: {
+      texto:
+        'O vento entrava pela grande janela da oficina, e o frio era bom nas costas suadas de quem trabalhava desde cedo. A cada vez que o braço subia, o sol batia no martelo dourado; a cada vez que descia sobre o ferro em brasa, saltavam fagulhas e o som do golpe corria longe. O dia já se punha quando o trabalho chegou ao fim. Do ferro e da magia nascera um martelo de guerra digno dos deuses, belo, resistente e à altura de quem o portaria.\n' +
+        'A porta se abriu em meio à fumaça da forja, e entrou Blator, seguido do filho Crizagom. O deus da guerra tomou o martelo, examinou-o com cuidado, golpeou o ar contra um inimigo imaginário e sorriu, segurando-o com as duas mãos. Crizagom, que olhava de longe, disse: «Seu pai tem razão em ter orgulho de ti. Tão bela arma somente poderia ter sido feita por um deus.» Parom ergueu da tina o rosto e os cabelos molhados e respondeu que era bom saber que o trabalho agradara.\n' +
+        'Blator voltou os olhos para aquele que bem poderia ter sido um grande guerreiro. Não disse nada. Virou as costas e saiu com o martelo; Crizagom despediu-se com um aperto de mão. A oficina voltou ao silêncio, e Parom foi até a janela, de onde se vê todo o reino celestial. O vento o tocou de novo, o fogo da forja tremeu, e ele se voltou para o trabalho seguinte.',
+      fonte: 'Extratos do Livro de Maudi — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Parom é filho das duas divindades mais poderosas do Panteão, a rainha Maira, deusa da natureza, e o rei Palier, deus da magia. Seu dom une as duas heranças: transforma a matéria bruta do reino da mãe em objetos de fino trato e grande valor, e lhes dá a força mística que vem do pai. Seu peso entre os deuses não vem só do sangue, mas dos trabalhos que fez a serviço de todos. Saíram da sua forja as sandálias dos ventos de Cambu, o punhal com que Plandis matou o titã Cronus, as correntes que prendem Seinoniz e os portões de aço divino que selaram as entradas da Agonia.\n' +
+      'Nos tempos antigos ensinou aos Filhos dos deuses a nobre arte de moldar a matéria e fazer objetos. Os alunos mais aplicados foram os anões, que seguiram e aprimoraram as suas técnicas até se tornarem grandes artífices.\n' +
+      'É trabalhador e perfeccionista em tudo. Antes de começar uma obra, passa horas observando o material, com a paciência de quem quer captar a alma do objeto antes de lhe dar a forma que deseja. Sabe o peso da linhagem que carrega e procura estar a par dos assuntos do reino celeste; muitas vezes senta-se sozinho na oficina e pensa nessas responsabilidades. Nas horas vagas é visto com os pais ou com Lena nos grandes jardins do palácio, e nas festas dos deuses a sua presença é certa: passa horas conversando com os companheiros.\n' +
+      'É pintado como um homem jovem de dorso nu, cabelos compridos e barba rente, em roupas de forja ou de oficina, sempre sujo do trabalho. A aparência é rude, mas os modos são educados e atenciosos. Seu símbolo é a bigorna, desenhada como um trapézio com a face menor por base; nas versões mais rebuscadas, uma mão suja de barro aparece à frente dela, e às vezes basta uma mão tecendo ou moldando. Sua cor é o cinza.\n' +
+      'Não há vila, aldeia ou cidade de Tagmar sem um santuário particular ou um templo público de Parom. É amado em todo o continente, pelo sangue e pelo apelo prático: mesmo os mais humildes buscam nele inspiração para o trabalho duro. Entre os que vivem do suor e nos reinos que vivem do comércio e do ofício, é dos deuses mais adorados, pois se diz que, sem o cuidado e a bênção de Parom, os produtos saem malfeitos e perdem valor no mercado.\n' +
+      'A religião prega a paciência, o respeito, o perfeccionismo e o amor a todas as coisas. Num mundo em que tudo passa depressa, os sacerdotes levam palavras de carinho e de transformação: a carne é só morada provisória, e todos, apesar das diferenças, foram moldados pelo mesmo amor dos deuses. A forma verdadeira de cada um se faz no amor aos pais celestes e aos irmãos em vida, na busca da felicidade e na mudança interior em favor do bem.\n' +
+      'Os templos são de grande beleza. As paredes são pintadas e trazem em alto-relevo objetos do dia a dia e ferramentas de artesão, e o laranja forte das fachadas os destaca das construções vizinhas. Do alto da abóbada sobe uma torre central com um sino de prata, que chama os fiéis à oração da tarde. O altar fica de costas para o norte, e à frente dele há sempre uma urna de madeira para pequenas oferendas ou objetos que lembrem a graça alcançada. Nas casas e oficinas de artífices há sempre um pequeno santuário, com oferendas que vão de montinhos de argila a flores; nos grandes centros de comércio, um santuário no alto das vias principais pede prosperidade para quem ali trabalha.\n' +
+      'Os sacerdotes vestem linho branco com detalhes em prata, e uma fita cinza na cintura marca o grau de cada um na ordem. Usam sandálias ou botas de couro e levam uma pequena lanterna, a luz de Parom que leva conhecimento aos ignorantes.\n' +
+      'As doutrinas são cinco: a paciência com o próximo, o cuidado e o perfeccionismo no trabalho, a atenção à beleza do mundo, a paz entre os povos irmãos e a transformação em favor do bem.',
+
+    relacoes: [
+      { nome: 'Palier',
+        texto: 'O pai, a quem tem grande amor e respeito. Os dois têm conversas longas e às vezes exaustivas sobre os assuntos mais diversos, e Parom muitas vezes discorda dele com veemência. Foi de uma dessas conversas, com Maira presente, que Palier tirou para os elfos o dom de trabalhar com perfeição os elementos da natureza.' },
+      { nome: 'Maira',
+        texto: 'A mãe afetuosa que a tudo o atende e o trata com mimos, como se ele ainda fosse criança.' },
+      { nome: 'Lena',
+        texto: 'Um amor que já dura milênios. A pedido dela, Parom fez um manto mágico que a deixa andar sem ser vista por nenhum deus; diz ela que é para surpreendê-lo sempre que se aproxima. Foi dele também o cálice dourado que ela usou na forma mortal.' },
+      { nome: 'Blator',
+        texto: 'Há grande tensão entre os dois, e o motivo principal é o amor de Parom por Lena. Parom suspeita que haja nisso também despeito pela sua posição de filho de quem é, ou inveja do respeito que conquistou entre os anões, os filhos de Blator. Ainda assim, foi da sua forja que saiu um martelo de guerra que o deus da guerra levou nas mãos.' },
+      { nome: 'Crizagom',
+        texto: 'Uma amizade singular. Para quem olha do lado de Crizagom, a relação parece apenas não ser hostil.' },
+      { nome: 'Cambu',
+        texto: 'Cambu tem com ele a amizade de um irmão que nunca teve. Foram de Parom as sandálias dos ventos que levam o mensageiro a qualquer lugar, e as correntes místicas com que ele prendeu Seinoniz.' },
+      { nome: 'Plandis',
+        texto: 'Sente ciúme quando a irmã, Lena, dá atenção especial a Parom. Foi com um simples punhal feito por Parom que Plandis matou o titã Cronus.' },
+      { nome: 'Selimom',
+        texto: 'Amigo de longas conversas, como de Palier e de Cambu.' },
+      { nome: 'Crezir',
+        texto: 'Acha Parom calado demais.' },
+      { nome: 'O Panteão',
+        texto: 'Com os demais deuses mantém uma relação cordial e amiga: respeita a todos e é respeitado.' },
+      { nome: 'Fulvina',
+        texto: 'A princesa da vaidade tentou seduzi-lo e foi rejeitada, porque ele amava Lena. Odeia todos os deuses, e Parom acima de qualquer outro, pela perfeição técnica, pelo trabalho árduo e pela capacidade de criar; há quem veja nesse ódio uma velha paixão obsessiva. Os seguidores de Parom estão entre os que ela mais cobiça: enche-os de soberba e presunção e os vê cair pela própria vaidade.' },
+      { nome: 'Seinoniz',
+        texto: 'Preso pelas correntes místicas que Parom forjou, o Senhor das Correntes lhe guarda ódio mortal, como a Cambu.' },
+      { nome: 'Heldrom',
+        texto: 'Quando o Caído foi lançado nas entranhas da Agonia com os demônios originais, foram portões de aço divino forjados por Parom que selaram as entradas.' },
+      { nome: 'Descendentes',
+        texto: 'Não tem descendentes, apesar do longo amor com Lena.' },
+    ],
+
+    locais: [
+      { nome: 'A oficina de Parom', onde: 'Morada dos deuses',
+        texto: 'A forja do deus, com uma grande janela de onde se vê todo o reino celestial. Ali nasceu o martelo de guerra que Blator levou consigo.' },
+      { nome: 'Blur', onde: 'Blur',
+        texto: 'O reino dos anões é tido por sagrado pela ordem. Dizem que Parom o visita sempre na forma de um anão, para ver a beleza das suas cidades e o cuidado com que esse povo faz os seus objetos.' },
+      { nome: 'Abadom', onde: 'Abadom',
+        texto: 'Um dos três reinos em que a ordem tem mais influência; os sacerdotes gozam de grande prestígio junto ao povo e às elites.' },
+      { nome: 'Acordo', onde: 'Acordo',
+        texto: 'Outro dos reinos de maior influência da ordem, onde os sacerdotes são muito respeitados pelos poderosos.' },
+      { nome: 'Plana', onde: 'Plana',
+        texto: 'O terceiro dos reinos de maior influência da ordem, onde o comércio e o ofício caminham juntos.' },
+    ],
+
+    feriados: [
+      { dia: 13, mes: 4, nome: 'Festival da Purificação de Parom',
+        texto: 'Nas grandes praças de todas as cidades e vilas, os moradores armam pequenas barracas e expõem os objetos que fizeram com as próprias mãos. Escolhem-se os mais belos, que são doados à ordem; os demais são vendidos, e de metade a quatro quintos do apurado vai para os sacerdotes. Todos os produtos recebem a bênção, e os sacerdotes visitam as oficinas para abençoá-las mais uma vez.' },
+      { dia: 24, mes: 6, nome: 'Festa dos Artífices',
+        texto: 'Dia muito festejado no comércio. Os sacerdotes fazem uma grande peregrinação de oficina em oficina e de loja em loja, levando a bênção e a prosperidade de Parom aos mercadores. O dia inteiro ofertam-se ao deus jarrinhos de argila e colares, queimados em grandes jarros de ferro diante de um altar.' },
+    ],
+
+    itens: [
+      { nome: 'Relíquias de ferro',
+        texto: 'Ferramentas de ferro muito antigas, sem valor pelo material e sem poder mágico algum. A ordem as guarda como sagradas porque se crê que Parom as usou quando andou pela terra.' },
+      { nome: 'Manto de Lena',
+        texto: 'Um manto mágico que deixa a deusa andar sem ser vista por nenhum deus. Ela diz que o pediu para sempre surpreender Parom quando se aproxima dele.' },
+      { nome: 'Sandálias dos ventos',
+        texto: 'Levam Cambu a qualquer lugar tão depressa quanto o pensamento. Foi com elas que o mensageiro desceu ao mundo para cumprir a sentença do Cataclismo.' },
+      { nome: 'Correntes místicas',
+        texto: 'A obra-prima com que Cambu prendeu Seinoniz depois de feri-lo na coxa. O Senhor das Correntes nunca perdoou nenhum dos dois.' },
+      { nome: 'Punhal de Plandis',
+        texto: 'Um punhal simples que Palier e Maira entregaram a Plandis para enfrentar o titã Cronus. Com ele o deus louco abriu o pescoço do senhor do tempo.' },
+      { nome: 'Cálice de Lena',
+        texto: 'Um cálice dourado, entalhado de rosas e cravejado de rubis, presente de Parom que Lena usou durante a sua forma mortal.' },
+    ],
+  },
   {
     slug: 'plandis',
     nome: 'Plandis',
@@ -608,6 +1028,232 @@ const ENTIDADES = [
         texto: 'Ninguém conhece todos os seus poderes; quem a veste sofre alucinações e ilusões de toda sorte. Descobriu-se que causa delírios insuportáveis a espíritos malignos e demônios, e por isso a ordem a usa para livrar as pessoas deles.' },
       { nome: 'Anel das Habilidades',
         texto: 'Um anel de ouro que dá ao portador grande capacidade em um dos seus atributos do corpo ou da mente.' },
+    ],
+  },
+  {
+    slug: 'quiris',
+    nome: 'Quiris',
+    classe: 'deus',
+    titulo: 'Plantio e Fertilidade',
+    imagem: null,
+    // Fonte: deuses.pdf, págs. 86–89 (3.13 Quiris); Cambu, Ganis, Lena, Liris (Aksas), Maira e Sevides;
+    // principes.pdf, Antredom (3.2).
+
+    prefacio: {
+      texto:
+        'Era manhã de sol nos campos a leste de Franis. A estação do plantio se aproximava, e de toda parte chegavam sacos de grãos para a bênção; os sacerdotes de Quiris começavam a cerimônia com cantos e oferendas de sementes. Fazia anos que Franis e Gamilda se enfrentavam em saques a caravanas pelo domínio das rotas dos tecidos do norte. Os generais de Gamilda escolheram o mês que antecede a colheita, quando os celeiros da cidade estão baixos, e mandaram os cavaleiros à frente das tropas e das máquinas de cerco.\n' +
+        'Tomados de fúria, os cavaleiros não pouparam camponeses nem sacerdotes. O templo foi saqueado, todos foram mortos, os grãos roubados e o resto queimado. Então Quiris lançou a sua maldição sobre Gamilda: enquanto a cidade e o seu povo existissem, nada cresceria nas suas terras. As sementes não germinaram mais, os animais deixaram de dar cria, e os moradores viram nascer a última criança.\n' +
+        'O cerco de Franis durou só quatro meses: a fome em Gamilda levantou o povo contra o governador, e as tropas voltaram para contê-lo. Franis semeou de novo os campos, enterrou os mortos, reergueu o templo e festejou a libertação junto com a colheita. Gamilda gastou o tesouro em grãos que não brotavam, esvaziou-se e virou deserto. Morto o último habitante, a terra ficou anos sem ninguém, até que, à sombra das ruínas, uma pequena planta começou a crescer.\n' +
+        'Estava decretado o fim da maldição de Quiris.',
+      fonte: 'Extraído de «A Formação do Mundo», Livro de Maudi — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Quiris é o deus do começo da vida, do momento em que a existência dá os primeiros traços. Quando o mundo já estava dividido em água, terra e céu, e nele não havia bicho nem planta, três figuras surgiram do silêncio. Ao tocarem a água, ela borbulhou e deu formas pequenas de vida, depois maiores; ao tocarem a terra, correu uma onda de calor e fertilidade, e brotaram as primeiras plantas. Uma dessas figuras, feita de luz e de fogo, enfiava a mão numa pequena sacola, e dos seus dedos saíam raios que davam vida a tudo o que tocavam. Diante do pai, apresentou-se aos Filhos dos deuses: era Quiris, um dos mais velhos.\n' +
+      'É calmo, paciente e um tanto perfeccionista, e tem grande prazer em ver a vida florescer por inteiro. Introspectivo e retraído, observa de longe, mas acompanha com atenção tudo o que acontece. Fica sempre à direita do pai, Sevides, alguns passos atrás, enquanto a irmã, Liris, ocupa a esquerda. Onde a terra não dá fruto, a vida renasce se ele a guarda.\n' +
+      'É pintado como um homem que semeia: do cesto, ou às vezes de um saquinho, lança raios de vida sobre as sementes ainda não germinadas e garante o crescimento da lavoura. Seu símbolo, aparentado aos de Sevides e de Liris, é um círculo dividido em quatro por linhas sinuosas, com uma das partes cheia: o cesto da semeadura. Menos comum é a imagem de um arado estilizado. Sua cor é o bege.\n' +
+      'É honrado em todos os reinos, e a fé irradia sobretudo das terras agrícolas, como Eredra e o sul de Calco; todo lugar que cria ou planta o reverencia. É muito popular entre os pobres, em especial lavradores e pastores. A influência dos sacerdotes não é pequena: diz-se que a presença deles traz fartura e prosperidade, e miséria aos infiéis.\n' +
+      'A religião prega a vida. Os sacerdotes buscam a paz e o equilíbrio entre os seres vivos, e cabe a eles, pelas suas bênçãos, garantir a fertilidade das plantações.\n' +
+      'O templo fica sempre à direita do de Sevides, como o filho fica ao lado do pai, e é feito do mesmo material: pedra, tijolo cozido ou madeira. Na entrada há sempre um jardim de pequenas plantas, de onde se tiram mudas para os lavradores da região. No grande altar, os fiéis depositam sementes em urnas de barro; delas nascem plantas novas, o tributo ao deus. Para os festivais de plantio, os sacerdotes cultivam com dias de antecedência as mudas que serão plantadas, a partir das sementes ofertadas pelos lavradores. Os grãos que o templo de Liris recolhe ao longo do ano vêm para o de Quiris na época do plantio e são repartidos entre os agricultores.\n' +
+      'Os sacerdotes vestem algodão cru. Sobre o ombro direito levam uma faixa presa por um cordão de linho bege, com dizeres sobre a ordem e o grau de quem a usa: quanto mais orações a Quiris, mais alto o posto, até o máximo de sete. Na cintura, outro cordão bege, com um único nó simples. Calçam chinelos de couro curtido e levam uma pequena sacola para recolher sementes e levá-las aos campos.\n' +
+      'As doutrinas são quatro: a liberdade da vida, o amor entre as pessoas, a busca da felicidade e a paz entre os povos.',
+
+    relacoes: [
+      { nome: 'Sevides',
+        texto: 'O pai, a quem é inteiramente devotado e amoroso: vê nele a dedicação e o amor à vida, um exemplo a seguir. Pai e filhos são partes de um mesmo ciclo, inseparáveis.' },
+      { nome: 'Ganis',
+        texto: 'A mãe. O sentimento é o oposto do que tem pelo pai: há tensão entre os dois, pelo modo ríspido com que ela trata Sevides e pelas suas mudanças de humor com os seres de Tagmar. Ela, por sua vez, tem extremo amor pela obediência do filho.' },
+      { nome: 'Liris',
+        texto: 'A irmã, a quem ama mais que com afeto de irmão, com amor de homem; é correspondido e segredo para os outros deuses. Ela é efusiva onde ele é retraído, e só ele consegue acalmá-la quando se zanga. Na corte celeste, ele anda atrás dela e a acompanha com os olhos.' },
+      { nome: 'Maira',
+        texto: 'Entre os deuses de fora da família, é com ela que mais conversa, ou a observa cuidar da natureza e dos animais. Com o irmão dela, Sevides, e com Liris, ajudou a tia a povoar as terras e as águas.' },
+      { nome: 'Cambu',
+        texto: 'Guarda dele uma indisposição desde que, há alguns séculos, Cambu tentou cortejar Liris, sem grande sucesso.' },
+      { nome: 'Lena',
+        texto: 'Lena tem especial estima por ele e por Liris, e ela e Plandis passam tempo com os dois em atividades conjuntas.' },
+      { nome: 'O Panteão',
+        texto: 'Com os demais deuses é retraído e distante; passa a maior parte do tempo com a família.' },
+      { nome: 'Antredom',
+        texto: 'O Príncipe da Fome tem ódio extremo a Sevides e aos filhos, porque a tríade da agricultura é a fartura e ele é a fome e a avareza. Sente prazer em arruinar as terras deles com pragas e enxames famintos antes da colheita.' },
+      { nome: 'Descendentes',
+        texto: 'Não tem descendentes.' },
+    ],
+
+    locais: [
+      { nome: 'Platô de Quiris', onde: 'Nascente do Rio Sevides',
+        texto: 'Um grande platô de pedra na margem direita do rio, a trezentos passos da nascente, com o símbolo de Quiris incrustado no chão em meia-lua. É um dos lugares mais sagrados da ordem, onde os altos sacerdotes conduzem as grandes cerimônias.' },
+      { nome: 'Rio Sevides', onde: 'Nasce aos pés de uma grande árvore que se divide em três',
+        texto: 'Crê-se que as suas águas dão às terras da bacia a fertilidade que elas têm. Camponeses de toda Tagmar acreditam que, em tempo de seca ou de praga, um pouco dessa água regada nos campos traz de volta as boas safras.' },
+      { nome: 'Eredra', onde: 'Eredra',
+        texto: 'Terra agrícola de onde a fé em Quiris irradia com mais força. Dizem que é perto dali a gruta onde está escondido o amuleto Hudrar.' },
+      { nome: 'Sul de Calco', onde: 'Calco',
+        texto: 'Outra região de lavoura que é polo da fé em Quiris.' },
+      { nome: 'Franis', onde: 'Cidade de Franis',
+        texto: 'A cidade cujo templo de Quiris foi saqueado e queimado pelos cavaleiros de Gamilda, e depois reerguido. Ali se festejou a libertação junto com a colheita.' },
+      { nome: 'Ruínas de Gamilda', onde: 'Antiga cidade de Gamilda',
+        texto: 'A cidade amaldiçoada por Quiris, que virou deserto e ficou vazia até que uma pequena planta brotou à sombra das ruínas, sinal do fim da maldição.' },
+    ],
+
+    feriados: [
+      { dia: 1, mes: 10, nome: 'Festa do Plantio',
+        texto: 'Grande festa de todos os que buscam fertilidade nos campos e nas criações. Os sacerdotes fazem a semeadura dos primeiros grãos, numa parte das terras dos lavradores do lugar, e juntam os primeiros animais para a cria; o gado bebe da água que eles abençoaram. Muitas das mudas plantadas nesse dia foram cultivadas no templo dias antes, das sementes que os próprios lavradores ofertaram.' },
+    ],
+
+    itens: [
+      { nome: 'Hudrar',
+        texto: 'Um amuleto de poderes além da compreensão: basta manipulá-lo para gerar vida, e mal usado pode tirar a vida do mundo. Foi lacrado num baú de ferro e guardado numa gruta, que dizem ficar perto de Eredra, entre centenas de outras suposições. Muitos afirmam que, unido a Aksas, o amuleto de Liris, abriria os portões celestiais e expulsaria de Tagmar todos os demônios; mas o preço seria, talvez, uma nova era de renascimento que destruiria junto todas as espécies vivas.' },
+      { nome: 'Sacola de sementes',
+        texto: 'A pequena sacola em que Quiris enfiava a mão, no tempo da criação, para tirar dos dedos a luz e o calor que davam vida à terra. Nas imagens do deus, é dela, ou do cesto, que saem os raios sobre as sementes.' },
+    ],
+  },
+{
+    slug: 'selimom',
+    nome: 'Selimom',
+    classe: 'deus',
+    titulo: 'Paz e Amor',
+    imagem: null,
+    // Fonte: deuses.pdf, págs. 91–95 (3.14 Selimom); Blator, Cambu, Crezir, Crizagom, Lena, Maira, Palier e Plandis (relações);
+    // principes.pdf, Ekisis e Branaxis.
+
+    prefacio: {
+      texto:
+        'Lena corria pelos corredores do palácio de mármore atrás do pai, envolta numa manta branca tão fina que quase não a cobria. No saguão central, que não tem paredes nem portas e se sustenta só pela energia daquele lugar, Selimom olhava em silêncio o oráculo: um tanque de mármore branco cheio de água clara, onde o deus vê os seus Filhos.\n' +
+        '«Pai, eles vão atacar Terisco! Blator não vai fazer nada!» A vila era pequena e pacífica, berço da Jornada de Paz, e erguera um templo à própria Lena. Os anões de Blur queriam arrasá-la só porque ali crescia um centro de estudos élficos junto à fronteira deles. Selimom, sereno no seu pesado manto branco, coberto de inscrições numa língua que nenhum mortal conhece, respondeu que Blator estava decidido e que era preciso deixar os Filhos seguirem o seu rumo. A filha insistiu que ele pedisse ajuda a Palier. «Eu vou, minha filha, eu vou... Agora me deixe só.»\n' +
+        'Lena saiu aflita. No pátio encontrou Plandis, que moldava o barro mágico sem tirar os olhos dele, como quem já sabe o que vai fazer. «Não fique aflita, irmã. Tudo ficará bem.»',
+      fonte: 'Extratos do Livro de Maudi, capítulo «A Justiça» — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Num mundo onde a guerra é soberana e os deuses da guerra são venerados em toda parte, Selimom é o senhor dos que sonham com uma vida longe das armas. É o deus do amor, da paz e da firmeza de espírito, e prega um mundo em que todos são iguais e vivem em harmonia. Parece um sonho distante, mas é o sonho de boa parte do mundo conhecido, sobretudo da gente simples do campo, que vive da terra e do amor da família. Para esses, Selimom devia ser o rei do mundo, e Sevides o seu corregente.\n' +
+      'Busca a paz entre os povos e a solução das suas desavenças. Procuram-no os que têm horror às carnificinas, os que não querem lutar e os que buscam paz de espírito, harmonia e vida interior. A doutrina aceita o combate só como último recurso; nos tempos de hoje, porém, até para manter a paz às vezes é preciso pegar em armas.\n' +
+      'É calmo e compreensivo. Dos erros dos fiéis tira lições e as ensina, onde os irmãos mais irritadiços apenas puniriam ou abandonariam o culpado. Mostra aos Filhos como suportar as adversidades sem se revoltar contra os deuses, e derrama bênçãos sem cessar sobre as almas que protege. Para Blator e os seus filhos a guerra é caminho para a justiça; para Selimom não leva a nada, e violência só gera violência. Por isso pede aos fiéis que resistam com palavras e ensinamentos, até o sacrifício. A única exceção é a defesa dos fracos: quando inocentes correm perigo e a razão já não governa, ele aconselha os sacerdotes a se fazerem heróis e a pôr a vida dos outros à frente da própria.\n' +
+      'Os que o viram em êxtase, no seu reino encantado, descrevem um humano comum de meia-idade, de rosto sereno e sorriso luminoso, num manto alvo e leve, que conversa e aconselha com palavras mansas todos os que vivem ali. Seu símbolo é um escudo com auréola, desenhado como um pentagrama vertical com um círculo dentro; nas obras de arte, um escudo branco ricamente ornado de ouro. Qualquer imagem de pureza de alma, de paz ou de amor também o representa. Sua cor é o branco.\n' +
+      'As ordens de Selimom têm mais força em Marana, Ludgrim e Calco, e nas cidades do interior de Calco, às margens do lago Denégrio, os fiéis são muitos. Mesmo os reinos mais belicosos precisam de paz dentro das próprias fronteiras para conquistar fora delas, e não há reino que não reze pela tranquilidade das suas terras. Quanto mais o caos se espalha, mais crescem as orações para que cesse, e cada dia mais gente humilde procura o deus.\n' +
+      'Selimom é intransigente com a moral dos seus. Não permite que o seu nome sirva a negócios duvidosos nem a nada que fuja da doutrina, e os sacerdotes, mesmo nestes tempos difíceis, ainda tratam a todos como irmãos.\n' +
+      'O templo tem a forma de um pentágono em torno de um pátio, como o escudo do deus. Nos mais completos há um salão em cada vértice, contados no sentido do sol a partir do que aponta para o oeste: adoração e sermões, com altar e estátua; enfermaria; biblioteca em nichos, para estudo, oração e meditação; sala de treino de armas; e as celas onde dormem os sacerdotes e algum necessitado. Por uma rampa no pátio desce-se a um andar sob a terra, com despensa e cozinha, relicário, arsenal, uma pequena prisão com sala de interrogatório e a cripta com os ossos dos fiéis. Vitrais, tapeçarias, estátuas e quadros contam os atos do deus. A maioria dos templos tem só as salas de que a região precisa, mas o salão de culto e a enfermaria nunca faltam, e às vezes são o templo inteiro.\n' +
+      'Os sacerdotes vestem roupas simples de algodão branco, que deixam o corpo livre, com adornos dourados de pano ou de outro material. Uma cordinha branca ou dourada pode prender o manto, e botas baixas protegem os pés. As doutrinas são três: a paz entre os povos, a busca da liberdade e o amor devotado a toda espécie de vida.',
+
+    relacoes: [
+      { nome: 'Crezir',
+        texto: 'A esposa e o seu oposto. Conquistou-a sendo tolerante, solícito e amável mesmo nas horas mais adversas. A loucura dela contamina todos na guerra, e até o coração do deus da paz, que perde o juízo nos braços dela.' },
+      { nome: 'Lena e Plandis',
+        texto: 'Os filhos queridos, que ele acha irresponsáveis e travessos. Lena conta com a sabedoria do pai, embora o queira mais enérgico. Com Plandis tem amizade verdadeira e conversas tão longas que, no fim, nem Selimom sabe dizer do que falaram.' },
+      { nome: 'Maira',
+        texto: 'É irmão dela e o seu principal conselheiro, a qualquer hora. Com ele a deusa encontra paz nos momentos difíceis.' },
+      { nome: 'Blator',
+        texto: 'O sogro, e a grande diferença. Muitas vezes buscam o mesmo fim, mas os métodos são opostos, e as discussões, inevitáveis. Em Terisco, Blator deixou os anões agirem, e Selimom teve de ir pedir socorro a Palier.' },
+      { nome: 'Sevides e Crizagom',
+        texto: 'Uma grande amizade, de irmãos, ainda que divirjam sobre os mortais e o modo de lidar com eles. Crizagom tem pelo deus da paz um grande respeito.' },
+      { nome: 'Palier, Parom e Cambu',
+        texto: 'Amigos de longas conversas. É a Palier que ele recorre quando a paz de um povo inteiro está em risco.' },
+      { nome: 'O Panteão',
+        texto: 'A sua influência entre os deuses é incontestável: a paz que traz acalma a todos, e ele é ouvinte e conselheiro até nas horas mais difíceis.' },
+      { nome: 'Ekisis',
+        texto: 'O príncipe o odeia acima de todos os deuses, porque Selimom vive desfazendo as suas tramas e semeando a concórdia. Os seguidores de Ekisis, que plantam a discórdia que leva às guerras, dão muito trabalho aos sacerdotes da paz.' },
+      { nome: 'Branaxis',
+        texto: 'Na noite seguinte ao Dia do Amor e da Paz, os seguidores do príncipe invocam Pesadelos para espalhar medo entre os fiéis dos deuses.' },
+      { nome: 'Descendentes',
+        texto: 'Com Crezir teve Lena, deusa dos prazeres, e Plandis, deus da loucura e da paixão cega.' },
+    ],
+
+    locais: [
+      { nome: 'Palácio de mármore', onde: 'Morada dos deuses',
+        texto: 'A casa de Selimom, de arquitetura majestosa, cujo saguão central não tem paredes nem portas. Ali fica o oráculo, um tanque de mármore branco com água cristalina onde o deus observa os seus Filhos.' },
+      { nome: 'Terisco', onde: 'Sul do mundo',
+        texto: 'Pequena vila pacífica de devotos de Selimom, onde nasceu a Jornada de Paz. Ergueu também um templo a Lena, e os anões de Blur quiseram arrasá-la por abrigar um centro de estudos élficos junto à fronteira deles.' },
+      { nome: 'Monastérios de Marana e de Ludgrim', onde: 'Marana e Ludgrim',
+        texto: 'Locais sagrados da ordem, cada um com uma grande biblioteca e obras de arte dedicadas ao deus.' },
+      { nome: 'Mosteiro de Solarnes', onde: 'Calco',
+        texto: 'Um lugar de grande paz, para onde os sacerdotes mais velhos vão passar os últimos dias em meditação, ensinando os mais novos.' },
+      { nome: 'Sede da Ordem do Sol Nascente', onde: 'Floresta de Siltam',
+        texto: 'Local sagrado de paradeiro secreto, escondido em algum ponto da floresta.' },
+      { nome: 'Lago Denégrio', onde: 'Interior de Calco',
+        texto: 'As cidades das suas margens reúnem um grande número de seguidores do deus.' },
+    ],
+
+    feriados: [
+      { dia: 20, mes: 3, nome: 'Dia do Amor e da Paz',
+        texto: 'Festejado em quase todas as cidades que veneram Selimom, sobretudo no interior de Marana e de Verrogar, para chamar a atenção do deus para a região. Os sacerdotes convocam os fiéis a acender velas à porta de casa, para afastar o ódio e os maus sentimentos de quem entrar. Cada vela se acende ao som de uma cantiga antiga, «Dia do amor e paz», ensinada nos cultos; os ricos acendem velas grandes, enfeitadas de cores claras, e os pobres, as suas velinhas. Dizem que a cantiga foi ensinada pelo próprio deus, e que ele se encanta ao ouvi-la.' },
+      { dia: 20, mes: 6, nome: 'Jornada de Paz',
+        texto: 'Começa neste dia a maior peregrinação de Tagmar em honra de um deus. Nascida em Terisco, hoje é feita também em Marana e Ludgrim e reúne acólitos, sacerdotes e ao menos um fiel de cada família da região. A caravana cruza no mínimo quatro reinos levando mensagens de paz e de amor e ensinando os males da guerra. Os peregrinos vestem roupas claras e cobrem carroças e cavalos com panos claros bordados a ouro, com palavras de paz em todas as línguas do mundo, e pelo caminho ganham adeptos e doações. A maior Jornada de que se tem notícia atravessou todos os reinos, juntou mais de cem mil pessoas e trouxe seitas de deuses inexistentes para o culto de Selimom.' },
+      { dia: 16, mes: 12, nome: 'Festa dos Povos',
+        texto: 'Tida como vital para a união dos povos, ao lado das festas de Cambu. Gente de outros reinos e raças é convidada a passar uma semana como parte da comunidade, trocando conhecimentos e conhecendo os seus problemas e soluções. Os «embaixadores» de cada povo trocam presentes, e no fim todos dançam.' },
+    ],
+
+    itens: [
+      { nome: 'Faixa de Selimom',
+        texto: 'Uma faixa mística que traz paz interior a quem a usa e expulsa toda dor e todo medo.' },
+      { nome: 'Pedra da Luz',
+        texto: 'Uma pedra misteriosa que emana grande luz e calor. Os fiéis dizem que ela também faz milagres de toda sorte.' },
+    ],
+  },
+  {
+    slug: 'sevides',
+    nome: 'Sevides',
+    classe: 'deus',
+    titulo: 'Agricultura',
+    imagem: null,
+    // Fonte: deuses.pdf, págs. 97–100 (3.15 Sevides); Cambu, Crizagom, Ganis, Lena, Liris, Maira, Quiris e Selimom (relações e locais);
+    // principes.pdf, Antredom.
+
+    prefacio: {
+      texto:
+        'Amadeu era um lavrador humilde e devoto de Sevides, que sempre dava aos sacerdotes um pouco mais do que podia. O irmão, Janil, trocou o campo pela cidade, perdeu no jogo uma fortuna e caiu nas mãos de agiotas. Fugiu para a casa de Amadeu, e uma semana depois seis homens armados bateram à porta. Para salvar o irmão e a família, Amadeu ofereceu a colheita. Faltavam seis meses; os homens aceitaram, certos de que no fim ficariam também com as terras.\n' +
+        'Naquela noite, Amadeu rezou a Sevides por força e por uma colheita melhor. Na manhã seguinte bateram palmas à porta: um homem de uns trinta e quatro anos pedia comida em troca de trabalho. Amadeu, que tinha pouco, deu sem cobrar, mas o estranho quis ajudar assim mesmo, e durante meses os três lavraram a terra juntos.\n' +
+        'No dia da colheita, Amadeu rezou por horas antes de ir ao campo. Nunca tinham colhido tantas sacas de grãos, e a dívida foi paga. Convidou o estranho a ficar, mas ele disse que tinha outros campos para cuidar e partiu sem mais palavra. Amadeu e os seus descendentes veneraram Sevides por muitos anos, sem nunca saber que fora o próprio deus quem os ajudara.',
+      fonte: 'Extraído de «A Formação do Mundo», Livro de Maudi — Biblioteca de Saravossa.',
+    },
+
+    descricao:
+      'Quando o mundo ainda era fogo e água e os titãs governavam o caos, nada vivia nele. Do silêncio surgiram três figuras. Tocaram a água, e ela borbulhou de pequenas vidas que logo cresceram; tocaram a terra, e um tremor e uma onda de calor e fertilidade fizeram brotar as plantas. Por séculos encheram o mundo de bichos de todo tamanho e forma, até que os outros deuses desceram e criaram os seus Filhos para quebrar o silêncio que restava. Uma das três figuras, dos deuses mais velhos, era um ser de luz e fogo com um cajado de madeira e folhas, vivo e sempre crescendo, que faz pulsar a vida em volta a cada toque no chão. Quando os Filhos souberam dele, apresentou-se: chamava-se Sevides.\n' +
+      'É o deus da agricultura. Amadurece os frutos, faz crescer as plantas e dá fertilidade às espécies, e engana-se quem pensa que o seu cuidado para nas lavouras: os animais domésticos e os rebanhos também são dele.\n' +
+      'É pacífico e vive ocupado com as suas tarefas. Parece distante dos acontecimentos imediatos das raças de Tagmar, mas, como um pai zeloso, nunca deixa de lhes dar o pão de cada dia.\n' +
+      'É pintado como um velho de mãos e pés calejados, com um cajado coberto de ramos, ou como um pastor ou lavrador, conforme o lugar e a raça que o cultua. Seu símbolo é o sol: um círculo dividido em quatro partes iguais por linhas sinuosas, uma para cada estação do ano. Sua cor é o marrom.\n' +
+      'Não pertence a um reino só. Onde há lavoura ou criação, há templo e sacerdote de Sevides; o culto é forte no campo e fraco nas cidades, e mais querido entre os pobres, os lavradores e os pastores. Nem por isso lhe falta peso entre os poderosos: não há conquista nem defesa com um reino faminto, e todo ano os senhores chamam os sacerdotes para pedir graças e conselho sobre como garantir a fartura das mesas.\n' +
+      'A religião se volta para a natureza e para o equilíbrio delicado entre as raças, as plantas e os animais. Há centenas de templos e santuários pelo mundo, muitos nos caminhos dos campos e nas terras de pasto, e poucos nas cidades e nas vilas de comércio. Nas aldeias cabe aos sacerdotes celebrar os casamentos, porque a bênção deles aumenta as chances de o casal ter filhos.\n' +
+      'Os templos são simples e amplos, de pedra, tijolo cozido ou madeira, sempre à beira das estradas que levam às plantações e às criações. Todos são retângulos de pouca altura, com desenhos de bichos e plantas por dentro; os maiores têm pequenas estátuas de animais e do próprio deus cuidando da lavoura ou do rebanho. Por fora há sempre trepadeiras nas paredes, jardins floridos e muitas árvores de fruto da região. Junto aos campos e estábulos erguem-se pequenos santuários, onde os trabalhadores rezam antes da lida.\n' +
+      'Os sacerdotes vestem algodão cru e mantos grossos, cingidos por um cordão cinzento de linho trançado. Os nós na ponta do cordão contam as graças alcançadas na ordem e o grau de quem o usa. Calçam chinelos de couro curtido, levam um cajado de madeira e uma bolsinha de sementes presa ao cordão; o cajado pesa tanto quanto o cordão, porque tratam a todos como o seu «rebanho». As doutrinas são quatro: zelar por toda criatura viva, buscar o equilíbrio dos seres com a natureza, proteger os indefesos e as suas propriedades, e agradecer a boa sorte.',
+
+    relacoes: [
+      { nome: 'Ganis',
+        texto: 'Tem por ela grande amor e respeito, e é carinhoso e atento. Mas brigas enormes sacodem os cantos do céu quando ela, impulsiva, lhe cobra um papel mais ativo no Panteão; Ganis se irrita com o pouco caso dele por tudo o que não seja a colheita. Num tempo em que Sevides ficou estéril como as areias do deserto de Blirga, foi a ela que pediu ajuda, e da união nasceram os filhos. Os dois dividem a Festa da Prosperidade, no dia 15 do mês da Paz, quando os sacerdotes de ambos levam os fiéis ao mar ou ao rio: o fruto das lavouras vai para a água, e a água vem para a terra, em sinal da união eterna do casal celeste da fertilidade.' },
+      { nome: 'Liris e Quiris',
+        texto: 'Os filhos, com quem tem um laço mais que afetuoso: são partes de um mesmo ciclo, inseparáveis. Quiris vê no pai um exemplo de dedicação e amor à vida, e fica sempre à direita dele, alguns passos atrás; Liris, à esquerda. Os templos dos filhos são erguidos assim, um de cada lado do templo do pai.' },
+      { nome: 'Palier e Plandis',
+        texto: 'Por eles tem grande afeição.' },
+      { nome: 'Cambu',
+        texto: 'Procura-o atrás das notícias mais recentes. Os dois dividem a Festa da Fartura, no último dia do mês da Semente e no primeiro do mês do Ouro, de propósito entre os meses que os homenageiam: dois dias de cerimônias nos templos de ambos e uma grande feira, onde o campo encontra a cidade.' },
+      { nome: 'Selimom e Crizagom',
+        texto: 'Uma amizade de irmãos, com divergências sobre os mortais. Os dois respeitam muito o jovem deus da honra.' },
+      { nome: 'Maira',
+        texto: 'Com Liris e Quiris, está entre os amigos mais caros da deusa na tarefa de manter o equilíbrio da vida no mundo. Ajudou-a a povoar terras e águas de bichos e plantas antes da chegada dos Filhos.' },
+      { nome: 'Lena',
+        texto: 'Vê sabedoria nos conselhos dele e passa o tempo com Liris e Quiris, junto com Plandis.' },
+      { nome: 'Antredom',
+        texto: 'O príncipe da fome odeia Sevides e os filhos, a tríade da agricultura. Manda pragas e enxames famintos às lavouras antes da colheita, e os seus cultistas tramam roubar e profanar o Arado de Ouro.' },
+      { nome: 'Descendentes',
+        texto: 'Com Ganis teve Liris, deusa da colheita, e Quiris, deus do plantio.' },
+    ],
+
+    locais: [
+      { nome: 'Rio Sevides', onde: 'Perto da cidade de Itéria',
+        texto: 'Nasce aos pés de uma grande árvore e se divide em três. Acredita-se que as suas águas dão a fertilidade das terras da bacia, e camponeses de toda Tagmar levam um pouco delas para regar a terra em tempo de seca ou de praga. A trezentos passos da nascente, um platô de pedra de cada margem traz o símbolo de Liris e o de Quiris, onde os altos membros da ordem fazem as grandes cerimônias.' },
+      { nome: 'Templo de Tória', onde: 'Tória, Calco',
+        texto: 'Guarda o Arado de Ouro, e por causa dele a região é tida como a terra mais fértil de Tagmar, acima até das de Eredra.' },
+      { nome: 'Eredra', onde: 'Eredra',
+        texto: 'Reino onde a agricultura e o culto a Sevides pesam tanto que ali se juntam os demonistas de Antredom.' },
+    ],
+
+    feriados: [
+      { dia: 7, mes: 4, nome: 'Festa da Fertilidade',
+        texto: 'A festa de gratidão pelo amadurecimento dos frutos e pelo crescimento das plantas e dos animais. A cerimônia começa antes do nascer do sol e vai até a tarde. Sacrificam-se pequenos animais e, com parte da colheita, faz-se um grande banquete em que os lavradores trocam alimentos. Nos campos, depois de uma oração a Sevides, quebram-se sete ovos numa jarra de leite, que o sacerdote espalha sobre a terra, e tudo termina com cânticos de prosperidade.' },
+    ],
+
+    itens: [
+      { nome: 'Arado de Ouro',
+        texto: 'O arado mágico guardado no templo de Tória, de grande poder divino, a quem se credita a fertilidade daquelas terras. Contam as lendas que sobre ele pesa uma grande maldição.' },
+      { nome: 'Caixinha de madeira dos altos sacerdotes',
+        texto: 'Ninguém sabe ao certo o seu poder. Os mais sábios da ordem creem que seja um amuleto capaz de secar o crescimento de bichos e plantas, ou, bem usado, de garanti-lo e até de apressá-lo, encurtando o tempo da colheita e do nascimento.' },
     ],
   },
   {
