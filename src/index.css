@@ -18624,6 +18624,10 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
   margin: 14px 0 0; text-align: right; font-family: var(--font-body); font-size: var(--fs-sm);
   font-style: italic; color: var(--tinta-3);
 }
+/* GRUPOS (13/11/2026): a ficha de um colégio usa a mesma pele; as seções de
+   texto corrido (História, Símbolos, Ética…) espaçam os parágrafos como a
+   Descrição. */
+#root .menestrel-ui .grp-texto .diario-det-desc + .diario-det-desc { margin-top: 10px; }
 
 /* ══ A CENA, UM CAPÍTULO POR PÁGINA (10/11/2026) ═════════════════════════════
    Usuário: "Na página de Cena, eu quero um capítulo por página, um botão para

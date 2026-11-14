@@ -258,6 +258,8 @@ const ADMIN_COPY = {
       locais:        { label: 'Locais',       desc: 'Os lugares do mundo que não são cidades' },
       // Entidades (08/11/2026): deuses, titãs e príncipes (01-core/entidades.jsx).
       entidades:     { label: 'Entidades',    desc: 'Os deuses, titãs e príncipes de Tagmar' },
+      // Grupos (13/11/2026): colégios de magia (01-core/grupos.jsx).
+      grupos:        { label: 'Grupos',       desc: 'Os colégios de magia de Tagmar' },
       memorias:      { label: 'Memórias',     desc: 'O que seu personagem escreveu sobre o que viveu' },
     }
   },
@@ -419,6 +421,7 @@ const ADMIN_COPY = {
       cidades:       { label: 'Cities',      desc: 'The cities of the world and who holds them' },
       locais:        { label: 'Places',      desc: 'The places of the world that are not cities' },
       entidades:     { label: 'Entities',    desc: 'The gods, titans and princes of Tagmar' },
+      grupos:        { label: 'Groups',      desc: 'The colleges of magic of Tagmar' },
       memorias:      { label: 'Memories',    desc: 'What your character wrote about what they lived' },
     }
   }
@@ -467,6 +470,8 @@ const ADMIN_SECTIONS = {
     { id: 'npcs',          icon: 'Users' },
     // Entidades (08/11/2026): deuses, titãs e príncipes.
     { id: 'entidades',     icon: 'Entidade' },
+    // Grupos (13/11/2026): colégios de magia.
+    { id: 'grupos',        icon: 'Grupo' },
     { id: 'criaturas',     icon: 'Tower' },
     { id: 'itens',         icon: 'Sheet' },
     { id: 'itens_campanha', icon: 'Chest' },
@@ -487,6 +492,7 @@ const ADMIN_SECTIONS = {
     { id: 'locais',        icon: 'Local' },
     { id: 'npcs',          icon: 'Users' },
     { id: 'entidades',     icon: 'Entidade' },
+    { id: 'grupos',        icon: 'Grupo' },
     { id: 'memorias',      icon: 'Feather' },
     // Catálogos filtrados pelo que o jogador conhece/possui (spec
     // docs/superpowers/specs/2026-09-11-catalogos-visao-jogador-design.md §4).
@@ -639,6 +645,8 @@ const diario = (comMemorias) => ({
     { secao: 'npcs', rotulo: R('Pessoas', 'People') },
     // Entidades (08/11/2026): deuses, titãs e príncipes — catálogo do mundo.
     { secao: 'entidades', rotulo: R('Entidades', 'Entities') },
+    // Grupos (13/11/2026): colégios de magia — catálogo do mundo.
+    { secao: 'grupos', rotulo: R('Grupos', 'Groups') },
     // Memórias é do personagem, não da mesa — só o Jogador tem.
     ...(comMemorias ? [{ secao: 'memorias', rotulo: R('Memórias', 'Memories') }] : []),
   ],

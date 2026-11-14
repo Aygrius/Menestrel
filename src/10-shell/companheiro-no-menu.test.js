@@ -139,7 +139,7 @@ describe('o menu do Jogador: Ficha, Mesa e Diário', () => {
   it('o Diário é grupo de trilho, com as seis páginas na ordem (Entidades em 08/11/2026)', () => {
     const diario = acha('diario');
     expect(diario.trilho).toBe(true);
-    expect(diario.filhos.map((f) => f.secao)).toEqual(['lugares', 'cidades', 'locais', 'npcs', 'entidades', 'memorias']);
+    expect(diario.filhos.map((f) => f.secao)).toEqual(['lugares', 'cidades', 'locais', 'npcs', 'entidades', 'grupos', 'memorias']);
   });
 
   it('as páginas seguem sendo destino, e por isso têm título', () => {

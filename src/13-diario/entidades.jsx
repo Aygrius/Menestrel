@@ -157,4 +157,4 @@ function EntidadesView({ lang, trilhoPaginas = null, entidades }) {
   );
 }
 
-Object.assign(window, { EntidadesView, EntidadeDetalhe, dataDoFeriado });
+Object.assign(window, { EntidadesView, EntidadeDetalhe, EntidadeLista, dataDoFeriado });

@@ -129,6 +129,7 @@ arquivo daqui conhece tela.
 | `copy.jsx` | i18n PT/EN (`COPY`) de seis domínios de tela. |
 | `constants.jsx` | Calendário fantasy (361 dias), copy do admin e as **árvores de navegação** (`ADMIN_MENU`, `NAV_MESA`, `ADMIN_SECTIONS`, `PARTES_DA_FICHA`). |
 | `entidades.jsx` | `ENTIDADES`: deuses, titãs e príncipes (catálogo do mundo, no código). É a **fonte dos feriados** deles: `FERIADOS_FANTASY` (10-shell) junta `feriadosDasEntidades()`. Carrega logo depois de `constants.jsx`. |
+| `grupos.jsx` | `GRUPOS`: colégios de magia (catálogo do mundo, no código; `tipo` prevê ordens e guildas). Lido pela página Grupos (13-diario). |
 | `helpers.jsx` | Hooks React globais, conversão de data fantasy ↔ dia absoluto, tooltip, pilha de modais, `QuantidadeStepper`. |
 | `inventario-helpers.jsx` | O hub de domínio (~1 430 linhas): moedas, slots, containers, armadura, `gerarAtaques`, o parser de efeitos de item, munição/veneno, ritual. |
 | `inventario-concorrencia.jsx` | Compare-and-swap de `personagens.inventario` (ver §6). |
@@ -314,6 +315,11 @@ lê `ENTIDADES` (01-core), só leitura, igual para Mestre e Jogador, sem mesa
 nem PJ. A ficha abre no `BestDetalheModal`, uma aba por tópico (Prefácio,
 Descrição, Relações, Locais, Feriados, Itens). O texto é escrito com a skill
 de projeto `cronista-de-tagmar` (`.claude/skills/`), a partir de `tagmar/*.pdf`.
+
+`grupos.jsx` (13/11/2026) é a página **Grupos**, irmã de Entidades: a mesma
+página e a mesma janela, lendo `GRUPOS` (01-core) — por ora os seis colégios
+de magia (`tagmar/colegios.pdf`). As listas reusam `EntidadeLista`; carrega
+depois de `13-diario/entidades.jsx`.
 
 ---
 

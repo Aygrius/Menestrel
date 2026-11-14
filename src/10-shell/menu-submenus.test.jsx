@@ -182,8 +182,8 @@ describe('ADMIN_MENU — a árvore', () => {
 
   it('Diário: Reinos, Cidades, Locais, Pessoas e Entidades no Mestre; o Jogador também tem Memórias', () => {
     // Cidades entrou em 26/09/2026 ("adicione um menu novo no diário chamado cidades").
-    expect(rotulos(grupo('master', 'diario').filhos)).toEqual(['Reinos', 'Cidades', 'Locais', 'Pessoas', 'Entidades']);
-    expect(rotulos(grupo('player', 'diario').filhos)).toEqual(['Reinos', 'Cidades', 'Locais', 'Pessoas', 'Entidades', 'Memórias']);
+    expect(rotulos(grupo('master', 'diario').filhos)).toEqual(['Reinos', 'Cidades', 'Locais', 'Pessoas', 'Entidades', 'Grupos']);
+    expect(rotulos(grupo('player', 'diario').filhos)).toEqual(['Reinos', 'Cidades', 'Locais', 'Pessoas', 'Entidades', 'Grupos', 'Memórias']);
     expect(window.ADMIN_COPY.pt.sections.lugares.label).toBe('Reinos');
     expect(window.ADMIN_COPY.pt.sections.npcs.label).toBe('Pessoas');
     // 22/10/2026: "Mude o menu conhecidos para pessoas, e adicione um novo chamado locais".
@@ -317,7 +317,7 @@ describe('NavMenuPainel', () => {
 
   it('Diário é uma coluna só, de folhas', () => {
     const { onEscolher } = abrir('player', 'diario');
-    expect(itens(document.querySelector('.mc-menu-col'))).toEqual(['Reinos', 'Cidades', 'Locais', 'Pessoas', 'Entidades', 'Memórias']);
+    expect(itens(document.querySelector('.mc-menu-col'))).toEqual(['Reinos', 'Cidades', 'Locais', 'Pessoas', 'Entidades', 'Grupos', 'Memórias']);
     fireEvent.click([...document.querySelectorAll('.mc-menu-item')][1]);
     expect(onEscolher.mock.calls[0][0].secao).toBe('cidades');
   });

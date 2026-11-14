@@ -21,6 +21,7 @@ import './components/ui-bridge'   // expõe o kit shadcn no window.UI (depois do
 import './01-core/copy.jsx'
 import './01-core/constants.jsx'
 import './01-core/entidades.jsx'       // deuses, titãs e príncipes; fonte dos feriados deles (08/11/2026)
+import './01-core/grupos.jsx'          // colégios de magia (13/11/2026)
 import './01-core/helpers.jsx'
 import './01-core/inventario-helpers.jsx'
 import './01-core/bases-item.jsx'      // a BASE do item, separada do exemplar (26/10/2026)
@@ -91,6 +92,7 @@ import './12-batalha/batalha.jsx'
 import './12-batalha/tabuleiro.jsx'
 import './13-diario/diario.jsx'
 import './13-diario/entidades.jsx'    // a página Entidades da Ambientação (08/11/2026)
+import './13-diario/grupos.jsx'       // a página Grupos da Ambientação; usa EntidadeLista (13/11/2026)
 
 // ── data layer (Fase 1): expõe os hooks-ponte no window ──
 import './data/bridge'

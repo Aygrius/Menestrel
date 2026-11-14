@@ -29,7 +29,7 @@ describe('a Ambientação do Mestre', () => {
   it('é um grupo de trilho, com as cinco folhas na ordem (Entidades em 08/11/2026)', () => {
     expect(amb).toBeTruthy();
     expect(amb.trilho).toBe(true);
-    expect(amb.filhos.map((f) => f.secao)).toEqual(['lugares', 'cidades', 'locais', 'npcs', 'entidades']);
+    expect(amb.filhos.map((f) => f.secao)).toEqual(['lugares', 'cidades', 'locais', 'npcs', 'entidades', 'grupos']);
   });
 
   it('as folhas seguem contando como páginas do menu (título e acesso)', () => {

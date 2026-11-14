@@ -484,6 +484,7 @@ const Icon = {
   Cidade:   TI_cls('ti-building-castle'), // Cidades (26/09/2026)
   Local:    TI_cls('ti-mountain'),      // Locais (22/10/2026)
   Entidade: TI_cls('ti-sun'),           // Entidades: deuses, titãs, príncipes (08/11/2026)
+  Grupo:    TI_cls('ti-flag'),          // Grupos: colégios de magia (13/11/2026)
 
   // ── Logo / cabeçalho ─────────────────────────────────────────────────────────
   Skull:   TI_cls('ti-id'),           // Logo ornamental
@@ -4402,7 +4403,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      viraram a mesma tabela de Itens e Magias, mas ficaram fora desta lista e a
      tabela saía mais estreita que a das outras ("a largura da tabela em
      lugares, npcs está menor que em itens, magias" — usuário). */
-  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'locais', 'npcs', 'entidades', 'memorias', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem', 'cena', 'batalha', 'loja_mesa', 'jogadores', 'ficha', 'inventario', 'loja'].includes(current.id);
+  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'locais', 'npcs', 'entidades', 'grupos', 'memorias', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem', 'cena', 'batalha', 'loja_mesa', 'jogadores', 'ficha', 'inventario', 'loja'].includes(current.id);
 
   // ── Modal de convite (botão "Convites" na sidebar) ───────────
   const [conviteModalAberto, setConviteModalAberto] = useState(false);
@@ -4722,7 +4723,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     bestiario: 'ti-skull', comercio: 'ti-backpack', historias: 'ti-books',
     /* As folhas da Ambientação no trilho do topo (04/11/2026): todas com
        versão filled (src/tabler-filled.css). */
-    lugares: 'ti-crown', cidades: 'ti-building', locais: 'ti-map-pin', npcs: 'ti-user', entidades: 'ti-sun', memorias: 'ti-feather',
+    lugares: 'ti-crown', cidades: 'ti-building', locais: 'ti-map-pin', npcs: 'ti-user', entidades: 'ti-sun', grupos: 'ti-flag', memorias: 'ti-feather',
     // A Mesa do Mestre (Cena, Batalha, Loja): o glifo da Mesa do Jogador.
     mesa_mestre: 'ti-map-2',
   };
@@ -5430,6 +5431,10 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                  mundo, igual para Mestre e Jogador e sem mesa nem PJ — o que
                  um deus é não muda de uma aventura para outra. */
               <EntidadesView lang={lang} trilhoPaginas={trilhoPaginas} />
+            ) : current.id === 'grupos' ? (
+              /* GRUPOS (13/11/2026): os colégios de magia. Catálogo do mundo,
+                 como Entidades — mesma página, outro catálogo. */
+              <GruposView lang={lang} trilhoPaginas={trilhoPaginas} />
             ) : (current.id === 'lugares' || current.id === 'cidades' || current.id === 'locais' || current.id === 'npcs' || current.id === 'memorias') ? (
               /* AS TRÊS QUE VIERAM DO DIÁRIO. Para o JOGADOR são o mesmo
                  DiarioView travado num tipo (ver `tipoFixo`), e sem personagem
