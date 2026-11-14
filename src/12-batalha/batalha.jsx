@@ -11510,7 +11510,12 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                  `saqueado` numa transação só, com a linha da batalha travada.
                  Antes o item entrava e a anotação vinha depois — se ela falhasse,
                  dava para saquear de novo, e dois saques ao mesmo tempo se
-                 sobrescreviam. A tela só reflete o que o banco já anotou. */
+                 sobrescreviam. A tela só reflete o que o banco já anotou.
+                 Espera a gravação em voo (revisão de 14/11/2026): a RPC lê a
+                 mesa do banco, e um passo ainda não gravado faria o saque ser
+                 recusado — ou a gravação velha chegar depois e apagar o
+                 `saqueado`. */
+              await filaGravacao.current;
               const r = await saquearPeloServidor(batalha.id, pj.ref_id, alvo.inst_id, slug, qtd, isEn);
               if (r.error) return r;
               setParticipantes(next);
@@ -15826,6 +15831,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                 await persistJogador({ participantes: anotarSaque(participantes, alvo.inst_id, slug, qtd, jaTirado) }, { manterAberto: true });
               } else {
                 // O servidor grava o item e o `saqueado`; o eco do realtime traz a anotação.
+                // Depois da gravação em voo: a RPC lê a mesa do banco (revisão de 14/11/2026).
+                await filaGravacao.current;
                 const r = await saquearPeloServidor(batalha.id, pj.ref_id, alvo.inst_id, slug, qtd, isEn);
                 if (r.error) return r;
               }

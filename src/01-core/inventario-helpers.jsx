@@ -1928,8 +1928,10 @@ function adicionarAoInventario(inventario, slug, qtd, novoId) {
   /* A PILHA LIVRE E COMUM (14/11/2026, auditoria item 33). Somava em qualquer
      pilha solta do slug — inclusive a À VENDA (o saque entrava no anúncio da
      loja) e a que está no LOMBO do animal (o item novo ia para o bicho). É a
-     regra da RPC saquear_criatura e dos itens 12/13: só soma na pilha da
-     mochila do dono, sem estado próprio (gasta, untada, consagrada, com nome). */
+     regra dos itens 12/13 e, desde a revisão do mesmo dia, também a da RPC
+     saquear_criatura (scripts/sql/saque-so-na-pilha-comum-2026-11-14.sql): só
+     soma na pilha da mochila do dono, sem estado próprio (gasta, untada,
+     consagrada, com nome). */
   const pilha = itens.find((x) => x && x.slug === slug && !x.containerId && !x.slot && !x.equipado && !x.vestido
     && !estaAVenda(x) && !x.animal_id && !x.montado
     && !x.apelido && !x.fabricado && x.usos == null && !x.quebrada && x.res == null && !x.veneno && !x.bonus);

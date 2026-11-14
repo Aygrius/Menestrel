@@ -14,14 +14,23 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 
 ## ▶ Onde paramos (14/11/2026)
 
-- **Feitos:** 1 a 4 e 6 a 22 (todos os críticos, todos os de alta
-  prioridade e os cinco primeiros de média), mais o karma das criaturas
-  (pedido à parte). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
-  (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
-- **Feitos também (14/11/2026):** 23 a 28.
-- **Próximo: item 29** — usar consumível: efeito e baixa gravam em pernas
-  separadas. O usuário pediu (14/11) para seguir direto até o 48 e depois
-  REVISAR todas as correções.
+- **Feitos:** 1 a 4 e 6 a 48, mais o karma das criaturas e o tempo da
+  batalha (pedidos à parte). Item 5 adiado; item 43 fica 📝 (sem botão por
+  decisão do usuário, 14/09).
+- **Revisão de todas as correções (14/11/2026):** feita sobre o diff inteiro
+  (f4cccca^..main). Dois acertos, ambos no saque:
+  1. a RPC `saquear_criatura` somava na primeira pilha solta do slug, mesmo
+     quebrada, gasta, untada, consagrada ou com nome — a peça saqueada
+     herdava o estado. Agora segue a regra de `adicionarAoInventario` (item
+     33): `scripts/sql/saque-so-na-pilha-comum-2026-11-14.sql`, aplicado;
+  2. o saque (Mestre e Jogador) chamava a RPC sem esperar a gravação em voo
+     (`filaGravacao`): um passo ainda não gravado fazia a RPC recusar o saque
+     ("encostado na criatura"), ou a gravação velha chegava depois e apagava o
+     `saqueado`. Agora espera.
+  O resto conferido sem achado: todo `aposGravar` termina num persistir (nenhum
+  efeito vaza para a ação seguinte), as RPCs e gatilhos batem com o cliente, o
+  `inventario_versao` sobe também na gravação da RPC (gatilho).
+- **Próximo:** publicar (o usuário decide quando) e o item 5.
 - **Banco:** o usuário autorizou (14/11/2026) mudanças no banco feitas pelo
   Claude.
 - **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em

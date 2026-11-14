@@ -24,4 +24,24 @@ describe('o saque do Mestre', () => {
   it('no treino, segue o cache (a RPC recusa treino)', () => {
     expect(corpo).toMatch(/if \(!batalha\.treinamento\) \{[\s\S]*?\} else \{[\s\S]*?gravarSaqueNoPj\(/);
   });
+  // Revisão de 14/11/2026: a RPC lê a mesa do banco — a gravação em voo vai antes.
+  it('Mestre e Jogador esperam a gravação em voo antes da RPC', () => {
+    const chamadas = fonte.split('await saquearPeloServidor(').slice(1);
+    expect(chamadas.length).toBe(2);
+    const antes = fonte.split('await saquearPeloServidor(').slice(0, -1);
+    antes.forEach((trecho) => {
+      expect(trecho.slice(-900)).toMatch(/await filaGravacao\.current;\s*(?:\/\/[^\n]*\n\s*)*const r = $/);
+    });
+  });
+});
+
+const sql = fs.readFileSync(path.resolve(__dirname, '../../scripts/sql/saque-so-na-pilha-comum-2026-11-14.sql'), 'utf8');
+describe('a RPC saquear_criatura só soma na pilha comum', () => {
+  it('pula a pilha com estado próprio, como adicionarAoInventario', () => {
+    ['montado', 'apelido', 'fabricado', 'quebrada', 'veneno', 'bonus'].forEach((k) => {
+      expect(sql).toContain(`AND NOT public._menestrel_js_verdade(v_it->'${k}')`);
+    });
+    expect(sql).toContain("COALESCE(jsonb_typeof(v_it->'usos'), 'null') = 'null'");
+    expect(sql).toContain("COALESCE(jsonb_typeof(v_it->'res'), 'null') = 'null'");
+  });
 });
