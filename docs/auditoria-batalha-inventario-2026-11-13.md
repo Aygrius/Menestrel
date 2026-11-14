@@ -12,6 +12,24 @@ inventário/loja, e o banco (RLS, RPCs, gatilhos — só leitura). Ponto de part
 
 Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer / adiado.
 
+## ▶ Onde paramos (14/11/2026)
+
+- **Feitos:** 1, 2, 3, 4 e 6 (todos os críticos do banco + o primeiro da
+  batalha). Item 5 adiado. Itens 33 e 41 resolvidos só no lado do jogador
+  (saque pela RPC `saquear_criatura`); falta o saque do Mestre.
+- **Próximo: item 7** — magia lançada sem PA quando sobra `pa_ataque_extra`.
+  Depois seguir a ordem da tabela (8, 9, 10…).
+- **Banco:** tudo dos itens 1–4 já está aplicado no Supabase (scripts em
+  `scripts/sql/*-2026-11-14.sql`).
+- **App NÃO publicado:** os commits de 14/11 estão na main, mas não houve
+  `npx vercel deploy --prod`. O site no ar ainda tem a tela de saque antiga
+  (grava o saque direto) e não traduz as recusas novas da batalha. Sem criatura
+  com moeda no banco hoje, nada quebra — mas publicar antes de seguir.
+- **Pergunta em aberto (item 6):** status que sobrou de uma luta (tem data,
+  vence no dia seguinte) agora vale a luta INTEIRA se houver outra batalha no
+  mesmo dia, em vez das rodadas que restavam. Confirmar com o usuário se fica
+  assim ou se esse caso deve continuar contando rodadas.
+
 ## Decisões do usuário (13/11/2026)
 
 - **Posicionamento**: o inimigo marcado passa a **causar** menos dano (leitura
@@ -111,19 +129,12 @@ contagem, limite de 3); grade do baú; compra da última unidade
 (`FOR UPDATE`); encerramento repetível sem efeito em dobro; nenhum `select`
 esquece `PJ_COLS`; nenhum `update` direto em `inventario` fora do CAS.
 
-## Notas para a continuação (14/11/2026)
+## Item 1 — como ficou (14/11/2026)
 
-- **Item 1** — plano: renomear `comprar_item` para
-  `_menestrel_comprar_item_nucleo` (REVOKE de anon/authenticated) e criar uma
-  casca `comprar_item` com a mesma assinatura que confere dono **ou** Mestre da
-  história, recusa `p_negociacao` de quem não é Mestre e exige que a entrada
-  esteja num comércio com `lugar` = `data_jogo_atual->>'local'` (o filtro de
-  `get_loja_pj`).
-- **Item 3** — cuidado: o assistente de evolução
-  (`08-personagens/personagens.jsx`, `salvar` em modo edição) grava `*_base` e
-  `experiencia` pelo próprio jogador, e `ficha.jsx` `salvarExperiencia` grava
-  XP. O gatilho não pode travar atributos sem antes mover o evoluir para RPC ou
-  aceitar só aumentos coerentes com os pontos do estágio.
+`comprar_item` virou casca de `_menestrel_comprar_item_nucleo` (sem EXECUTE
+para anon/authenticated): confere dono ou Mestre da história, recusa
+`p_negociacao` de quem não é Mestre e exige a entrada num comércio da cidade
+atual da mesa (o filtro de `get_loja_pj`).
 
 ## Item 3 — como ficou (14/11/2026)
 
