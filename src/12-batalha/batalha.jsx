@@ -2185,6 +2185,8 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         ef: efCur, ef_max: efMax,
         karma: kCur, karma_max: kMax,
         condicoes,
+        // A foto da entrada (auditoria item 25): o encerramento devolve só o que a LUTA mudou.
+        condicoes_entrada: { ...condicoes },
         defesa_sigla: defParsed ? defParsed[1] : 'L',
         defesa_valor: defParsed ? parseInt(defParsed[2], 10) : 0,
         rf: d.resistenciaFisica || 0,
@@ -5533,6 +5535,26 @@ function ehStatusDeTecnica(st) {
   return !!(st && typeof st.id === 'string' && st.id.indexOf('tec_') === 0);
 }
 
+/* AS CONDIÇÕES VOLTAM PELO QUE A LUTA MUDOU (14/11/2026, auditoria item 25).
+   O encerramento gravava as condições do snapshot por cima das da ficha — e
+   o snapshot é a foto da ENTRADA mais o que a luta mexeu. O Mestre que
+   avançava o relógio no meio da batalha (fome, sede, sono cobrados direto na
+   ficha) via essas horas sumirem ao encerrar. Agora vale a ficha de AGORA mais
+   a diferença que a luta fez (item, magia, cura de condição), no mesmo teto
+   da entrada. Snapshot antigo, sem a foto da entrada, segue como antes. */
+function condicoesAoEncerrar(atuais, finais, entrada) {
+  if (!entrada || typeof entrada !== 'object') return { ...finais };
+  const lim = (typeof COND_LIMITE !== 'undefined' ? COND_LIMITE : null) ?? (typeof window !== 'undefined' ? window.COND_LIMITE : null) ?? 50;
+  const out = { ...(atuais || {}) };
+  Object.keys(finais || {}).forEach((k) => {
+    const delta = (Number(finais[k]) || 0) - (Number(entrada[k]) || 0);
+    if (!delta) return;
+    const piso = k === 'termorregulacao' ? -lim : 0;
+    out[k] = Math.max(piso, Math.min(lim, (Number(out[k]) || 0) + delta));
+  });
+  return out;
+}
+
 function estadoAoEncerrar(estadoAtual, pFinal, dataJogo, segundosPorRodada) {
   if (!pFinal || pFinal.ausente) return null;
   const temp = Array.isArray(pFinal.status_temp) ? pFinal.status_temp : [];
@@ -5580,7 +5602,7 @@ function estadoAoEncerrar(estadoAtual, pFinal, dataJogo, segundosPorRodada) {
     : {};
   return {
     ...base,
-    condicoes: temCondicoes ? { ...p.condicoes } : (base.condicoes || {}),
+    condicoes: temCondicoes ? condicoesAoEncerrar(base.condicoes, p.condicoes, p.condicoes_entrada) : (base.condicoes || {}),
     vitalidade,
     status,
     ...comTemporarios,
@@ -15848,7 +15870,7 @@ Object.assign(window, {
     efeitoAncoraNoAtacante,
     tetoDeAlvos,
     alvosExtrasEfetivos,
-    debitarCustoAtaque, paParaAtaque, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel,
+    debitarCustoAtaque, paParaAtaque, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel, condicoesAoEncerrar,
     // O tempo da batalha (14/11/2026): 30 s × combatentes por rodada.
     SEGUNDOS_POR_ACAO, combatentesQueAgem, segundosDaRodada, duracaoDaBatalhaSegundos,
     minutosDaBatalha, prazosDaFichaEmRodadas,

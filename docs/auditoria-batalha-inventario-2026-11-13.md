@@ -93,7 +93,7 @@ Estado: ⬜ pendente · ✅ corrigido (com o commit) · 📝 decidido não mexer
 | 22 | ✅ | PJ que entra com EF ≤ 0 fica desmaiado a luta inteira (sem o contador `desmaio_ef`). |
 | 23 | ✅ | Rodada trava se todo ativo está canalizando/sem ação — ninguém recebe `atual`. |
 | 24 | ✅ | Falha passageira ao gravar a cortina desliga a cortina para sempre naquela tela. |
-| 25 | ⬜ | Encerrar sobrescreve `condicoes` com as da entrada (horas avançadas na luta somem). |
+| 25 | ✅ | Encerrar sobrescreve `condicoes` com as da entrada (horas avançadas na luta somem). |
 | 26 | ⬜ | Alvo guardado por índice: quando alguém sai da lista, a mira pula para o vizinho. |
 | 27 | ⬜ | Item usado pelo Mestre a partir do cache velho: efeito sem baixa (`consumirDoInventario` devolve ok sem achar o item). |
 | 28 | ⬜ | Restaurar do treino não conserta peças quebradas nem `ar`/`ar_max`. |
@@ -182,6 +182,14 @@ atual da mesa (o filtro de `get_loja_pj`).
   horas ficam devendo para o próximo movimento.
 - Testes: `src/12-batalha/tempo-da-batalha.test.js`,
   `src/10-shell/relogio-batalha.test.js`.
+
+## Item 25 — como ficou (14/11/2026)
+
+O snapshot do PJ guarda `condicoes_entrada`; `condicoesAoEncerrar` grava a
+ficha de AGORA mais a diferença que a luta fez em cada condição (no mesmo teto
+e piso da entrada; a Temperatura tem sinal). O que o relógio cobrou durante a
+batalha não some mais. Snapshot antigo, sem a foto, grava as finais como antes.
+Teste: `src/12-batalha/condicoes-encerrar.test.js`.
 
 ## Item 24 — como ficou (14/11/2026)
 
