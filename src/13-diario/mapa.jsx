@@ -208,13 +208,17 @@ function criarMotorMapa(raiz, cfg) {
 
   /* ── O chão: os ladrilhos da pintura ── */
   const ladrilhos = new Map();
-  let NIVEIS = null, pasta = '', pedido = 0, vivo = true;
+  let NIVEIS = null, pasta = '', pedido = 0, vivo = true, semPintura = false;
   fetch(cfg.base + 'mapa.json', { cache: 'no-cache' }).then((r) => r.json()).then((m) => {
     if (!vivo) return;
     NIVEIS = m.niveis; pasta = cfg.base + (m.versao ? m.versao + '/' : '');
     $('arte').innerHTML = [...NIVEIS].reverse().map((v) => `<div data-nv="${v.z}"></div>`).join('');
     ladrilhar();
-  }).catch(() => { /* sem pintura: o mapa segue usável, só sem chão */ });
+  }).catch(() => {
+    /* Sem pintura o mapa segue usável, mas a área escura e vazia parece
+       quebrada (15/11/2026, usuário: "o mapa não carrega"). A tela diz o que falta. */
+    if (vivo) { semPintura = true; aviso(); }
+  });
   function pedirLadrilhos() { if (!pedido) pedido = requestAnimationFrame(() => { pedido = 0; ladrilhar(); }); }
   function ladrilhar() {
     if (!NIVEIS || !vw || !vivo) return;
@@ -491,6 +495,7 @@ function criarMotorMapa(raiz, cfg) {
       h = traco.length < 2 ? (traco.length ? tr('Toque no próximo ponto.', 'Tap the next point.') : (modo === 'rota' ? tr('Toque, um a um, nos pontos da rota.', 'Tap the route points one by one.') : tr('Toque, um a um, nos pontos do caminho.', 'Tap the path points one by one.')))
         : `<span><b>${fmtKm(k)} km</b> · ${dias(k)} ${tr('a pé', 'on foot')}</span>` + botoes(['volta-ponto', tr('Voltar um', 'Undo point')], ['concluir', tr('Concluir', 'Finish')]);
     } else if (recado) h = `<span>${esc(recado.txt)}</span>` + (recado.antes ? botoes(['desfazer', tr('Desfazer', 'Undo')]) : '');
+    else if (semPintura) h = tr('A pintura do mapa não carregou. O resto funciona, mas sem o desenho por baixo.', 'The map painting did not load. Everything else works, but without the drawing underneath.');
     el.hidden = !h; el.innerHTML = h;
   }
   function trocarModo(m) {
