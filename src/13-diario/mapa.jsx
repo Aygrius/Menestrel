@@ -147,6 +147,16 @@ function criarMotorMapa(raiz, cfg) {
     return { ...j, destino: { ...j.destino, nome: ld ? ld.nome : j.rota.nome }, origem: ini ? ini.nome : null };
   };
 
+  /* ── A cidade do mapa É a cidade da aba Cidades (15/11/2026) ──
+     Usuário: "No mapa, ao apontar uma cidade, deverá conectar à cidade
+     cadastrada na aba 'cidades'." A ligação é pelo NOME (sem acento nem
+     caixa): a pintura não sabe de slug, e assim uma cidade que o Mestre cria
+     no mapa com o nome de uma cadastrada já nasce ligada. */
+  let fichas = new Map(), nomesLore = {};
+  const porFichas = (c) => { fichas = new Map(((c && c.cidades) || []).map((e) => [semAcento(e.nome).trim(), e])); nomesLore = (c && c.nomes) || {}; };
+  porFichas(cfg.catalogo);
+  const fichaDe = (p) => { const l = p && (p.tipo === 'cidade' ? p : perto(p)); return (l && l.tipo === 'cidade' && fichas.get(semAcento(l.nome).trim())) || null; };
+
   /* ── Gravação: o motor avisa, o React leva ao banco (com folga) ── */
   const guardarMesa = () => cfg.aoMudarMesa && cfg.aoMudarMesa(JSON.parse(JSON.stringify(mesa)));
   const guardar = () => cfg.aoMudarMarcas && cfg.aoMudarMarcas(JSON.parse(JSON.stringify(marcas)));
@@ -408,8 +418,19 @@ function criarMotorMapa(raiz, cfg) {
         nota = tr('Arraste no mapa para mudar de lugar.', 'Drag on the map to move it.');
       } else if (quem.length) nota = tr(`${esc(quem.join(', '))} ${quem.length > 1 ? 'estão' : 'está'} aqui.`, `${esc(quem.join(', '))} ${quem.length > 1 ? 'are' : 'is'} here.`);
     }
+    /* O que a aba Cidades sabe deste lugar: reino e população no passe, e a
+       ficha inteira a um toque. */
+    const lugarDaFicha = f.tipo === 'marca' ? (marcaSolta(a) ? null : lugarId(a.lugar)) : (f.tipo === 'lugar' || f.tipo === 'destino' || f.tipo === 'aqui') ? a : null;
+    const ficha = fichaDe(lugarDaFicha);
+    let daFicha = '';
+    if (ficha) {
+      const at = ficha.atributos || {}, reino = at.reino ? (nomesLore[at.reino] || at.reino) : '', pop = Number(at.populacao) || 0;
+      if (reino) daFicha += cel(tr('Reino', 'Kingdom'), esc(reino));
+      if (pop) daFicha += cel(tr('População', 'Population'), fmtKm(pop));
+      acoes = bt('ficha', 'ti-building', tr('Abrir a ficha', 'Open the entry')) + acoes;
+    }
     const editando = document.activeElement && document.activeElement.id === 'mp-nome-foco';
-    if (!editando) el.innerHTML = `<div class="mp-passe-id">${id}</div>` + (nums ? `<div class="mp-passe-nums">${nums}</div>` : '');   // não rouba o cursor de quem digita
+    if (!editando) el.innerHTML = `<div class="mp-passe-id">${id}</div>` + (nums ? `<div class="mp-passe-nums">${nums}</div>` : '') + (daFicha ? `<div class="mp-passe-nums">${daFicha}</div>` : '');   // não rouba o cursor de quem digita
     pe.innerHTML = (acoes ? `<div class="mp-acoes">${acoes}</div>` : '') + (nota ? `<p class="mp-nota">${nota}</p>` : '');
   }
 
@@ -688,6 +709,7 @@ function criarMotorMapa(raiz, cfg) {
       focar(l ? { tipo: 'lugar', id: l.id } : focoPadrao(), false);
     }
     else if (acao === 'medir') { modo = 'medir'; medida = [{ x: a.x, y: a.y }]; traco = []; continua = null; aviso(); desenhar(); }
+    else if (acao === 'ficha') { const fc = fichaDe(foco.tipo === 'marca' ? lugarId(a.lugar) : a); if (fc && cfg.aoAbrirCidade) cfg.aoAbrirCidade(fc); }
     else if (acao === 'limpar-medida') { medida = []; aviso(); desenhar(); }
     else if (acao === 'volta-ponto') { traco.pop(); aviso(); desenhar(); }
     else if (acao === 'concluir') concluir();
@@ -732,6 +754,8 @@ function criarMotorMapa(raiz, cfg) {
       mesa = mapaNormalizar(dados); desenhar();
     },
     buscar(texto) { busca = texto || ''; achados(); },
+    /* As cidades cadastradas chegaram (ou mudaram): religa e redesenha o passe. */
+    catalogar(c) { porFichas(c); if (pronto) passe(); },
     falhou() { recado = { txt: tr('O mapa não foi salvo. Confira a conexão e mexa de novo.', 'The map was not saved. Check your connection and try again.') }; aviso(); },
     destruir() {
       vivo = false; cancelAnimationFrame(voo); cancelAnimationFrame(pedido); olho.disconnect();
@@ -776,6 +800,21 @@ function mapaApiSupabase() {
           .sort((a, b) => (b.eu ? 1 : 0) - (a.eu ? 1 : 0) || String(a.nome).localeCompare(String(b.nome), 'pt-BR')),
       };
     },
+    /* As cidades CADASTRADAS, para ligar às do mapa. O Mestre lê o catálogo do
+       mundo; o Jogador, só o que já está no diário dele ou que o Mestre
+       liberou — o mapa não pode revelar a ficha de uma cidade antes da mesa. */
+    async catalogo({ mestre, pj }) {
+      let entradas = [];
+      if (mestre) {
+        const [c, rn] = await Promise.all([sb().rpc('listar_catalogo_global', { p_tipo: 'cidade' }), sb().rpc('listar_catalogo_global', { p_tipo: 'reino' })]);
+        entradas = [...((c.data && c.data.entradas) || []).map((e) => ({ ...e, tipo: 'cidade' })), ...((rn.data && rn.data.entradas) || []).map((e) => ({ ...e, tipo: 'reino' }))];
+      } else if (pj) {
+        const [d, l] = await Promise.all([sb().rpc('listar_diario_disponivel', { p_personagem_id: pj.id }), sb().rpc('listar_diario_lore', { p_personagem_id: pj.id })]);
+        entradas = [...((l.data && l.data.entradas) || []), ...((d.data && d.data.lore) || [])];
+      }
+      const nomes = {}; entradas.forEach((e) => { if (e && e.id) nomes[e.id] = e.nome; });
+      return { cidades: entradas.filter((e) => e && e.tipo === 'cidade' && e.nome), nomes, lore: entradas };
+    },
     async salvarMesa(historiaId, dados) {
       const { error } = await sb().from('mapas_mesa').upsert({ historia_id: historiaId, dados, updated_at: new Date().toISOString() });
       if (error) throw error;
@@ -810,6 +849,8 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
   const raiz = React.useRef(null), motor = React.useRef(null);
   const [estado, setEstado] = React.useState('carregando');   // 'carregando' | 'pronto' | 'erro'
   const [query, setQuery] = React.useState('');
+  const [catalogo, setCatalogo] = React.useState(null);     // { cidades, nomes, lore }
+  const [fichaAberta, setFichaAberta] = React.useState(null);
   const banco = React.useMemo(() => api || mapaApiSupabase(), [api]);
   const pjId = pj ? pj.id : null;
   /* FORA DAS MESAS (15/11/2026, usuário: "O mapa não está aparecendo"): o mapa
@@ -820,7 +861,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
   React.useEffect(() => {
     if (!semMesa || !raiz.current) return undefined;
     motor.current = criarMotorMapa(raiz.current, { papel: 'jogador', semMesa: true, en, base: base || mapaBaseLadrilhos(),
-      mesa: null, marcas: [], gente: [], aoEscolherAchado: () => setQuery('') });
+      mesa: null, marcas: [], gente: [], aoEscolherAchado: () => setQuery(''), aoAbrirCidade: setFichaAberta });
     setEstado('pronto');
     return () => { if (motor.current) { motor.current.destruir(); motor.current = null; } };
   }, [semMesa, en, base]);
@@ -844,7 +885,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
           clearTimeout(relogioMarcas);
           relogioMarcas = setTimeout(() => banco.salvarMarcas(pjId, marcas).catch(() => motor.current && motor.current.falhou()), 500);
         } : null,
-        aoEscolherAchado: () => setQuery(''),
+        aoEscolherAchado: () => setQuery(''), aoAbrirCidade: setFichaAberta,
       });
       setEstado('pronto');
       /* O eco da própria gravação volta pelo tempo real: igual ao que saiu, ignora. */
@@ -862,6 +903,16 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
 
   React.useEffect(() => { if (motor.current) motor.current.buscar(query); }, [query, estado]);
 
+  /* As cidades cadastradas vêm à parte: o mapa não espera por elas, e uma
+     falha aqui só deixa o passe sem a ficha. */
+  React.useEffect(() => {
+    let vivo = true;
+    if (!banco.catalogo) return undefined;
+    banco.catalogo({ mestre, pj }).then((c) => { if (vivo) setCatalogo(c); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [banco, mestre, pjId]);
+  React.useEffect(() => { if (motor.current && catalogo) motor.current.catalogar(catalogo); }, [catalogo, estado]);
+
   /* A tela ocupa o que sobra da janela abaixo do trilho: mapa não rola junto
      com a página, senão a roda do mouse disputa entre aproximar e rolar. */
   React.useEffect(() => {
@@ -874,6 +925,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
 
   const Busca = (typeof BestBuscaENovo !== 'undefined' && BestBuscaENovo) || window.BestBuscaENovo;
   const ac = (typeof ADMIN_COPY !== 'undefined' && (ADMIN_COPY[lang] || ADMIN_COPY.pt)) || {};
+  const Ficha = (typeof DetalheEntradaModal !== 'undefined' && DetalheEntradaModal) || window.DetalheEntradaModal;
   const zoom = (qual, ico, rot) => (
     <button type="button" className="mp-ferr so-ico" data-zoom={qual} aria-label={rot}><i className={'ti ' + ico} aria-hidden="true" /></button>
   );
@@ -921,6 +973,9 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
             )}
           </div>
         </div>
+      )}
+      {fichaAberta && Ficha && (
+        <Ficha entrada={fichaAberta} lang={lang} lore={(catalogo && catalogo.lore) || []} onClose={() => setFichaAberta(null)} />
       )}
     </div>
   );

@@ -103,12 +103,23 @@ function EntidadesView({ lang, trilhoPaginas = null, entidades }) {
   const Busca = (typeof BestBuscaENovo !== 'undefined' && BestBuscaENovo) || _ent('BestBuscaENovo');
   const ac = (typeof ADMIN_COPY !== 'undefined' && (ADMIN_COPY[lang] || ADMIN_COPY.pt)) || {};
   const entAberta = aberta ? lista0.find((e) => e.slug === aberta) : null;
+  /* PAGINADA, COMO AS OUTRAS ABAS (15/11/2026, usuário: "a aba 'entidades' não
+     está paginada e os cards estão todos bugados"). A grade de cartões divide a
+     altura da página entre as fileiras; com as 28 entidades de uma vez, cada
+     cartão ficava mais baixo que o próprio texto. 18 por página é o mesmo
+     número de Reinos, Cidades, Locais e Pessoas (PAGE_SIZE_FALLBACK, diario.jsx). */
+  const POR_PAGINA = 18;
+  const [page, setPage] = React.useState(1);
+  const totalPages = Math.max(1, Math.ceil(lista.length / POR_PAGINA));
+  const safePage = Math.min(page, totalPages);
+  const pagina = lista.slice((safePage - 1) * POR_PAGINA, safePage * POR_PAGINA);
+  const Paginas = (typeof BestPagination !== 'undefined' && BestPagination) || _ent('BestPagination');
 
   return (
     <div className="pjs diario-pagina">
       <div className={'diario-pagina-barra cartoes-barra' + (trilhoPaginas ? ' livro-trilho trilho-unido' : '')}>
         {Busca && (
-          <Busca ac={ac} placeholder={en ? 'Search' : 'Buscar'} query={query} setQuery={setQuery}
+          <Busca ac={ac} placeholder={en ? 'Search' : 'Buscar'} query={query} setQuery={(v) => { setQuery(v); setPage(1); }}
             podeCriar={false} antes={trilhoPaginas} />
         )}
       </div>
@@ -119,8 +130,9 @@ function EntidadesView({ lang, trilhoPaginas = null, entidades }) {
              : (en ? 'Nothing registered yet.' : 'Nada cadastrado ainda.')}
         </div>
       ) : (
+        <>
         <div className="pjs-grid diario-cartoes">
-          {lista.map((e) => {
+          {pagina.map((e) => {
             const abrir = () => setAberta(e.slug);
             return (
               <div className="pj-card-wrap" key={e.slug}>
@@ -150,6 +162,8 @@ function EntidadesView({ lang, trilhoPaginas = null, entidades }) {
             );
           })}
         </div>
+        {Paginas && <Paginas page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} lang={lang} />}
+        </>
       )}
 
       {entAberta && <EntidadeDetalhe entidade={entAberta} lang={lang} onClose={() => setAberta(null)} />}
