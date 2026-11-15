@@ -325,6 +325,20 @@ página e a mesma janela, lendo `GRUPOS` (01-core) — por ora os seis colégios
 de magia (`tagmar/colegios.pdf`). As listas reusam `EntidadeLista`; carrega
 depois de `13-diario/entidades.jsx`.
 
+`mapa.jsx` + `mapa.css` (15/11/2026) é a página **Mapa**, última folha da
+Ambientação/Diário: o mapa de Tagmar DA MESA. O chão é a pintura original em
+ladrilhos PNG sem perda (bucket público `mapas` do Storage, 4 níveis, só os
+visíveis carregam); por cima, o que o Mestre desenha — cidades, pontos,
+caminhos, rotas e onde está cada personagem — em `mapas_mesa.dados`, uma
+linha por história, com tempo real para o Jogador. O Jogador mede distâncias
+e guarda marcas em `mapa_marcas` (por personagem). Tudo em **unidades do
+mapa** (1200 × 2000), não em pixels: trocar a pintura por outra do mesmo
+tamanho é `scripts/mapa/cortar.ps1` + `scripts/mapa/subir.mjs`, e nada do
+que foi desenhado se move. O desenho é um motor imperativo
+(`criarMotorMapa`) dentro da moldura que o React monta — arrastar e
+aproximar repintam a cada quadro. Banco: `scripts/sql/mapa-da-mesa-2026-11-15.sql`.
+Prévia sem login: `/preview/?tela=mapa` (`&papel=jogador`, `&vazio=1`).
+
 ---
 
 ## 4. Convenções
@@ -461,5 +475,6 @@ armadura é por PEÇA (`peca_<nome>`, sem cultura).
 | adicionar um destino no menu | `01-core/constants.jsx` (`NAV_MESA` + `ADMIN_SECTIONS`) e o switch de `10-shell/shell.jsx` |
 | mexer no que o relógio cobra | `01-core/clima-desgaste.jsx` (as regras) e `10-shell/shell.jsx` (a ida ao banco) |
 | mexer no inventário | `01-core/inventario-helpers.jsx` (regras) e `07-inventario/inventario.jsx` (tela) |
+| trocar a pintura do mapa | `tagmar/mapa_oriental.png` (mesmo tamanho) → `scripts/mapa/cortar.ps1` → `scripts/mapa/subir.mjs` |
 | adicionar uma coluna no banco | um `scripts/sql/<assunto>-<data>.sql` idempotente, com conferência no rodapé |
 | mudar a identidade visual | `src/index.css` (tokens em `.menestrel-ui`) e a skill `impeccable` |

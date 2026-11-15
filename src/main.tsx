@@ -94,6 +94,8 @@ import './12-batalha/tabuleiro.jsx'
 import './13-diario/diario.jsx'
 import './13-diario/entidades.jsx'    // a página Entidades da Ambientação (08/11/2026)
 import './13-diario/grupos.jsx'       // a página Grupos da Ambientação; usa EntidadeLista (13/11/2026)
+import './13-diario/mapa.css'
+import './13-diario/mapa.jsx'         // a página Mapa: a pintura em ladrilhos e o que o Mestre desenha (15/11/2026)
 
 // ── data layer (Fase 1): expõe os hooks-ponte no window ──
 import './data/bridge'

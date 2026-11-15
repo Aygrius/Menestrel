@@ -260,6 +260,8 @@ const ADMIN_COPY = {
       entidades:     { label: 'Entidades',    desc: 'Os deuses, titãs e príncipes de Tagmar' },
       // Grupos (13/11/2026): colégios de magia (01-core/grupos.jsx).
       grupos:        { label: 'Grupos',       desc: 'Os colégios de magia de Tagmar' },
+      // Mapa (15/11/2026): o mapa de Tagmar com a rota e as posições da mesa (13-diario/mapa.jsx).
+      mapa:          { label: 'Mapa',         desc: 'O mapa de Tagmar, com a rota da mesa' },
       memorias:      { label: 'Memórias',     desc: 'O que seu personagem escreveu sobre o que viveu' },
     }
   },
@@ -422,6 +424,7 @@ const ADMIN_COPY = {
       locais:        { label: 'Places',      desc: 'The places of the world that are not cities' },
       entidades:     { label: 'Entities',    desc: 'The gods, titans and princes of Tagmar' },
       grupos:        { label: 'Groups',      desc: 'The colleges of magic of Tagmar' },
+      mapa:          { label: 'Map',         desc: 'The map of Tagmar, with the table route' },
       memorias:      { label: 'Memories',    desc: 'What your character wrote about what they lived' },
     }
   }
@@ -472,6 +475,8 @@ const ADMIN_SECTIONS = {
     { id: 'entidades',     icon: 'Entidade' },
     // Grupos (13/11/2026): colégios de magia.
     { id: 'grupos',        icon: 'Grupo' },
+    // Mapa (15/11/2026): o mapa de Tagmar da mesa.
+    { id: 'mapa',          icon: 'Mapa' },
     { id: 'criaturas',     icon: 'Tower' },
     { id: 'itens',         icon: 'Sheet' },
     { id: 'itens_campanha', icon: 'Chest' },
@@ -493,6 +498,8 @@ const ADMIN_SECTIONS = {
     { id: 'npcs',          icon: 'Users' },
     { id: 'entidades',     icon: 'Entidade' },
     { id: 'grupos',        icon: 'Grupo' },
+    // Mapa (15/11/2026): o mapa de Tagmar da mesa.
+    { id: 'mapa',          icon: 'Mapa' },
     { id: 'memorias',      icon: 'Feather' },
     // Catálogos filtrados pelo que o jogador conhece/possui (spec
     // docs/superpowers/specs/2026-09-11-catalogos-visao-jogador-design.md §4).
@@ -647,6 +654,8 @@ const diario = (comMemorias) => ({
     { secao: 'entidades', rotulo: R('Entidades', 'Entities') },
     // Grupos (13/11/2026): colégios de magia — catálogo do mundo.
     { secao: 'grupos', rotulo: R('Grupos', 'Groups') },
+    // Mapa (15/11/2026): o mapa de Tagmar; o Mestre desenha, o Jogador acompanha.
+    { secao: 'mapa', rotulo: R('Mapa', 'Map') },
     // Memórias é do personagem, não da mesa — só o Jogador tem.
     ...(comMemorias ? [{ secao: 'memorias', rotulo: R('Memórias', 'Memories') }] : []),
   ],
