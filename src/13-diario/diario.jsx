@@ -3369,7 +3369,10 @@ function LoreDaMesa({ historiaId, lang, tipoFixo, vazio, trilhoPaginas = null })
   /* Sem mesa, o catálogo do mundo em leitura (26/09/2026) — ver `semMesa` em
      GerenciarLoreView. `vazio` fica para quem quiser a tela vazia. */
   if (!historiaId) return vazio === undefined
-    ? <GerenciarLoreView historia={null} lang={lang} tipoFixo={tipoFixo} key={tipoFixo + ':mundo'} />
+    /* O trilho das páginas vale também fora das mesas (15/11/2026, usuário:
+       "quando eu saio das mesas, só vejo algumas"): sem ele, a Ambientação
+       parava na primeira página e as outras ficavam sem caminho. */
+    ? <GerenciarLoreView historia={null} lang={lang} tipoFixo={tipoFixo} trilhoPaginas={trilhoPaginas} key={tipoFixo + ':mundo'} />
     : (vazio || null);
   if (erro) return <DiarioErrorBox error={erro} hint={lang === 'en' ? 'Could not load the table lore.' : 'Não consegui carregar o lore da mesa.'} />;
   if (!historia) return <DiarioLoading lang={lang} />;

@@ -348,6 +348,7 @@ function criarMotorMapa(raiz, cfg) {
       el.hidden = true;
       pe.innerHTML = `<p class="mp-nota">${mestre
         ? tr('Toque numa cidade para escolher, ou use as ferramentas do mapa para criar cidades, pontos, caminhos e rotas.', 'Tap a city to pick it, or use the map tools to create cities, points, paths and routes.')
+        : cfg.semMesa ? tr('Toque numa cidade para escolher, ou use Medir. A rota e os personagens aparecem dentro de uma mesa.', 'Tap a city to pick it, or use Measure. The route and the characters show up inside a table.')
         : tr('Toque numa cidade para ver a distância. O Mestre ainda não traçou a rota da mesa.', 'Tap a city to see the distance. The Game Master has not drawn the table route yet.')}</p>`;
       return;
     }
@@ -434,7 +435,7 @@ function criarMotorMapa(raiz, cfg) {
       h += quadro(tr('Cidades novas', 'New cities'), novas.length, colLonge, novas.map(doLugar).join(''),
         tr(`As ${mesa.lugares.length - novas.length - pontos.length} cidades da pintura já respondem ao toque. Use Cidade para pôr outra.`, `The ${mesa.lugares.length - novas.length - pontos.length} painted cities already respond to taps. Use City to add another.`));
     }
-    h += quadro(tr('Comitiva', 'Party'), gente.length, tr('Onde está', 'Where'), gente.map((g) => {
+    if (!cfg.semMesa) h += quadro(tr('Comitiva', 'Party'), gente.length, tr('Onde está', 'Where'), gente.map((g) => {
       const p = mesa.gente[g.id];
       return `<li><button type="button" class="mp-linha" data-alvo="gente" data-id="${esc(g.id)}" aria-current="${emFoco('gente', g.id) || (!!p && !!a && (foco.tipo === 'aqui' || foco.tipo === 'lugar' || foco.tipo === 'destino') && dist(a, p) < 4)}">
         ${disco(g)}
@@ -806,7 +807,18 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
   const [query, setQuery] = React.useState('');
   const banco = React.useMemo(() => api || mapaApiSupabase(), [api]);
   const pjId = pj ? pj.id : null;
+  /* FORA DAS MESAS (15/11/2026, usuário: "O mapa não está aparecendo"): o mapa
+     é do mundo antes de ser da mesa. Sem mesa (ou Jogador sem personagem), ele
+     abre só para olhar e medir — a pintura e as cidades dela —, sem banco. */
   const semMesa = !historiaId || (!mestre && !pj);
+
+  React.useEffect(() => {
+    if (!semMesa || !raiz.current) return undefined;
+    motor.current = criarMotorMapa(raiz.current, { papel: 'jogador', semMesa: true, en, base: base || mapaBaseLadrilhos(),
+      mesa: null, marcas: [], gente: [], aoEscolherAchado: () => setQuery('') });
+    setEstado('pronto');
+    return () => { if (motor.current) { motor.current.destruir(); motor.current = null; } };
+  }, [semMesa, en, base]);
 
   React.useEffect(() => {
     if (semMesa) return undefined;
@@ -848,7 +860,6 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
   /* A tela ocupa o que sobra da janela abaixo do trilho: mapa não rola junto
      com a página, senão a roda do mouse disputa entre aproximar e rolar. */
   React.useEffect(() => {
-    if (semMesa) return undefined;
     const medir = () => { const el = raiz.current; if (!el) return;
       const celular = window.innerWidth <= 768;
       el.style.setProperty('--mp-altura', Math.max(celular ? 560 : 460, window.innerHeight - el.getBoundingClientRect().top - window.scrollY - 48) + 'px'); };
@@ -869,12 +880,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
             podeCriar={false} antes={trilhoPaginas} />
         )}
       </div>
-      {semMesa ? (
-        <div className="best-empty diario-empty-lg">
-          {mestre ? (en ? 'Choose a table to open its map.' : 'Escolha uma mesa para abrir o mapa dela.')
-                  : (en ? 'Choose a character to see the map of their table.' : 'Escolha um personagem para ver o mapa da mesa dele.')}
-        </div>
-      ) : (
+      {(
         <div className="mp-tela" ref={raiz}>
           <aside className="mp-painel" aria-label={en ? 'Map panel' : 'Painel do mapa'}>
             <ul className="mp-achados mp-quadro" data-el="achados" />
