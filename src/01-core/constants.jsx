@@ -262,6 +262,8 @@ const ADMIN_COPY = {
       grupos:        { label: 'Grupos',       desc: 'Os colégios de magia de Tagmar' },
       // Mapa (15/11/2026): o mapa de Tagmar com a rota e as posições da mesa (13-diario/mapa.jsx).
       mapa:          { label: 'Mapa',         desc: 'O mapa de Tagmar, com a rota da mesa' },
+      // Fórum (15/11/2026): salas temáticas, tópicos e respostas (14-forum/forum.jsx).
+      forum:         { label: 'Fórum',        desc: 'As salas de conversa do Menestrel' },
       memorias:      { label: 'Memórias',     desc: 'O que seu personagem escreveu sobre o que viveu' },
     }
   },
@@ -425,6 +427,7 @@ const ADMIN_COPY = {
       entidades:     { label: 'Entities',    desc: 'The gods, titans and princes of Tagmar' },
       grupos:        { label: 'Groups',      desc: 'The colleges of magic of Tagmar' },
       mapa:          { label: 'Map',         desc: 'The map of Tagmar, with the table route' },
+      forum:         { label: 'Forum',       desc: 'The conversation rooms of the Menestrel' },
       memorias:      { label: 'Memories',    desc: 'What your character wrote about what they lived' },
     }
   }
@@ -483,6 +486,8 @@ const ADMIN_SECTIONS = {
     { id: 'magias',        icon: 'Flame' },
     { id: 'tecnicas',      icon: 'Sword' },
     { id: 'habilidades',   icon: 'Shield' },
+    // Fórum (15/11/2026): de toda conta; quem escreve é quem paga.
+    { id: 'forum',         icon: 'Language' },
   ],
   player: [
     { id: 'personagens_j', icon: 'Skull' },
@@ -501,6 +506,7 @@ const ADMIN_SECTIONS = {
     // Mapa (15/11/2026): o mapa de Tagmar da mesa.
     { id: 'mapa',          icon: 'Mapa' },
     { id: 'memorias',      icon: 'Feather' },
+    { id: 'forum',         icon: 'Language' },
     // Catálogos filtrados pelo que o jogador conhece/possui (spec
     // docs/superpowers/specs/2026-09-11-catalogos-visao-jogador-design.md §4).
     // Mesmos ícones da lista master, propositalmente. `criaturas` FICA DE FORA
@@ -669,6 +675,8 @@ const ADMIN_MENU = {
     CRIATURAS,
     COMERCIO,
     TREINAMENTO,
+    // Fórum (15/11/2026): folha simples; no menu de verdade mora no NAV_MESA.
+    { secao: 'forum' },
   ],
   player: [
     { secao: 'personagens_j' },
@@ -677,6 +685,7 @@ const ADMIN_MENU = {
     diario(true),
     COMERCIO,
     TREINAMENTO,
+    { secao: 'forum' },
   ],
 };
 
@@ -733,6 +742,18 @@ const PARTES_DA_FICHA = [
 ];
 
 const ROTULO_LIVRO = R('Livro de Regras', 'Rulebook');
+/* COMPÊNDIO (15/11/2026, usuário: "Adicione um novo menu, abaixo de
+   ambientação, chamado de compêndio, lá teremos basicamente uma página
+   parecida com a página de ambientação, mas o conteúdo será aquele de itens,
+   criaturas, magias, etc que temos no ctrl + k"). Grupo de trilho como a
+   Ambientação: um item no menu lateral; as cinco listas do livro trocam pelo
+   trilho delas (livro-trilho, 10-shell), que já tem busca e filtro. */
+const COMPENDIO = {
+  id: 'compendio', rotulo: R('Compêndio', 'Compendium'), trilho: true, filhos: [
+    { secao: 'criaturas' }, { secao: 'itens' }, { secao: 'magias' },
+    { secao: 'tecnicas' }, { secao: 'habilidades' },
+  ],
+};
 const NAV_MESA = {
   master: {
     mesa: [
@@ -757,6 +778,9 @@ const NAV_MESA = {
          trilho no topo das páginas (10-shell). Os filhos continuam na árvore:
          é por eles que as páginas ganham título e passam no "está no menu?". */
       { ...diario(false), rotulo: R('Ambientação', 'Setting'), trilho: true },
+      COMPENDIO,
+      // FÓRUM (15/11/2026): as salas de conversa, abaixo do Compêndio.
+      { secao: 'forum' },
       /* "Itens da Campanha" saiu do menu em 23/10/2026 (não chegava a lugar
          nenhum); a página continua no código. */
       { secao: 'jogadores' },
@@ -818,6 +842,9 @@ const NAV_MESA = {
          caso do Jogador em `rotuloDe` ("aventuras" chama-se Mesa para ele). */
       { id: 'aventuras', secao: 'aventuras' },
       { ...diario(true), trilho: true },
+      COMPENDIO,
+      // FÓRUM (15/11/2026): as salas de conversa, abaixo do Compêndio.
+      { secao: 'forum' },
     ],
     regras: [
       CRIATURAS, { ...COMERCIO, rotulo: R('Itens', 'Items') },

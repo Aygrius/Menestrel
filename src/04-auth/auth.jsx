@@ -148,10 +148,13 @@ function PrimeiraEntrada({ lang = 'pt', setLang, userId, nome, shader = true, sh
   };
 
   const papeis = [
-    { id: 'master', icone: 'ti-crown',
+    /* MESTRAR É DE QUEM PAGA (15/11/2026): toda conta nasce Plebeu, que "não
+       poderá mudar seu perfil para mestre" (usuário). A porta continua à
+       vista, fechada e dizendo o porquê; o banco recusaria do mesmo jeito. */
+    { id: 'master', icone: 'ti-crown', bloqueado: true,
       titulo: en ? "I'll run the game" : 'Vou mestrar',
-      texto: en ? 'Create the table, run scenes and battles, invite your players.'
-                : 'Crie a mesa, conduza cenas e batalhas, convide seus jogadores.' },
+      texto: en ? 'Running a table is for Noble and Counselor accounts.'
+                : 'Mestrar é para as contas Nobre e Conselheiro.' },
     { id: 'player', icone: 'ti-shield',
       titulo: en ? "I'll play" : 'Vou jogar',
       texto: en ? "Create your character and join a Game Master's table by invite."
@@ -179,8 +182,9 @@ function PrimeiraEntrada({ lang = 'pt', setLang, userId, nome, shader = true, sh
       </p>
       <div className="entrada-papeis">
         {papeis.map((p) => (
-          <button key={p.id} type="button" className="entrada-papel" onClick={() => escolher(p.id)}
-            disabled={!!salvando} aria-busy={salvando === p.id || undefined}>
+          <button key={p.id} type="button" className={'entrada-papel' + (p.bloqueado ? ' is-bloqueado' : '')}
+            onClick={() => { if (!p.bloqueado) escolher(p.id); }}
+            disabled={!!salvando || !!p.bloqueado} aria-busy={salvando === p.id || undefined}>
             <span className="entrada-papel-icone" aria-hidden="true">
               <i className={'ti ' + (salvando === p.id ? 'ti-loader-2 entrada-girando' : p.icone)} />
             </span>

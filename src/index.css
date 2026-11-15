@@ -5639,6 +5639,13 @@
   font-size: var(--fs-xs); color: var(--tinta-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* O tipo da conta (15/11/2026): o rótulo de sempre; o Imperador em ouro. */
+.menestrel-ui.mc-usermenu .mc-um-conta {
+  margin-top: 4px; font-size: var(--fs-rotulo); font-weight: 700; letter-spacing: var(--rotulo-espaco);
+  text-transform: uppercase; color: var(--tinta-3);
+}
+.menestrel-ui.mc-usermenu .mc-um-conta.is-imperador { color: var(--vivo); }
+.menestrel-ui.mc-usermenu .mc-um-conta-ate { text-transform: none; letter-spacing: normal; font-weight: 500; color: var(--tinta-2); }
 
 /* Submenu expandido (Perfil / Idioma) */
 .menestrel-ui.mc-usermenu .mc-um-submenu {
@@ -6230,6 +6237,153 @@ body:has(.batalha-tabuleiro-wrap) #root .menestrel-ui .mc-topo { display: none; 
 #root .menestrel-ui .cfg-abrir .ti { font-size: 16px; }
 /* A Conferência das magias é link (abre o claude.ai numa aba nova), com a cara do botão. */
 #root .menestrel-ui a.cfg-abrir { text-decoration: none; color: var(--tinta); font-weight: 700; }
+/* FÓRUM (15/11/2026): a página da Ambientação (.pjs.diario-pagina) com o
+   caminho no trilho (Salas › sala › tópico). Salas e tópicos são linhas do
+   quadro — o título, quem e quando embaixo, os números tabulares à direita e
+   o coração por último. A conversa é uma coluna de posts separados por
+   régua, sem caixa dentro de caixa; o primeiro (o tópico) leva o título. */
+#root .menestrel-ui .forum-caminho .mc-acao-rotulo { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .menestrel-ui .forum-quadro { margin-bottom: 4px; }
+#root .menestrel-ui .forum-quadro + .forum-quadro { margin-top: 18px; }
+/* As colunas (15/11/2026): sala = nome · contagens · último tópico · lápis;
+   tópico = estado · título · contagens · último post · coração. */
+#root .menestrel-ui .forum-linha--sala { grid-template-columns: minmax(0, 1fr) 112px minmax(0, 240px) 36px; }
+#root .menestrel-ui .forum-linha--topico { grid-template-columns: 28px minmax(0, 1fr) 148px minmax(0, 240px) 64px; }
+#root .menestrel-ui .forum-contas {
+  display: flex; flex-direction: column; gap: 2px; color: var(--tinta-2); font-size: var(--fs-sm);
+  font-variant-numeric: lining-nums tabular-nums; white-space: nowrap;
+}
+#root .menestrel-ui .forum-ultimo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#root .menestrel-ui .forum-ultimo-titulo { color: var(--tinta); font-size: var(--fs-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .menestrel-ui .forum-ultimo-meta { color: var(--tinta-2); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .menestrel-ui .forum-cabeca { align-items: center; }
+#root .menestrel-ui .forum-cabeca-acao { display: inline-flex; align-items: center; gap: 6px; }
+/* O ESTADO DO TÓPICO (15/11/2026): carta lacrada em ouro (novo), carta
+   aberta e cadeado na tinta apagada. O tópico novo também sobe o título. */
+#root .menestrel-ui .forum-estado { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; flex: none; }
+#root .menestrel-ui .forum-estado .ti { font-size: 20px; line-height: 1; }
+#root .menestrel-ui .forum-estado--novo .ti { color: var(--vivo); }
+#root .menestrel-ui .forum-estado--lido .ti, #root .menestrel-ui .forum-estado--fechado .ti { color: var(--tinta-3); }
+#root .menestrel-ui .forum-linha--topico:not(.is-novo) .forum-linha-titulo { font-weight: 500; }
+#root .menestrel-ui .forum-linha--topico.is-novo .forum-linha-titulo { font-weight: 700; }
+#root .menestrel-ui .forum-post-titulo .forum-estado { vertical-align: -3px; margin-right: 6px; }
+#root .menestrel-ui .forum-legenda {
+  display: flex; flex-wrap: wrap; gap: 6px 20px; margin: 0; padding: 10px 12px 0; list-style: none;
+  color: var(--tinta-2); font-size: var(--fs-sm);
+}
+#root .menestrel-ui .forum-legenda li { display: inline-flex; align-items: center; gap: 4px; }
+#root .menestrel-ui .forum-legenda .forum-estado { width: 22px; height: 22px; }
+#root .menestrel-ui .forum-legenda .forum-estado .ti { font-size: 16px; }
+#root .menestrel-ui .forum-linha-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#root .menestrel-ui .forum-linha-titulo { display: flex; align-items: center; gap: 8px; color: var(--tinta); font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .menestrel-ui .forum-linha-meta { color: var(--tinta-2); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .menestrel-ui .forum-fechada { color: var(--tinta-3); font-size: 15px; }
+#root .menestrel-ui .forum-num small { color: var(--tinta-2); font-size: var(--fs-sm); font-weight: 500; }
+#root .menestrel-ui .forum-quando { color: var(--tinta-2); font-size: var(--fs-sm); text-align: right; white-space: nowrap; }
+#root .menestrel-ui .forum-acao { justify-self: end; }
+#root .menestrel-ui .forum-curtir {
+  justify-self: end; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
+  border: 0; border-radius: 999px; background: none; color: var(--tinta-2); cursor: pointer;
+  font: 700 var(--fs-sm) var(--font-body); font-variant-numeric: lining-nums tabular-nums;
+  transition: background-color .15s ease, color .15s ease;
+}
+#root .menestrel-ui .forum-curtir:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
+#root .menestrel-ui .forum-curtir:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+#root .menestrel-ui .forum-curtir .ti { font-size: 16px; }
+#root .menestrel-ui .forum-curtir.is-on, #root .menestrel-ui .forum-curtir.is-on .ti { color: var(--vivo); }
+#root .menestrel-ui .forum-aviso {
+  display: flex; align-items: center; gap: 8px; margin: 0 0 calc(var(--pg-vao) * var(--fp-z));
+  color: var(--tinta-2); font-size: var(--fs-sm);
+}
+#root .menestrel-ui .forum-aviso .ti { color: var(--tinta-3); font-size: 16px; }
+#root .menestrel-ui .forum-aviso.is-alerta, #root .menestrel-ui .forum-aviso.is-alerta .ti { color: var(--alerta); }
+#root .menestrel-ui .forum-sala-desc { margin: 0 0 14px; color: var(--tinta-2); line-height: 1.55; }
+#root .menestrel-ui .forum-vazio { margin: 0; padding: 40px 12px; text-align: center; color: var(--tinta-2); }
+#root .menestrel-ui .forum-erro { margin: 8px 0; color: var(--alerta); font-size: var(--fs-sm); }
+#root .menestrel-ui .forum-conversa { display: flex; flex-direction: column; }
+#root .menestrel-ui .forum-post { padding: 16px 4px 18px; border-bottom: 1px solid var(--regua-forte); }
+#root .menestrel-ui .forum-post--topico { padding-top: 4px; }
+#root .menestrel-ui .forum-post-cab { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; }
+#root .menestrel-ui .forum-post-acoes { display: flex; align-items: center; gap: 2px; }
+#root .menestrel-ui .forum-post-titulo { margin: 0 0 10px; font-family: var(--font-title); font-size: 22px; font-weight: 600; line-height: 1.25; color: var(--tinta); text-wrap: balance; }
+#root .menestrel-ui .forum-texto { color: var(--tinta); line-height: 1.65; overflow-wrap: anywhere; }
+#root .menestrel-ui .forum-texto p + p { margin-top: 10px; }
+#root .menestrel-ui .forum-autor { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+#root .menestrel-ui .forum-autor-foto { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; flex: none; }
+#root .menestrel-ui .forum-autor-foto--vazia {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--chao-celula); border: 1px solid var(--regua-forte); color: var(--vivo); font-weight: 700;
+}
+#root .menestrel-ui .forum-autor-nome { color: var(--tinta); font-weight: 700; }
+#root .menestrel-ui .forum-autor-conta { font-size: var(--fs-rotulo); font-weight: 700; letter-spacing: var(--rotulo-espaco); text-transform: uppercase; color: var(--tinta-3); }
+#root .menestrel-ui .forum-autor-conta.is-imperador { color: var(--vivo); }
+#root .menestrel-ui .forum-autor-quando { color: var(--tinta-2); font-size: var(--fs-sm); }
+#root .menestrel-ui .forum-respostas-cab { margin: 22px 0 0; padding: 0 4px 8px; border-bottom: 1px solid var(--regua-forte); }
+#root .menestrel-ui .forum-responder { display: flex; flex-direction: column; gap: 8px; padding-top: 18px; }
+#root .menestrel-ui .forum-responder-acoes { display: flex; justify-content: flex-end; gap: 8px; }
+#root .menestrel-ui .forum-confirmar { margin: 0; line-height: 1.55; color: var(--tinta); }
+#root .menestrel-ui .forum-editor-extra { display: inline-flex; gap: 6px; }
+#root .menestrel-ui .forum-editor-extra .ti { margin-right: 6px; }
+#root .menestrel-ui .forum-perigo { color: var(--alerta); }
+@media (max-width: 640px) {
+  #root .menestrel-ui .forum-linha--sala { grid-template-columns: minmax(0, 1fr) auto; }
+  #root .menestrel-ui .forum-linha--topico { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  /* No celular fica o essencial; o último post e as contagens descem para baixo do título. */
+  #root .menestrel-ui .forum-linha .forum-contas, #root .menestrel-ui .forum-linha .forum-ultimo { grid-column: 2 / -1; grid-row: 2; }
+  #root .menestrel-ui .forum-linha--sala .forum-contas, #root .menestrel-ui .forum-linha--sala .forum-ultimo { grid-column: 1 / -1; }
+  #root .menestrel-ui .forum-linha .forum-contas { flex-direction: row; gap: 12px; }
+  #root .menestrel-ui .forum-linha .forum-ultimo { grid-row: 3; }
+}
+
+/* O LIMITE DE PERSONAGENS (15/11/2026): a frase sob o trilho quando a conta
+   chegou ao teto — o + some, e isto diz por quê. Bloqueia, então é brasa. */
+#root .menestrel-ui .pjs-limite { margin: 0 0 calc(var(--pg-vao) * var(--fp-z)); color: var(--alerta); font-size: var(--fs-sm); }
+
+/* CONTAS (15/11/2026): a janela do Imperador. O placar dos tipos no alto (o
+   passe), a busca, e o quadro: uma linha por conta — quem, o tipo na pílula
+   das Configurações, até quando vale o Nobre, e quantos personagens e
+   histórias a conta tem. Escolher grava na hora; a recusa do banco aparece
+   na própria linha, em brasa. */
+#root .menestrel-ui .contas-modal .ms-body { padding: 24px 32px 32px; }
+#root .menestrel-ui .contas { display: flex; flex-direction: column; gap: 20px; }
+#root .menestrel-ui .contas-barra .best-search { max-width: 320px; }
+#root .menestrel-ui .contas-linha {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto 200px 96px 84px; align-items: center; gap: 4px 20px;
+}
+#root .menestrel-ui .contas-cabeca { align-items: end; }
+#root .menestrel-ui .contas-linha.is-gravando { opacity: .6; }
+#root .menestrel-ui .contas-quem { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#root .menestrel-ui .contas-nome { color: var(--tinta); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .menestrel-ui .contas-email { color: var(--tinta-2); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .menestrel-ui .contas-pilula { min-width: 0; height: 36px; }
+#root .menestrel-ui .contas-imperador { color: var(--vivo); font-weight: 700; padding: 0 16px; }
+#root .menestrel-ui .contas-dia { display: flex; flex-direction: column; gap: 2px; }
+#root .menestrel-ui .contas-dia input {
+  height: 36px; padding: 0 12px; border: 1px solid var(--regua-forte); border-radius: 999px;
+  background: var(--p-fundo); color: var(--tinta); font: 700 var(--fs-sm) var(--font-body);
+  font-variant-numeric: lining-nums tabular-nums; color-scheme: dark;
+}
+#root .menestrel-ui .contas-dia input:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+#root .menestrel-ui .contas-dia.is-vencida input { border-color: var(--alerta); }
+#root .menestrel-ui .contas-venceu { color: var(--alerta); font-size: var(--fs-xs, 12px); padding-left: 12px; }
+#root .menestrel-ui .contas-sem { color: var(--tinta-3); padding-left: 12px; }
+#root .menestrel-ui .contas-num { text-align: right; }
+#root .menestrel-ui .contas-recusa { grid-column: 1 / -1; margin: 0; color: var(--alerta); font-size: var(--fs-sm); }
+#root .menestrel-ui .contas-aviso { margin: 0; padding: 16px 12px; color: var(--tinta-2); }
+#root .menestrel-ui .contas-aviso.is-erro { color: var(--alerta); }
+@media (max-width: 900px) {
+  #root .menestrel-ui .contas-linha { grid-template-columns: minmax(0, 1fr) 64px 64px; }
+  #root .menestrel-ui .contas-quem { grid-column: 1 / -1; }
+  #root .menestrel-ui .contas-tipo { grid-column: 1 / -1; }
+  /* A validade divide a última fileira com os dois números, sob as colunas deles. */
+  #root .menestrel-ui .contas-validade { grid-column: 1; }
+  #root .menestrel-ui .contas-cabeca > :nth-child(2), #root .menestrel-ui .contas-cabeca > :nth-child(3) { display: none; }
+  #root .menestrel-ui .contas-cabeca > :first-child { grid-column: 1; }
+}
+@media (max-width: 640px) {
+  #root .menestrel-ui .contas-modal .ms-body { padding: 16px 18px 24px; }
+  #root .menestrel-ui .contas-pilula { width: 100%; }
+}
 @media (max-width: 640px) {
   #root .menestrel-ui .cfg-modal .ms-body { padding: 16px 18px 24px; }
   #root .menestrel-ui .cfg-linha { flex-direction: column; align-items: stretch; gap: 10px; }
@@ -7587,8 +7741,15 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .catalogo-icone-linha .diario-input { flex: 1 1 auto; min-width: 0; }
 #root .menestrel-ui .catalogo-icone-previa { flex: none; width: 28px; height: 28px; display: grid; place-items: center; font-size: 20px; color: var(--vivo); }
 #root .menestrel-ui .catalogo-icone-erro { margin-top: 4px; font-size: var(--fs-2xs); color: #D98C7A; }
-/* Excluir no rodapé do editor, antes do Salvar. */
-#root .menestrel-ui .catalogo-btn-excluir { color: #D98C7A; }
+/* Excluir no rodapé do editor, no lugar do Cancelar (15/11/2026): é um .btn-danger. */
+/* CAMPOS SEM BORDA NO EDITOR (15/11/2026, usuário: "Os campos de escrever e
+   os campos de selecionar no modal estão com estilos diferentes, remova a
+   borda deles"). A pílula de seleção já não tinha; a de texto (e a área de
+   descrição, a busca dos vínculos) perde a dela e fica só no fundo. A borda
+   volta no foco, para quem digita saber onde está. */
+#root .menestrel-ui .modal-catalogo :is(.diario-input, .diario-textarea) { border-color: transparent; }
+#root .menestrel-ui .modal-catalogo :is(.diario-input, .diario-textarea):focus { border-color: var(--campo-borda-foco); }
+
 
 /* Altura uniforme dos campos (10/09/2026): começou escopada aqui, em
    .catalogo-form-grid, para não mexer nos formulários do Diário. Em 12/09/2026
@@ -10690,13 +10851,19 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 /* Atributos da criatura NA MESMA LINHA (26/09/2026): os sete dropdowns de
    −2 a 8 ocupam uma coluna cada da grade de 8 do editor. O rótulo não quebra
    — "Percepção" é o mais longo e cabe; se não couber, reticências. */
-#root .menestrel-ui .catalogo-form-grid > .catalogo-escala { grid-column: span 1; min-width: 0; }
-#root .menestrel-ui .catalogo-form-grid > .catalogo-escala .diario-field-label,
-#root .menestrel-ui .catalogo-form-grid > .catalogo-escala .motor-field > span {
+/* Desde 15/11/2026 eles moram numa fileira própria (.catalogo-atributos), de
+   ponta a ponta do cartão em sete partes iguais: "os 7 campos de atributo vão
+   ocupar a largura do card todo" (usuário). No celular, quatro por linha. */
+#root .menestrel-ui .catalogo-form-grid > .catalogo-atributos {
+  grid-column: 1 / -1; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 14px;
+}
+#root .menestrel-ui .catalogo-atributos > .catalogo-escala { min-width: 0; }
+#root .menestrel-ui .catalogo-atributos > .catalogo-escala .diario-field-label,
+#root .menestrel-ui .catalogo-atributos > .catalogo-escala .motor-field > span {
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 @media (max-width: 640px) {
-  #root .menestrel-ui .catalogo-form-grid > .catalogo-escala { grid-column: span 1; }
+  #root .menestrel-ui .catalogo-form-grid > .catalogo-atributos { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
 /* ============================================================
@@ -11475,6 +11642,12 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 /* Janela de item: Características em UMA coluna, como as linhas de um
    quadro — sem meia-linha órfã ("Valor" sozinho com a direita vazia). */
 #root .menestrel-ui .modal-item .best-lista--2col { grid-template-columns: minmax(0, 1fr); }
+/* No Compêndio, duas colunas como nas outras janelas (15/11/2026, usuário:
+   "os itens de 'Características' vão dividir o modal em duas colunas. Como é
+   feito com 'criaturas', etc."). A janela tem a largura da página. */
+@media (min-width: 641px) {
+  #root .menestrel-ui .modal-item.modal-ambientacao .best-lista--2col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 /* A magia do item é uma seção da página, não uma caixa dentro dela. */
 #root .menestrel-ui .modal-item .best-magia { margin: 22px 0 0; padding: 0; background: none; border-radius: 0; }
 #root .menestrel-ui .modal-best-detalhe:not(.modal-criatura) .best-secao-titulo {
@@ -11568,6 +11741,12 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .mc-navitem.is-active > .ti { color: var(--vivo); }
 /* Sem faixa lateral (revisão): o fundo aceso e o ícone em ouro já marcam. */
 #root .menestrel-ui .mc-navitem.is-active::before { content: none; }
+/* INATIVO (15/11/2026): Mesa e Diário do Jogador sem personagem ou sem mesa.
+   Fica no lugar, apagado, e o balão diz o que falta; não usa `disabled`
+   porque botão desabilitado não dispara o hover que abre o balão. */
+#root .menestrel-ui .mc-navitem.is-inativo { cursor: not-allowed; color: var(--tinta-3); opacity: .55; }
+#root .menestrel-ui .mc-navitem.is-inativo:hover { background: transparent; color: var(--tinta-3); }
+#root .menestrel-ui .mc-navitem.is-inativo:hover > .ti { color: var(--tinta-3); }
 #root .menestrel-ui .mc-navseta { margin-left: auto; font-size: 15px !important; transition: transform .2s ease; }
 #root .menestrel-ui .mc-navseta.is-aberta { transform: rotate(180deg); }
 #root .menestrel-ui .mc-navfilhos { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 6px; padding-left: 31px; }
@@ -13655,8 +13834,9 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   --regua-forte: color-mix(in srgb, rgb(var(--bronze-rgb)) 34%, var(--p-fundo));
   --chao-celula: rgba(var(--bronze-rgb),0.07); --chao-celula-opaco: var(--pal-chao);
 }
-/* Couro e Ouro — a do projeto original (23/10/2026: "Deixe apenas [...]
-   Ferro e Brasa, Couro e Ouro"). É também a padrão. */
+/* Crezir (era "Couro e Ouro" até 15/11/2026) — a do projeto original
+   (23/10/2026: "Deixe apenas [...] Ferro e Brasa, Couro e Ouro"). É também a
+   padrão. O id segue `couro`; o de Crizagom, `ferro`. */
 :root[data-paleta="couro"], :root[data-paleta="couro"] .menestrel-ui {
   --p-pagina: #19110C; --p-fundo: #120D06; --p-chao-2: #2E2419; --pal-chao: #17110A;
   --pal-tinta: #F1E6CF; --pal-tinta-2: #CDBF9F; --pal-tinta-3: #A3937A;
@@ -13667,21 +13847,52 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   /* A luz do dia nos raios do fundo (luzDaHora, shell.jsx): ouro e bronze. */
   --luz-dia-rgb: 201,164,78; --luz-dia2-rgb: 184,112,46;
 }
-/* 5 · Ferro e Brasa — cinza-ferro neutro e laranja de forja.
+/* Crizagom (era "Ferro e Brasa") — cinza escuro, cinza claro e prata
+   (15/11/2026, usuário: "As cores de crizagom será cinza escuro, cinza claro e
+   prata"). O laranja de forja saiu: o vivo e o botão principal são prata.
    O FUNDO É GRAFITE (11/11/2026, usuário: "Ao mudar a paleta, a cor de fundo
    não está sendo alterada"). Era #151515 contra o #19110C do Couro: dois
    pretos que o olho não separa. O grafite azulado se distingue do couro de
-   relance e segura a tinta discreta acima de 4.5:1 (#8E8B85 sobre #202326). */
+   relance e segura a tinta discreta acima de 4.5:1 (#8E8B85 sobre #202326).
+   A prata do vivo puxa para o azul (#C9D3DE) para não se confundir com a
+   tinta, que é um branco quente. */
 :root[data-paleta="ferro"], :root[data-paleta="ferro"] .menestrel-ui {
   --p-pagina: #202326; --p-fundo: #181A1D; --p-chao-2: #2D3034; --pal-chao: #1D2023;
   --pal-tinta: #F0EEEA; --pal-tinta-2: #BEBBB4; --pal-tinta-3: #8E8B85;
-  --pal-vivo: #F08A3C; --ouro: #D9772E; --ouro-2: #B85F22; --ouro-3: #6E3C18; --sobre-vivo: #1A0E04;
+  --pal-vivo: #C9D3DE; --ouro: #C3CBD4; --ouro-2: #8A939E; --ouro-3: #4E555D; --sobre-vivo: #15181B;
   --pal-alerta: #FF5A4E; --alerta-rgb: 255,90,78; --pal-magia: #8FB0FF;
-  --bronze-rgb: 150,150,150; --ouro-rgb: 217,119,46; --vivo-rgb: 240,138,60;
+  --bronze-rgb: 150,150,150; --ouro-rgb: 195,203,212; --vivo-rgb: 201,211,222;
   --tinta-rgb: 240,238,234; --tinta3-rgb: 142,139,133; --chao-rgb: 24,26,29; --couro-rgb: 42,45,50;
   /* A luz do dia é aço claro, não ouro: com ouro e bronze os raios tingiam
      o grafite de marrom (11/11/2026, "O fundo continua marrom quente"). */
   --luz-dia-rgb: 196,203,212; --luz-dia2-rgb: 124,133,146;
+}
+/* Ganis — púrpura, azul ciano e azul turquesa (15/11/2026, usuário: "As
+   cores da paleta 'Ganis' será púrpura, azul ciano e azul turquesa"). O chão
+   e as réguas são púrpura; o vivo é ciano, e o botão principal vai do ciano
+   ao turquesa. A magia, que nas outras é azul, aqui é lilás, para não se
+   confundir com o vivo. */
+:root[data-paleta="ganis"], :root[data-paleta="ganis"] .menestrel-ui {
+  --p-pagina: #1C1530; --p-fundo: #140F24; --p-chao-2: #2E2448; --pal-chao: #191329;
+  --pal-tinta: #EEE8F7; --pal-tinta-2: #C3B8D9; --pal-tinta-3: #9A8DB6;
+  --pal-vivo: #4FD8EE; --ouro: #3FC8E4; --ouro-2: #22A99C; --ouro-3: #146A64; --sobre-vivo: #08242A;
+  --pal-alerta: #FF7A8A; --alerta-rgb: 255,122,138; --pal-magia: #C79BFF;
+  --bronze-rgb: 128,108,176; --ouro-rgb: 63,200,228; --vivo-rgb: 79,216,238;
+  --tinta-rgb: 238,232,247; --tinta3-rgb: 154,141,182; --chao-rgb: 20,15,36; --couro-rgb: 40,30,66;
+  --luz-dia-rgb: 79,216,238; --luz-dia2-rgb: 150,100,220;
+}
+/* Maira — verde escuro, terracota e amarelo ouro (15/11/2026, usuário: "as
+   cores de 'Maira' será verde escuro, terra cota e amarelo ouro"). O chão é
+   verde de mata; o vivo é amarelo ouro, o botão principal vai do ouro à
+   terracota, e as réguas são da cor da terra. */
+:root[data-paleta="maira"], :root[data-paleta="maira"] .menestrel-ui {
+  --p-pagina: #14201A; --p-fundo: #0D1712; --p-chao-2: #25352B; --pal-chao: #111C16;
+  --pal-tinta: #EEF0E4; --pal-tinta-2: #C4CBB6; --pal-tinta-3: #97A28C;
+  --pal-vivo: #E8B83A; --ouro: #D9A93A; --ouro-2: #B85F38; --ouro-3: #6E3A22; --sobre-vivo: #241A04;
+  --pal-alerta: #FF6B5E; --alerta-rgb: 255,107,94; --pal-magia: #8FB4FF;
+  --bronze-rgb: 150,112,82; --ouro-rgb: 217,169,58; --vivo-rgb: 232,184,58;
+  --tinta-rgb: 238,240,228; --tinta3-rgb: 151,162,140; --chao-rgb: 13,23,18; --couro-rgb: 36,40,28;
+  --luz-dia-rgb: 232,184,58; --luz-dia2-rgb: 184,95,56;
 }
 /* O chão da página acompanha a paleta (a luz do fundo continua por cima). */
 #root .menestrel-ui.mc-root { background-color: var(--p-pagina); }
@@ -14320,6 +14531,14 @@ body { background-color: var(--p-pagina); }
   background-position: right 5px center, right 0 center; background-size: 5px 5px; background-repeat: no-repeat; }
 #root .menestrel-ui .livro-filtro select:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; border-radius: 6px; }
 #root .menestrel-ui .livro-filtro option { background: var(--p-fundo); color: var(--tinta); }
+
+/* ── O COMPÊNDIO IGUAL À AMBIENTAÇÃO (15/11/2026) ───────────────────────────
+   As cinco listas viraram a página da Ambientação (.pjs.diario-pagina: trilho,
+   grade de cartões, paginação), sem caixa no meio: as regras do cartão de
+   página (`.mc-content > .pjs > …`, as réguas e o pé) pedem que trilho, grade
+   e paginação sejam filhos diretos da .pjs. */
+/* Sem pintura, o retrato leva o ícone do tipo no lugar da inicial. */
+#root .menestrel-ui .livro-cartoes .livro-cartao-ic { font-size: 1.6rem; }
 
 /* ── ANOTAÇÕES DOS CAPÍTULOS (23/10/2026) — abaixo do texto, na janela do capítulo ── */
 #root .menestrel-ui .cena-notas { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--regua-forte); display: flex; flex-direction: column; gap: 14px; }
@@ -18645,6 +18864,18 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
   margin: 14px 0 0; text-align: right; font-family: var(--font-body); font-size: var(--fs-sm);
   font-style: italic; color: var(--tinta-3);
 }
+/* A HISTÓRIA DA ENTIDADE (15/11/2026): Locais, Itens e Feriados moram dentro
+   dela, cada lista sob o rótulo de sempre, com respiro acima. */
+#root .menestrel-ui .ent-sub { margin: 22px 0 6px; padding-bottom: 6px; border-bottom: 1px solid var(--regua-forte); }
+/* PESSOAS DO LUGAR (15/11/2026): o texto, e embaixo quem nasceu ou vive ali —
+   nome forte, o ofício na tinta fraca, régua fina entre as linhas. */
+#root .menestrel-ui .diario-pessoas-do-lugar { margin: 14px 0 0; padding: 0; list-style: none; border-top: 1px solid var(--regua-forte); }
+#root .menestrel-ui .diario-pessoas-do-lugar li {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 16px;
+  min-height: 40px; padding: 8px 2px; border-bottom: 1px solid var(--regua);
+}
+#root .menestrel-ui .diario-pessoa-nome { color: var(--tinta); font-weight: 700; }
+#root .menestrel-ui .diario-pessoa-meta { color: var(--tinta-2); font-size: var(--fs-sm); text-align: right; }
 /* GRUPOS (13/11/2026): a ficha de um colégio usa a mesma pele; as seções de
    texto corrido (História, Símbolos, Ética…) espaçam os parágrafos como a
    Descrição. */
@@ -18870,4 +19101,106 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
   #root .menestrel-ui .gc-passe .mn-celula { flex: 1 1 auto; min-width: 0; }
   #root .menestrel-ui .gc-pos-total { display: none; }
   #root .menestrel-ui .gc-pos { font-size: var(--fs-sm); }
+}
+
+/* ══ INÍCIO: AS NOVIDADES DO SISTEMA (15/11/2026) ═════════════════════════════
+   A página do Mestre sem mesa escolhida (06-historias/inicio.jsx): "eu quero
+   uma 'home page' com as atualizações do sistema" (usuário). O cartão é o de
+   toda página (régua, canto, fundo sólido); dentro, um quadro de linhas: à
+   esquerda a data e a área, à direita o título e o texto. Sem ouro: ouro é
+   do que está vivo (escolhido, ação), e notícia não é escolha. */
+#root .menestrel-ui .mc-content > .hist > .inicio {
+  box-sizing: border-box; width: var(--fp-largura); max-width: 100%; margin-inline: auto;
+  min-height: var(--pg-altura, 0px);
+  padding: calc(20px * var(--fp-z)) calc(24px * var(--fp-z));
+  border: 1px solid var(--regua-forte); border-radius: 12px; background: var(--pg-fundo);
+}
+#root .menestrel-ui .inicio-cabeca {
+  padding-bottom: 18px; margin: 0 calc(-24px * var(--fp-z));
+  padding-inline: calc(24px * var(--fp-z)); border-bottom: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .inicio-titulo {
+  font-family: var(--font-title); font-weight: 600; font-size: 26px; line-height: 1.2;
+  color: var(--tinta); text-wrap: balance;
+}
+#root .menestrel-ui .inicio-sub { margin-top: 6px; font-size: var(--fs-base); line-height: 1.5; color: var(--tinta-2); }
+#root .menestrel-ui .inicio-lista { display: flex; flex-direction: column; }
+#root .menestrel-ui .inicio-noticia {
+  display: grid; grid-template-columns: minmax(150px, 200px) minmax(0, 1fr); gap: 6px 28px;
+  padding: 18px 0; border-bottom: 1px solid var(--regua);
+}
+#root .menestrel-ui .inicio-noticia:last-child { border-bottom: 0; }
+#root .menestrel-ui .inicio-meta { display: flex; flex-direction: column; gap: 6px; padding-top: 3px; }
+#root .menestrel-ui .inicio-data {
+  font-size: var(--fs-sm); font-weight: 600; color: var(--tinta-2);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+#root .menestrel-ui .inicio-area {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--fs-rotulo); font-weight: 700; letter-spacing: var(--rotulo-espaco); text-transform: uppercase;
+  color: var(--tinta-3);
+}
+#root .menestrel-ui .inicio-area .ti { font-size: 15px; }
+#root .menestrel-ui .inicio-noticia-titulo {
+  font-family: var(--font-body); font-size: var(--fs-lg); font-weight: 700; line-height: 1.25; color: var(--tinta);
+}
+#root .menestrel-ui .inicio-noticia-texto { margin-top: 6px; font-size: var(--fs-base); line-height: 1.6; color: var(--tinta-2); text-wrap: pretty; }
+@media (max-width: 640px) {
+  #root .menestrel-ui .inicio-noticia { grid-template-columns: 1fr; }
+  #root .menestrel-ui .inicio-meta { flex-direction: row; align-items: baseline; gap: 12px; padding-top: 0; }
+}
+
+/* ══ O PRIMEIRO PERSONAGEM (15/11/2026) ═══════════════════════════════════════
+   A Ficha do Jogador sem personagem: o cartão da página inteiro vira o
+   convite (08-personagens, `primeiroPj`). Mesmo desenho do convite da
+   primeira mesa (.hist-primeira), centrado na altura do cartão. */
+#root .menestrel-ui .mc-content > .pjs.pjs-primeiro { justify-content: center; background: var(--pg-fundo); min-height: var(--pg-altura, calc(100dvh - 40px)); }
+#root .menestrel-ui .pjs-primeiro > .pjs-primeiro-convite { margin: 0 auto; padding: 48px 8px; }
+
+/* ══ A JANELA DA AMBIENTAÇÃO, MAIS LARGA (15/11/2026) ═════════════════════════
+   Usuário: "Aumente um pouco a largura do modal das páginas de ambientação,
+   reinos, cidades, etc." A ficha de reino, cidade, local, pessoa, entidade e
+   grupo é texto corrido, não a grade de casas do inventário que fixou os
+   728px do catálogo. Primeiro ganhou 120px (848); "Aumente mais" (mesmo dia):
+   980px. Criaturas, itens e magias ficam
+   como estão. */
+/* Desde "eu quero a mesma largura da página" (mesmo dia), a medida vem do
+   cartão da página, em BestDetalheModal; os 980px valem só se ele não achar
+   a página (a prévia, uma janela aberta fora do console). */
+#root .menestrel-ui .ms-modal.modal-best-detalhe.modal-ambientacao { max-width: 980px; }
+
+/* ══ EDITAR ENTIDADES E GRUPOS (15/11/2026) ═══════════════════════════════════
+   A janela de 13-diario/catalogo-mundo.jsx: a pele do editor de catálogo
+   (.modal-catalogo: campos sem borda, Excluir no rodapé). Os campos curtos
+   lado a lado; os textos longos e as listas de ponta a ponta. Cada item de
+   lista (uma relação, um feriado) é separado do próximo por régua, não por
+   caixa — nada de cartão dentro de cartão. */
+#root .menestrel-ui .mundo-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+#root .menestrel-ui .mundo-form > .mundo-campo,
+#root .menestrel-ui .mundo-form > .mundo-lista { grid-column: 1 / -1; min-width: 0; }
+#root .menestrel-ui .mundo-form > .mundo-campo--meia { grid-column: span 1; }
+#root .menestrel-ui .mundo-campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+#root .menestrel-ui .mundo-campo .diario-textarea { resize: vertical; }
+#root .menestrel-ui .mundo-lista { display: flex; flex-direction: column; gap: 0; margin-top: 6px; }
+#root .menestrel-ui .mundo-lista-cab {
+  display: flex; align-items: baseline; gap: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .mundo-lista-conta { font-size: var(--fs-rotulo); font-weight: 700; color: var(--tinta-3); font-variant-numeric: tabular-nums; }
+#root .menestrel-ui .mundo-lista-item {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px;
+  padding: 14px 0; border-bottom: 1px solid var(--regua);
+}
+#root .menestrel-ui .mundo-lista-item > .mundo-campo { grid-column: 1 / -1; }
+#root .menestrel-ui .mundo-lista-item > .mundo-campo--meia { grid-column: span 1; }
+#root .menestrel-ui .mundo-lista-tirar {
+  grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; gap: 6px;
+  min-height: 32px; padding: 0 10px; margin-left: -10px; border: 0; border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--alerta); font: 600 var(--fs-sm)/1 var(--font-body);
+}
+#root .menestrel-ui .mundo-lista-tirar:hover { background: var(--alerta-fundo); }
+#root .menestrel-ui .mundo-lista-tirar:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+#root .menestrel-ui .mundo-lista-por { align-self: flex-start; margin-top: 12px; display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 640px) {
+  #root .menestrel-ui .mundo-form, #root .menestrel-ui .mundo-lista-item { grid-template-columns: 1fr; }
+  #root .menestrel-ui .mundo-form > .mundo-campo--meia, #root .menestrel-ui .mundo-lista-item > .mundo-campo--meia { grid-column: 1 / -1; }
 }

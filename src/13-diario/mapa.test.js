@@ -101,3 +101,18 @@ describe('quem grava o quê', () => {
     expect(fonte).toMatch(/rpc\('get_pjs_historia', \{ p_pj_id: pj\.id \}\)/);
   });
 });
+
+/* 15/11/2026, usuário: "não será criado uma 'nova cidade' clicando no mapa, a
+   cidade será criada na aba cidades da ambientação." */
+describe('cidade nova não nasce no mapa', () => {
+  const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+
+  it('a ferramenta Cidade só posiciona uma cadastrada, e o lugar guarda o id da ficha', () => {
+    expect(fonte).not.toMatch(/Cidade nova/);
+    expect(fonte).toMatch(/if \(!pondoCidade\) return;/);
+    expect(fonte).toMatch(/tipo: 'cidade', nome: pondoCidade\.nome, ficha: pondoCidade\.id/);
+  });
+  it('cidade ligada à ficha não tem o nome editado no mapa', () => {
+    expect(fonte).toMatch(/mestre && !\(a\.tipo === 'cidade' && fichaDe\(a\)\) \? campo\(rot\) : fixo\(rot\)/);
+  });
+});

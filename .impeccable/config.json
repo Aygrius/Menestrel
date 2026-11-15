@@ -44,6 +44,15 @@
         ],
         "createdAt": "2026-11-10T07:36:55.784Z",
         "reason": "Claude: mesmo caso, arco de golpe animado, sem cartão"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "preview/mapa.html"
+        ],
+        "createdAt": "2026-11-15T00:23:54.129Z",
+        "reason": "agent: aros solidos de 1-1.5px sem desfoque (anel de selecao do sistema), nao e glow; arquivo de previa fora do git"
       }
     ]
   }

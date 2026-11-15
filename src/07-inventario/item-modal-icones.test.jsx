@@ -67,8 +67,8 @@ describe('o modal do item do inventário', () => {
        selecionado"): célula própria; o grupo segue na frase. */
     expect(document.querySelector('[data-numero="dano"] .item-numero-valor').textContent).toBe('12');
     expect(document.querySelector('.best-frase-item').textContent).not.toMatch(/Seu dano/);
-    // Em minúsculas, abrindo a frase da arma (30/10/2026).
-    expect(document.querySelector('.best-frase-item').textContent).toMatch(/Pertence ao grupo de armas corte médio/);
+    // Em minúsculas, fechando a frase da arma (15/11/2026: "…, e seu grupo é o de corte leve.").
+    expect(document.querySelector('.best-frase-item').textContent).toMatch(/[Ss]eu grupo é o de corte médio\./);
     // Descrição e Características na mesma página, sem trocar de aba.
     expect(document.body.textContent).toMatch(/Uma lâmina reta\./);
     expect(document.querySelector('.best-secao--lista')).toBeTruthy();

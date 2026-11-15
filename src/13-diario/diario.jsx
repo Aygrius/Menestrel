@@ -761,12 +761,12 @@ function CriaturaFicha({ entrada, lang, onEditNote, hideDescricao }) {
    BestDetalheModal (09-bestiario): cabeçalho com os ícones ao lado do X, e
    as abas saem das seções (.best-secao com título) que o conteúdo desenha.
    O BestDetalheModal já faz o portal e segura o clique. */
-function DetalheMoldura({ inline, title, lang, onClose, acoesTopo, children }) {
+function DetalheMoldura({ inline, title, lang, onClose, acoesTopo, children, extraClass }) {
   if (inline) return <div className="diario-det-inline">{children}</div>;
   const Janela = (typeof BestDetalheModal !== 'undefined' && BestDetalheModal) || window.BestDetalheModal;
   const acoes = (acoesTopo || []).filter(Boolean);
   return (
-    <Janela title={title} lang={lang} onClose={onClose} acoes={acoes}>
+    <Janela title={title} lang={lang} onClose={onClose} acoes={acoes} extraClass={extraClass}>
       {children}
     </Janela>
   );
@@ -842,7 +842,9 @@ function DetalheEntradaModal({
   const arte = entrada.imagem_url ? (
     <div className="diario-det-art"><img src={entrada.imagem_url} alt={entrada.nome} /></div>
   ) : null;
-  const secaoDescricao = (antes) => secao(en ? 'Description' : 'Descrição', (
+  /* `titulo` (15/11/2026): em reino, cidade e local a descrição É a História
+     ("Fundação · História · Cultura…", usuário) — mesmo texto, outro nome. */
+  const secaoDescricao = (antes, titulo = null) => secao(titulo || (en ? 'Description' : 'Descrição'), (
     <>
       {antes}
       {arte}
@@ -861,7 +863,9 @@ function DetalheEntradaModal({
     ? secao(en ? 'Your notes' : 'Suas anotações', <p className="diario-det-desc">{entrada.comentario}</p>, 'diario-det-nota')
     : null;
   const moldura = (titulo, conteudo) => (
-    <DetalheMoldura inline={inline} title={titulo} lang={lang} onClose={onClose} acoesTopo={todasAcoes}>
+    <DetalheMoldura inline={inline} title={titulo} lang={lang} onClose={onClose} acoesTopo={todasAcoes}
+      /* A criatura segue na largura do catálogo; reino, cidade, local e pessoa são ambientação. */
+      extraClass={entrada.tipo === 'criatura' ? undefined : 'modal-ambientacao'}>
       {conteudo}
     </DetalheMoldura>
   );
@@ -949,7 +953,8 @@ function DetalheEntradaModal({
   // `resumo` (26/09/2026) sai da grade: abre a aba Descrição, antes do texto.
   // economia (cidade, 26/09/2026) também é texto longo: ganha aba. Defesas
   // saiu em 22/10/2026.
-  const REINO_PARAGRAFO_CAMPOS = new Set(['governo', 'cultura', 'historia_recente', 'rumores', 'resumo', 'economia']);
+  // fundacao e pessoas (15/11/2026): os tópicos novos dos lugares, com aba própria.
+  const REINO_PARAGRAFO_CAMPOS = new Set(['governo', 'cultura', 'historia_recente', 'rumores', 'resumo', 'economia', 'fundacao', 'pessoas']);
   // Campos texto-longo do NPC que ganham aba própria (não aparecem na grade).
   const NPC_PARAGRAFO_CAMPOS = new Set(['rumores']);
   // Campos ocultos no modal Cidade/Local (redundantes ou irrelevantes para o contexto).
@@ -1056,17 +1061,23 @@ function DetalheEntradaModal({
   }
 
 
+  /* OS TÓPICOS DOS LUGARES (15/11/2026, usuário):
+       Reino   Fundação · História · Cultura · Governo · Rumores
+       Cidade  Fundação · História · Cultura · Pessoas · Rumores
+       Local   Fundação · História · Pessoas · Rumores
+     A História é a descrição (no reino, a história recente foi acrescentada a
+     ela — scripts/sql/lugares-topicos-2026-11-15.sql; a coluna antiga ficou).
+     Aba de texto vazia não aparece. */
+  const tituloHistoria = en ? 'History' : 'História';
+  const secaoFundacao = secaoTexto(en ? 'Foundation' : 'Fundação', attrs?.fundacao ?? entrada.fundacao);
   if (entrada.tipo === 'reino') {
-    /* Descrição (com o resumo) · Cultura · Governo ·
-       História Recente · Rumores · Suas anotações. Aba de texto vazia não
-       aparece — era uma aba inteira dizendo "nenhum conteúdo". */
     const resumoReino = attrs?.resumo ?? entrada.resumo;
     return moldura(<DiarioModalNome entrada={entrada} />, (
       <>
-        {secaoDescricao(resumoReino ? <p className="diario-det-resumo">{resumoReino}</p> : null)}
+        {secaoFundacao}
+        {secaoDescricao(resumoReino ? <p className="diario-det-resumo">{resumoReino}</p> : null, tituloHistoria)}
         {secaoTexto(en ? 'Culture' : 'Cultura', attrs?.cultura ?? entrada.cultura)}
         {secaoTexto(en ? 'Government' : 'Governo', attrs?.governo ?? entrada.governo)}
-        {secaoTexto(en ? 'Recent History' : 'História Recente', attrs?.historia_recente ?? entrada.historia_recente)}
         {secaoTexto(en ? 'Rumors' : 'Rumores', attrs?.rumores ?? entrada.rumores)}
         {secaoNota}
       </>
@@ -1086,11 +1097,37 @@ function DetalheEntradaModal({
   /* Cidade: Descrição · Características · Economia · Rumores · Suas
      anotações (os campos que a tabela cidades tem de verdade). Defesas saiu
      em 22/10/2026. Local é o mesmo molde — sem Economia, que ele não tem. */
+  /* PESSOAS (15/11/2026, usuário: "um misto dos dois"): o texto escrito para o
+     lugar e, embaixo, as Pessoas da Ambientação que nasceram ou vivem nele
+     (a cidade natal ou a localização delas). */
+  const textoPessoas = attrs?.pessoas ?? entrada.pessoas;
+  const pessoasDoLugar = Array.isArray(lore)
+    ? lore.filter((e) => e.tipo === 'npc' && e.id !== entrada.id
+        && [e.atributos?.origem, e.atributos?.cidade].includes(entrada.id))
+      .sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'))
+    : [];
+  const secaoPessoas = (textoPessoas || pessoasDoLugar.length > 0) ? secao(en ? 'People' : 'Pessoas', (
+    <>
+      {textoPessoas && paragrafos(textoPessoas)}
+      {pessoasDoLugar.length > 0 && (
+        <ul className="diario-pessoas-do-lugar">
+          {pessoasDoLugar.map((p) => (
+            <li key={p.id}>
+              <span className="diario-pessoa-nome">{p.nome}</span>
+              {p.atributos?.profissao && <span className="diario-pessoa-meta">{p.atributos.profissao}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )) : null;
   return moldura(<DiarioModalNome entrada={entrada} />, (
     <>
-      {secaoDescricao(null)}
+      {secaoFundacao}
+      {secaoDescricao(null, tituloHistoria)}
       {secaoCaracteristicas(pares)}
-      {entrada.tipo !== 'local' && secaoTexto(en ? 'Economy' : 'Economia', attrs?.economia ?? entrada.economia)}
+      {entrada.tipo === 'cidade' && secaoTexto(en ? 'Culture' : 'Cultura', attrs?.cultura ?? entrada.cultura)}
+      {secaoPessoas}
       {secaoTexto(en ? 'Rumors' : 'Rumores', attrs?.rumores ?? entrada.rumores)}
       {secaoNota}
     </>
@@ -2329,6 +2366,7 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
   const tl = (t && t.lore && t.lore.form)
     || (typeof COPY !== 'undefined' && ((COPY[typeof lang !== 'undefined' ? lang : 'pt'] || COPY.pt).lore || {}).form)
     || {};
+  const en = lang === 'en';
   const v = entrada || { nome: '', descricao: '', imagem_url: '', atributos: {} };
   const set = (patch) => onChange({ ...v, ...patch });
   const setAttr = (k, val) => onChange({ ...v, atributos: { ...(v.atributos || {}), [k]: val } });
@@ -2455,7 +2493,15 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
         </>
       )}
 
-      <label className="diario-field-label diario-field-label--mt">{tl.descricao}</label>
+      {/* FUNDAÇÃO E HISTÓRIA (15/11/2026): os dois primeiros tópicos de reino,
+          cidade e local. A História é a descrição, com outro nome. */}
+      {LUGAR_TIPOS.has(tipo) && (
+        <>
+          <label className="diario-field-label diario-field-label--mt">{en ? 'Foundation' : 'Fundação'}</label>
+          <textarea className="diario-textarea" rows={3} value={v.atributos?.fundacao || ''} onChange={(e) => setAttr('fundacao', e.target.value)} />
+        </>
+      )}
+      <label className="diario-field-label diario-field-label--mt">{LUGAR_TIPOS.has(tipo) ? (en ? 'History' : 'História') : tl.descricao}</label>
       <textarea className="diario-textarea" rows={5} value={v.descricao} onChange={(e) => set({ descricao: e.target.value })} />
 
       {/* Sem campo de Imagem desde 26/09/2026 — saiu do reino ("remova o
@@ -2518,17 +2564,16 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
       )}
       {tipo === 'reino' && (
         <div className="diario-form-grid">
-          <div className="diario-form-col-span">
-            <label className="diario-field-label">{tl.governo}</label>
-            <textarea className="diario-textarea" rows={3} value={v.atributos?.governo || ''} onChange={(e) => setAttr('governo', e.target.value)} />
-          </div>
+          {/* Cultura · Governo · Rumores (15/11/2026). A História Recente saiu
+              do formulário: o texto dela foi acrescentado à História, e a
+              coluna segue guardada (o valor viaja intacto em `atributos`). */}
           <div className="diario-form-col-span">
             <label className="diario-field-label">{tl.cultura}</label>
             <textarea className="diario-textarea" rows={3} value={v.atributos?.cultura || ''} onChange={(e) => setAttr('cultura', e.target.value)} />
           </div>
           <div className="diario-form-col-span">
-            <label className="diario-field-label">{tl.historiaRecente}</label>
-            <textarea className="diario-textarea" rows={3} value={v.atributos?.historia_recente || ''} onChange={(e) => setAttr('historia_recente', e.target.value)} />
+            <label className="diario-field-label">{tl.governo}</label>
+            <textarea className="diario-textarea" rows={3} value={v.atributos?.governo || ''} onChange={(e) => setAttr('governo', e.target.value)} />
           </div>
           <div className="diario-form-col-span">
             <label className="diario-field-label">{tl.rumores}</label>
@@ -2561,9 +2606,16 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
               ]}
             />
           </div>
+          {/* Cultura · Pessoas · Rumores (15/11/2026). A Economia saiu do
+              formulário: a Cultura nasceu com o texto dela, e a coluna segue
+              guardada. */}
           <div className="diario-form-col-span">
-            <label className="diario-field-label">{tl.economia || 'Economia'}</label>
-            <textarea className="diario-textarea" rows={2} value={v.atributos?.economia || ''} onChange={(e) => setAttr('economia', e.target.value)} />
+            <label className="diario-field-label">{tl.cultura || (en ? 'Culture' : 'Cultura')}</label>
+            <textarea className="diario-textarea" rows={3} value={v.atributos?.cultura || ''} onChange={(e) => setAttr('cultura', e.target.value)} />
+          </div>
+          <div className="diario-form-col-span">
+            <label className="diario-field-label">{en ? 'People' : 'Pessoas'}</label>
+            <textarea className="diario-textarea" rows={3} value={v.atributos?.pessoas || ''} onChange={(e) => setAttr('pessoas', e.target.value)} />
           </div>
           <div className="diario-form-col-span">
             <label className="diario-field-label">{tl.rumores}</label>
@@ -2578,6 +2630,10 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
           <div>
             <label className="diario-field-label">{tl.populacao}</label>
             <input className="diario-input" type="number" min="0" value={v.atributos?.populacao ?? ''} onChange={(e) => setAttr('populacao', e.target.value === '' ? null : Number(e.target.value))} />
+          </div>
+          <div className="diario-form-col-span">
+            <label className="diario-field-label">{en ? 'People' : 'Pessoas'}</label>
+            <textarea className="diario-textarea" rows={3} value={v.atributos?.pessoas || ''} onChange={(e) => setAttr('pessoas', e.target.value)} />
           </div>
           <div className="diario-form-col-span">
             <label className="diario-field-label">{tl.rumores}</label>

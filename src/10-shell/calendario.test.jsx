@@ -90,6 +90,8 @@ describe('FantasyDatePicker — data do mundo', () => {
   });
 
   it('o quadro tem a semana do mundo e marca os feriados', () => {
+    // Os feriados das entidades vêm do banco desde 15/11/2026: o teste passa o seu.
+    window.refazerFeriadosDoCalendario([{ dia: 2, mes: 1, nome: 'Festival da Bênção Militar' }]);
     montar(<FantasyDatePicker value={{ dia: 1, mes: 1, ano: 1180 }} onChange={() => {}} />);
     fireEvent.click(document.querySelector('.fdp-campo'));
     const cols = [...document.querySelectorAll('.cal-semana span')].map((s) => s.textContent);

@@ -77,7 +77,7 @@ graph TB
 01-core/tecnicas-efeito · magias-efeito · status-efeito
 09-bestiario/ataques-criatura · criatura-formulas · catalogo-descritores · catalogo-editor
 02-shell/shaders · dado-d20 · dado-d10 · tweaks-panel
-04-auth/auth · 05-convites/convites · 06-historias/historias
+04-auth/auth · 05-convites/convites · 06-historias/historias · inicio
 07-inventario/inventario · loja · fabricar · 06-historias/estoque-mestre
 08-personagens/personagens · guia_personagem
 09-bestiario/conhecido-jogador · painel-modal · bestiario · sugestoes-magias · itens-campanha
@@ -101,7 +101,7 @@ e `inventario-casas` entram por `import` ES de dentro de `inventario-helpers`, e
 | `src/02-shell/` | Shaders de fundo, dados d20/d10, painel de tweaks. |
 | `src/04-auth/` | Login por Google e a primeira entrada ("vou mestrar"/"vou jogar"). |
 | `src/05-convites/` | Convite de mesa (códigos, aceite, aventuras do jogador). |
-| `src/06-historias/` | Histórias/mesas do Mestre, loja por cidade, estoque. |
+| `src/06-historias/` | Histórias/mesas do Mestre, loja por cidade, estoque; `inicio.jsx` é a página do Mestre sem mesa (novidades do sistema, no lugar dos cards). |
 | `src/07-inventario/` | Inventário, loja do jogador, bancada de fabricação. |
 | `src/08-personagens/` | Lista de PJs, wizard de criação/evolução, guia das regras. |
 | `src/09-bestiario/` | Catálogo (criaturas, itens, magias, técnicas, habilidades) e seu editor genérico. |
@@ -128,8 +128,8 @@ arquivo daqui conhece tela.
 |---|---|
 | `copy.jsx` | i18n PT/EN (`COPY`) de seis domínios de tela. |
 | `constants.jsx` | Calendário fantasy (361 dias), copy do admin e as **árvores de navegação** (`ADMIN_MENU`, `NAV_MESA`, `ADMIN_SECTIONS`, `PARTES_DA_FICHA`). |
-| `entidades.jsx` | `ENTIDADES`: deuses, titãs e príncipes (catálogo do mundo, no código). É a **fonte dos feriados** deles: `FERIADOS_FANTASY` (10-shell) junta `feriadosDasEntidades()`. Carrega logo depois de `constants.jsx`. |
-| `grupos.jsx` | `GRUPOS`: colégios de magia (catálogo do mundo, no código; `tipo` prevê ordens e guildas). Lido pela página Grupos (13-diario). |
+| `entidades.jsx` | Vocabulário das entidades (`ENTIDADE_CLASSES`, `classeDaEntidade`, `feriadosDasEntidades(lista)`). O texto mora no banco (`catalogo_mundo`, ver 13-diario/catalogo-mundo.jsx). Carrega logo depois de `constants.jsx`. |
+| `grupos.jsx` | Vocabulário dos grupos (`GRUPO_TIPOS`, `tipoDoGrupo`). O texto mora no banco (`catalogo_mundo`). |
 | `helpers.jsx` | Hooks React globais, conversão de data fantasy ↔ dia absoluto, tooltip, pilha de modais, `QuantidadeStepper`. |
 | `inventario-helpers.jsx` | O hub de domínio (~1 430 linhas): moedas, slots, containers, armadura, `gerarAtaques`, o parser de efeitos de item, munição/veneno, ritual. |
 | `inventario-concorrencia.jsx` | Compare-and-swap de `personagens.inventario` (ver §6). |
@@ -315,13 +315,22 @@ por personagem (`scripts/sql/lore-uma-versao-so-2026-11-14.sql`). A visibilidade
 aventura) é `soMestre`.
 
 `entidades.jsx` (08/11/2026) é a página **Entidades** da Ambientação/Diário:
-lê `ENTIDADES` (01-core), só leitura, igual para Mestre e Jogador, sem mesa
-nem PJ. A ficha abre no `BestDetalheModal`, uma aba por tópico (Prefácio,
+lê o catálogo do banco (ver
+`catalogo-mundo.jsx`), igual para Mestre e Jogador, sem mesa nem PJ. A ficha abre no `BestDetalheModal`, uma aba por tópico (Prefácio,
 Descrição, Relações, Locais, Feriados, Itens). O texto é escrito com a skill
 de projeto `cronista-de-tagmar` (`.claude/skills/`), a partir de `tagmar/*.pdf`.
 
+`catalogo-mundo.jsx` (15/11/2026): Entidades e Grupos moram **no banco**
+(tabela `catalogo_mundo`), a única fonte — o texto que estava em 01-core
+subiu e saiu do código; lá ficou só o vocabulário (classes, tipos, contas dos
+feriados). O admin cria, edita e exclui pela tela, numa versão só para todas as
+mesas; lote escrito fora da tela sobe por `scripts/mundo/subir-catalogo.mjs`.
+A cada mudança o calendário refaz os feriados das entidades
+(`refazerFeriadosDoCalendario`, 10-shell). Banco:
+`scripts/sql/catalogo-mundo-2026-11-15.sql`. Carrega antes de `entidades.jsx`.
+
 `grupos.jsx` (13/11/2026) é a página **Grupos**, irmã de Entidades: a mesma
-página e a mesma janela, lendo `GRUPOS` (01-core) — por ora os seis colégios
+página e a mesma janela, lendo o catálogo do banco — por ora os seis colégios
 de magia (`tagmar/colegios.pdf`). As listas reusam `EntidadeLista`; carrega
 depois de `13-diario/entidades.jsx`.
 
@@ -475,6 +484,7 @@ armadura é por PEÇA (`peca_<nome>`, sem cultura).
 | adicionar um destino no menu | `01-core/constants.jsx` (`NAV_MESA` + `ADMIN_SECTIONS`) e o switch de `10-shell/shell.jsx` |
 | mexer no que o relógio cobra | `01-core/clima-desgaste.jsx` (as regras) e `10-shell/shell.jsx` (a ida ao banco) |
 | mexer no inventário | `01-core/inventario-helpers.jsx` (regras) e `07-inventario/inventario.jsx` (tela) |
+| publicar uma novidade na página inicial do Mestre | uma linha no topo de `NOTICIAS_DO_SISTEMA` (`06-historias/inicio.jsx`) |
 | trocar a pintura do mapa | `tagmar/mapa_oriental.png` (mesmo tamanho) → `scripts/mapa/cortar.ps1` → `scripts/mapa/subir.mjs` |
 | adicionar uma coluna no banco | um `scripts/sql/<assunto>-<data>.sql` idempotente, com conferência no rodapé |
 | mudar a identidade visual | `src/index.css` (tokens em `.menestrel-ui`) e a skill `impeccable` |

@@ -218,7 +218,7 @@ describe('Configurações', () => {
     expect(radio('Visível').getAttribute('aria-checked')).toBe('true');
     fireEvent.click(radio('Escondido'));
     fireEvent.click(radio('English'));
-    fireEvent.click(radio('Ferro e Brasa'));
+    fireEvent.click(radio('Crizagom'));
     expect(onSetModo).toHaveBeenCalledWith('escondido');
     expect(setLang).toHaveBeenCalledWith('en');
     expect(onSetPaleta).toHaveBeenCalledWith('ferro');
@@ -254,7 +254,7 @@ describe('Configurações', () => {
     const props = { lang: 'pt', setLang: () => {}, paleta: 'couro', onSetPaleta: () => {},
       modoNotificacao: 'visivel', onSetModoNotificacao: () => {}, onClose: () => {},
       onTestesCombate: () => {}, onImagens: () => {} };
-    render(<div id="root"><div className="menestrel-ui"><W.ConfiguracoesModal {...props} profile="master" /></div></div>);
+    render(<div id="root"><div className="menestrel-ui"><W.ConfiguracoesModal {...props} profile="master" ehImperador /></div></div>);
     const nomes = [...document.querySelectorAll('.cfg-linha-nome')].map((n) => n.textContent);
     expect(nomes.slice(-3)).toEqual(['Testes de combate', 'Imagens', 'Conferência das magias']);
     const link = document.querySelectorAll('.cfg-linha')[nomes.length - 1].querySelector('a');
@@ -262,6 +262,10 @@ describe('Configurações', () => {
     expect(link.getAttribute('href')).toMatch(/^https:\/\/claude\.ai\/artifact\//);
     cleanup();
     render(<div id="root"><div className="menestrel-ui"><W.ConfiguracoesModal {...props} profile="player" /></div></div>);
+    expect(document.body.textContent).not.toMatch(/Conferência das magias/);
+    // 15/11/2026: Mestre que não é o Imperador (Nobre, Conselheiro) também não vê — a página é privada.
+    cleanup();
+    render(<div id="root"><div className="menestrel-ui"><W.ConfiguracoesModal {...props} profile="master" /></div></div>);
     expect(document.body.textContent).not.toMatch(/Conferência das magias/);
   });
 });

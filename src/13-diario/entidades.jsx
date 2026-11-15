@@ -8,8 +8,9 @@
    usuário — Prefácio, Descrição, Relações, Locais, Feriados e Itens. O Nome
    é o título da janela.
 
-   Catálogo do mundo, só leitura: sem +, sem lápis, sem olho. É igual para o
-   Mestre e o Jogador e não depende de mesa nem de personagem.
+   Catálogo do mundo, igual para o Mestre e o Jogador e sem mesa nem
+   personagem. Desde 15/11/2026 o admin edita e cria pela tela (o + e o
+   lápis), numa versão só — ver 13-diario/catalogo-mundo.jsx.
    ============================================================ */
 
 const _ent = (nome) => (typeof window !== 'undefined' ? window[nome] : undefined);
@@ -51,7 +52,7 @@ function EntidadeLista({ itens, meta }) {
   );
 }
 
-function EntidadeDetalhe({ entidade: e, lang, onClose }) {
+function EntidadeDetalhe({ entidade: e, lang, onClose, onEditar = null }) {
   const en = lang === 'en';
   const Janela = (typeof BestDetalheModal !== 'undefined' && BestDetalheModal) || _ent('BestDetalheModal');
   if (!Janela) return null;
@@ -66,33 +67,47 @@ function EntidadeDetalhe({ entidade: e, lang, onClose }) {
   const tem = (lista) => Array.isArray(lista) && lista.length > 0;
   const classe = (typeof classeDaEntidade === 'function' ? classeDaEntidade : _ent('classeDaEntidade'))?.(e, lang);
   return (
-    <Janela title={e.nome} lang={lang} onClose={onClose} acoes={[]}>
+    <Janela title={e.nome} lang={lang} onClose={onClose} extraClass="modal-ambientacao"
+      acoes={onEditar ? [{ chave: 'editar', icone: 'ti-pencil', rotulo: en ? 'Edit' : 'Editar', onClick: onEditar }] : []}>
       {e.prefacio && secao(en ? 'Preface' : 'Prefácio', (
         <>
           {paragrafos(e.prefacio.texto)}
           {e.prefacio.fonte && <p className="ent-fonte">{e.prefacio.fonte}</p>}
         </>
       ), 'ent-prefacio')}
-      {secao(en ? 'Description' : 'Descrição', (
+      {/* PREFÁCIO · HISTÓRIA · POLÍTICA (15/11/2026, usuário). Nada saiu ("só
+          não exclua nenhuma informação"): a História é a descrição, e os
+          Locais, os Itens e os Feriados — que alimentam o calendário — moram
+          dentro dela, cada um com o seu rótulo. A Política é a lista das
+          Relações. */}
+      {secao(en ? 'History' : 'História', (
         <>
           {(classe || e.titulo) && (
             <p className="diario-det-resumo">{[classe, e.titulo].filter(Boolean).join(' · ')}</p>
           )}
           {e.imagem && <div className="diario-det-art"><img src={e.imagem} alt={e.nome} /></div>}
           {paragrafos(e.descricao)}
+          {tem(e.locais) && <><h5 className="mn-rotulo ent-sub">{en ? 'Places' : 'Locais'}</h5><EntidadeLista itens={e.locais} meta={(l) => l.onde} /></>}
+          {tem(e.itens) && <><h5 className="mn-rotulo ent-sub">{en ? 'Items' : 'Itens'}</h5><EntidadeLista itens={e.itens} /></>}
+          {tem(e.feriados) && <><h5 className="mn-rotulo ent-sub">{en ? 'Holidays' : 'Feriados'}</h5><EntidadeLista itens={e.feriados} meta={(f) => dataDoFeriado(f, lang)} /></>}
         </>
       ), 'best-secao--descricao')}
-      {tem(e.relacoes) && secao(en ? 'Relations' : 'Relações', <EntidadeLista itens={e.relacoes} />)}
-      {tem(e.locais) && secao(en ? 'Places' : 'Locais', <EntidadeLista itens={e.locais} meta={(l) => l.onde} />)}
-      {tem(e.feriados) && secao(en ? 'Holidays' : 'Feriados', <EntidadeLista itens={e.feriados} meta={(f) => dataDoFeriado(f, lang)} />)}
-      {tem(e.itens) && secao(en ? 'Items' : 'Itens', <EntidadeLista itens={e.itens} />)}
+      {tem(e.relacoes) && secao(en ? 'Politics' : 'Política', <EntidadeLista itens={e.relacoes} />)}
     </Janela>
   );
 }
 
 function EntidadesView({ lang, trilhoPaginas = null, entidades }) {
   const en = lang === 'en';
-  const lista0 = entidades || (typeof ENTIDADES !== 'undefined' && ENTIDADES) || _ent('ENTIDADES') || [];
+  /* EDITÁVEL DESDE 15/11/2026 (13-diario/catalogo-mundo.jsx): o código junto
+     com o que o admin editou no banco; o admin ganha o + e o lápis. */
+  const vigentes = (_ent('useCatalogoMundo') || (() => null))('entidade');
+  // Só pergunta ao banco se é admin quando o editor existe (sem ele não há o que liberar).
+  const ehAdmin = ((_ent('EditorMundo') && _ent('useEhAdmin')) || (() => false))();
+  const [editando, setEditando] = React.useState(null);   // null | { entrada }  (entrada null = nova)
+  const Editor = _ent('EditorMundo');
+  const lista0 = entidades || (Array.isArray(vigentes) ? vigentes : []);
+  const esperando = !entidades && !Array.isArray(vigentes);   // null = carregando; 'erro' = o banco falhou
   const [query, setQuery] = React.useState('');
   const [aberta, setAberta] = React.useState(null);
   const q = query.trim().toLowerCase();
@@ -120,11 +135,16 @@ function EntidadesView({ lang, trilhoPaginas = null, entidades }) {
       <div className={'diario-pagina-barra cartoes-barra' + (trilhoPaginas ? ' livro-trilho trilho-unido' : '')}>
         {Busca && (
           <Busca ac={ac} placeholder={en ? 'Search' : 'Buscar'} query={query} setQuery={(v) => { setQuery(v); setPage(1); }}
-            podeCriar={false} antes={trilhoPaginas} />
+            podeCriar={!!(ehAdmin && Editor)} onNovo={() => setEditando({ entrada: null })}
+            dicaNovo={en ? 'New entity' : 'Nova entidade'} antes={trilhoPaginas} />
         )}
       </div>
 
-      {lista.length === 0 ? (
+      {esperando ? (
+        vigentes === 'erro'
+          ? <div className="best-empty diario-empty-lg">{en ? 'Could not load the entities. Reload the page to try again.' : 'Não foi possível carregar as entidades. Recarregue a página para tentar de novo.'}</div>
+          : (_ent('Carregando') ? React.createElement(_ent('Carregando'), { lang }) : null)
+      ) : lista.length === 0 ? (
         <div className="best-empty diario-empty-lg">
           {q ? (en ? `No result for "${query}".` : `Nenhum resultado para "${query}".`)
              : (en ? 'Nothing registered yet.' : 'Nada cadastrado ainda.')}
@@ -166,7 +186,14 @@ function EntidadesView({ lang, trilhoPaginas = null, entidades }) {
         </>
       )}
 
-      {entAberta && <EntidadeDetalhe entidade={entAberta} lang={lang} onClose={() => setAberta(null)} />}
+      {entAberta && !editando && <EntidadeDetalhe entidade={entAberta} lang={lang} onClose={() => setAberta(null)}
+        onEditar={ehAdmin && Editor ? () => setEditando({ entrada: entAberta }) : null} />}
+      {editando && Editor && (
+        <Editor tipo="entidade" entrada={editando.entrada} lang={lang}
+          onClose={() => setEditando(null)}
+          onSalvo={(d) => { setEditando(null); setAberta(d.slug); }}
+          onExcluido={() => { setEditando(null); setAberta(null); }} />
+      )}
     </div>
   );
 }

@@ -50,6 +50,24 @@ describe('Reino', () => {
     fireEvent.change(resumo, { target: { value: 'Um reino de montanhas.' } });
     expect(onChange.mock.calls.at(-1)[0].atributos.resumo).toBe('Um reino de montanhas.');
   });
+
+  /* 15/11/2026: Fundação · História · Cultura · Governo · Rumores. A História
+     Recente saiu do formulário, mas o valor segue em `atributos` ("só não
+     exclua nenhuma informação"). */
+  it('os tópicos, na ordem, e a história recente guardada', () => {
+    const onChange = vi.fn();
+    montar('reino', { atributos: { historia_recente: 'A guerra.' } }, onChange);
+    const r = rotulos();
+    const ordem = ['Fundação', 'História', 'Cultura', 'Governo', 'Rumores'].map((t) => r.indexOf(t));
+    expect(ordem.every((i) => i >= 0)).toBe(true);
+    expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
+    expect(r).not.toContain('História Recente');
+    const fundacao = [...document.querySelectorAll('.diario-field-label')].find((l) => l.textContent.trim() === 'Fundação').nextElementSibling;
+    fireEvent.change(fundacao, { target: { value: 'Por Ergon.' } });
+    const atr = onChange.mock.calls.at(-1)[0].atributos;
+    expect(atr.fundacao).toBe('Por Ergon.');
+    expect(atr.historia_recente).toBe('A guerra.');
+  });
 });
 
 describe('Conhecido', () => {
@@ -102,8 +120,18 @@ describe('Cidade', () => {
 
   it('os campos novos: Governante, Religião, Economia e Rumores — Defesas saiu (22/10/2026)', () => {
     montar('cidade');
-    expect(rotulos()).toEqual(expect.arrayContaining(['Governante', 'Religião', 'Economia', 'Rumores', 'População']));
+    expect(rotulos()).toEqual(expect.arrayContaining(['Governante', 'Religião', 'Rumores', 'População']));
     expect(rotulos()).not.toContain('Defesas');
+  });
+  // 15/11/2026: Fundação · História · Cultura · Pessoas · Rumores. A Economia saiu do formulário (a Cultura nasceu dela).
+  it('os tópicos: Fundação, História, Cultura, Pessoas e Rumores', () => {
+    montar('cidade');
+    const r = rotulos();
+    const ordem = ['Fundação', 'História', 'Cultura', 'Pessoas', 'Rumores'].map((t) => r.indexOf(t));
+    expect(ordem.every((i) => i >= 0)).toBe(true);
+    expect([...ordem].sort((a, b) => a - b)).toEqual(ordem);
+    expect(r).not.toContain('Economia');
+    expect(r).not.toContain('Descrição');
   });
 });
 
@@ -114,7 +142,8 @@ describe('Local', () => {
     montar('local');
     const linha = document.querySelector('.diario-form-linha-nome--cidade');
     expect([...linha.querySelectorAll('.diario-field-label')].map((l) => l.textContent.trim())).toEqual(['Nome', 'Reino']);
-    expect(rotulos()).toEqual(expect.arrayContaining(['População', 'Rumores', 'Descrição']));
+    // 15/11/2026: Fundação · História · Pessoas · Rumores.
+    expect(rotulos()).toEqual(expect.arrayContaining(['População', 'Fundação', 'História', 'Pessoas', 'Rumores']));
     ['Governante', 'Religião', 'Economia', 'Defesas'].forEach((r) => expect(rotulos()).not.toContain(r));
   });
 });

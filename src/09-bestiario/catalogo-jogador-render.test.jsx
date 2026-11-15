@@ -110,14 +110,14 @@ const montar = async (Componente, props) => {
   // A lista busca os dados num useEffect; espera a primeira linha aparecer
   // ou a mensagem de vazio, o que vier.
   await vi.waitFor(() => {
-    const temLinha = document.querySelector('tbody tr');
+    const temLinha = document.querySelector('.diario-cartao');
     const temVazio = document.querySelector('.best-empty');
     expect(temLinha || temVazio).toBeTruthy();
   });
   return r;
 };
 
-const nomesNaTela = () => Array.from(document.querySelectorAll('.best-name'))
+const nomesNaTela = () => Array.from(document.querySelectorAll('.diario-cartao-nome'))
   .map((el) => (el.textContent || '').replace('›', '').trim());
 
 describe('MagiasList em modo jogador', () => {

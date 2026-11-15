@@ -45,17 +45,30 @@ describe('PrimeiraEntrada', () => {
     expect(screen.getByRole('button', { name: /Vou jogar/ })).toBeTruthy();
   });
 
-  it('"Vou mestrar" grava master e fecha o onboarding, sem tocar no plano', async () => {
+  /* 15/11/2026: toda conta nasce Plebeu, que "não poderá mudar seu perfil
+     para mestre" (usuário). "Vou mestrar" fica à vista, fechado, com o porquê. */
+  it('"Vou mestrar" está fechado para a conta nova e diz por quê', async () => {
     const chamadas = fakeSupabase();
     let escolhido = null;
     montar({ onEscolhido: (p) => { escolhido = p; } });
-    fireEvent.click(screen.getByRole('button', { name: /Vou mestrar/ }));
-    await waitFor(() => expect(escolhido).toBe('master'));
-    expect(chamadas).toHaveLength(1);
+    const mestrar = screen.getByRole('button', { name: /Vou mestrar/ });
+    expect(mestrar.disabled).toBe(true);
+    expect(mestrar.textContent).toMatch(/Nobre e Conselheiro/);
+    fireEvent.click(mestrar);
+    expect(chamadas).toHaveLength(0);
+    expect(escolhido).toBeNull();
+  });
+
+  it('"Vou jogar" grava player e fecha o onboarding, sem tocar no plano', async () => {
+    const chamadas = fakeSupabase();
+    let escolhido = null;
+    montar({ onEscolhido: (p) => { escolhido = p; } });
+    fireEvent.click(screen.getByRole('button', { name: /Vou jogar/ }));
+    await waitFor(() => expect(escolhido).toBe('player'));
     const { tabela, campos, col, val } = chamadas[0];
     expect(tabela).toBe('profiles');
     expect([col, val]).toEqual(['id', 'u-1']);
-    expect(campos.perfil_tipo).toBe('master');
+    expect(campos.perfil_tipo).toBe('player');
     expect(typeof campos.plano_escolhido_em).toBe('string');
     expect('plano' in campos).toBe(false);
   });

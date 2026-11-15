@@ -123,7 +123,7 @@ describe('as duas famílias não podem divergir', () => {
 
   /* Com as paletas (23/10/2026), a regra vale para CADA uma: o fundo do
      painel (--p-fundo, o do balão) é mais escuro que o da página (--p-pagina). */
-  it.each(['couro', 'ferro'])('o fundo do tooltip é mais escuro que o fundo do site (%s)', (pal) => {
+  it.each(['couro', 'ferro', 'ganis', 'maira'])('o fundo do tooltip é mais escuro que o fundo do site (%s)', (pal) => {
     const i = css.indexOf(':root[data-paleta="' + pal + '"]');
     expect(i, 'não achei a paleta ' + pal).toBeGreaterThan(-1);
     const bloco = css.slice(i, css.indexOf('}', i));

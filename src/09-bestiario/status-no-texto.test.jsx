@@ -58,7 +58,8 @@ describe('a frase das Características', () => {
       + 'Para equipá-lo, é necessário -2 força. '
       + 'Seu preço original de comércio é 2 moedas de ouro e 3 moedas de prata. '
       + 'Seu dano é 21 base, possui -2 armaduras pesadas, 0 armaduras médias e +2 armaduras leves. '
-      + 'Pertence ao grupo de armas perfuração leve, seu ataque é ajustado pelo atributo agilidade e seu alcance é de 5 metros.',
+      // 15/11/2026: o grupo fecha a frase ("…, e seu grupo é o de corte leve.").
+      + 'Seu ataque é ajustado pelo atributo agilidade, seu alcance é de 5 metros, e seu grupo é o de perfuração leve.',
     );
   });
 

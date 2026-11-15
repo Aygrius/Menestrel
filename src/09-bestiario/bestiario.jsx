@@ -359,6 +359,25 @@ function BestDetalheModal({ title, lang, onClose, acoes, rodape, children, topo,
     return () => { window.removeEventListener('keydown', onKey); if (!alvoPainel) document.body.style.overflow = antes; };
   }, []);
 
+  /* A JANELA DA AMBIENTAÇÃO NA LARGURA DA PÁGINA (15/11/2026, usuário: "eu
+     quero a mesma largura da página"). A página muda de largura com a tela
+     (--fp-largura, ver index.css), e a janela mora num portal fora dela —
+     então mede o cartão da página aberto atrás e segue a medida, também
+     quando a janela do navegador muda de tamanho. */
+  const larguraDaPagina = !alvoPainel && !!extraClass && extraClass.split(' ').includes('modal-ambientacao');
+  const [largura, setLargura] = React.useState(null);
+  React.useEffect(() => {
+    if (!larguraDaPagina) return undefined;
+    const medir = () => {
+      const pagina = document.querySelector('.mc-content > .pjs, .mc-content > .hist > .pjs, .mc-content > *');
+      const w = pagina ? Math.round(pagina.getBoundingClientRect().width) : 0;
+      setLargura(w > 0 ? w : null);
+    };
+    medir();
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, [larguraDaPagina]);
+
   const alvo = alvoPainel || ((typeof document !== 'undefined') && (document.getElementById('root') || document.body));
   if (!alvo) return null;
   const conteudoMarcado = (filhos) => <PainelLivroCtx.Provider value={{ el: null, desligado: livro.desligado, dentro: true }}>{filhos}</PainelLivroCtx.Provider>;
@@ -368,6 +387,7 @@ function BestDetalheModal({ title, lang, onClose, acoes, rodape, children, topo,
        abriu a janela — fechando-a no primeiro clique. */
     <div className={'menestrel-ui ' + (alvoPainel ? 'ms-painel' : 'ms-backdrop')} ref={fundoRef} onClick={(e) => e.stopPropagation()}>
       <div className={"ms-modal ms-lg modal-best-detalhe" + ((topo || acoesEmBarra) ? " modal-item" : "") + (alvoPainel ? " modal-em-painel" : "") + (extraClass ? " " + extraClass : "")} role={alvoPainel ? 'region' : 'dialog'} aria-modal={alvoPainel ? undefined : 'true'}
+        style={largura ? { maxWidth: largura } : undefined}
         aria-label={typeof title === 'string' ? title : undefined}>
         {/* A pintura antes do título. Nasceu no painel do inventário
             (25/10/2026) e passou a valer também na JANELA em 26/10/2026, a
@@ -924,10 +944,20 @@ function LivroLayout({ children }) {
     </PainelLivroCtx.Provider>
   );
 }
-function BestPageHeader({ eyebrow, title, right }) {
+/* `trilho` (15/11/2026): no Compêndio, a barra é a da Ambientação — as
+   páginas antes da busca e do +, e o filtro depois, numa pílula só dentro da
+   página (ver trilhoLivro em 10-shell). `right` é o BestBuscaENovo da lista. */
+function BestPageHeader({ eyebrow, title, right, trilho = null }) {
   const ctx = React.useContext(PainelLivroCtx);
-  const alvoBusca = (typeof useAlvoPortal === 'function') ? useAlvoPortal('livro-trilho-busca') : null;
-  if (alvoBusca && !ctx.desligado) return <>{ReactDOM.createPortal(right, alvoBusca)}<h2 className="mn-so-leitor">{title}</h2></>;
+  if (ctx.desligado) return <h2 className="mn-so-leitor">{title}</h2>;
+  if (trilho) {
+    return (
+      <div className="diario-pagina-barra cartoes-barra livro-trilho trilho-unido">
+        <h2 className="mn-so-leitor">{title}</h2>
+        {React.isValidElement(right) ? React.cloneElement(right, { antes: trilho.antes, depois: trilho.depois }) : right}
+      </div>
+    );
+  }
   return (
     <div className="fp-card-top">
       <header className="ms-header ficha-page-header best-header-so-acoes">
@@ -970,7 +1000,8 @@ function BestBotaoNovo({ ac, onClick, dica }) {
    um abre a sua janela (BestPainelModal, painel-modal.jsx). */
 /* `antes` (04/11/2026): o que vem ANTES da busca, na mesma pílula — os botões
    de página da Ambientação, para o trilho ser um só, como o da ficha. */
-function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, dicaNovo, ferramentas, antes = null }) {
+/* `depois` (15/11/2026): o que vem DEPOIS do + — o filtro do Compêndio. */
+function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, dicaNovo, ferramentas, antes = null, depois = null }) {
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
   return (
     <div className="best-header-acoes">
@@ -981,9 +1012,64 @@ function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, d
       </div>
       {ferramentas}
       {podeCriar && <BestBotaoNovo ac={ac} onClick={onNovo} dica={dicaNovo} />}
+      {depois}
     </div>
   );
 }
+
+/* OS CARTÕES DO COMPÊNDIO (15/11/2026, usuário: "há uma lista com
+   visualização, ou seja, não está igual ambientação"). A tabela com a ficha
+   num painel ao lado deu lugar à grade da Ambientação (GerenciarLoreView,
+   13-diario): as MESMAS peças do cartão baixo de Personagens — retrato, nome,
+   duas linhas —, e o clique abre a janela da entrada, a mesma que o Ctrl+K
+   abre. Sem pintura, o retrato leva o ícone do tipo, como na paleta.
+   `cartoes`: [{ chave, nome, imagem, icone, linha1: [], linha2, canto }]. */
+const LIVRO_POR_PAGINA = 18;
+function LivroCartoes({ cartoes, onAbrir, wrapRef }) {
+  return (
+    <div className="pjs-grid diario-cartoes livro-cartoes" ref={wrapRef}>
+      {cartoes.map((c) => (
+        <div className="pj-card-wrap" key={c.chave}>
+          <article className="pj-card is-clickable diario-cartao" role="button" tabIndex={0}
+            onClick={() => onAbrir(c.chave)}
+            onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); onAbrir(c.chave); } }}>
+            <div className="pj-card-body">
+              <div className={'pj-card-portrait' + (c.imagem ? '' : ' is-empty')}>
+                {c.imagem
+                  ? <img src={c.imagem} alt="" className="pj-card-portrait-img" loading="lazy" />
+                  : c.icone
+                    ? <i className={'ti ' + c.icone + ' pj-card-portrait-mono livro-cartao-ic'} aria-hidden="true" />
+                    : <span className="pj-card-portrait-mono" aria-hidden="true">{String(c.nome || '?').trim().charAt(0).toUpperCase()}</span>}
+              </div>
+              <div className="pj-card-info">
+                <header className="pj-card-head">
+                  <div className="pj-name-linha">
+                    <div className="pj-name diario-cartao-nome">{c.nome}</div>
+                    {c.canto}
+                  </div>
+                </header>
+                <div className="pj-meta-linhas">
+                  {c.linha1 && c.linha1.length > 0 && (
+                    <div className="pj-meta pj-meta--quem diario-cartao-meta">
+                      {c.linha1.map((parte, i) => (
+                        <React.Fragment key={i}>
+                          {i > 0 && <span className="sep" aria-hidden="true">·</span>}
+                          <span>{parte}</span>
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  )}
+                  {c.linha2 && <div className="pj-meta pj-meta--estagio diario-cartao-meta">{c.linha2}</div>}
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      ))}
+    </div>
+  );
+}
+const _partes = (...xs) => xs.filter((x) => x != null && String(x).trim() !== '' && x !== '—');
 /* O OLHO e o LÁPIS de cada linha (BestBotaoPermissao, BestBotaoEditar)
    saíram em 26/09/2026: "remove o ícone de lápis da tabela, o ícone de lápis
    deve aparecer do lado do x de fechar o modal, com a mesma aparência do x".
@@ -1003,7 +1089,7 @@ function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, d
    Sem mesa, sem olho: "na história selecionada" não existe sem uma
    selecionada, e um olho que abrisse pra falhar no salvar seria pior que
    nenhum. Ver criatura-permissao-olho.test.jsx. */
-function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo, pedido = null }) {
+function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo, pedido = null, trilho = null }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } = (typeof UI !== 'undefined' ? UI : {});
   const [criaturas, setCriaturas] = useState(null);
   const [error, setError] = useState(null);
@@ -1011,7 +1097,7 @@ function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo, pedi
   const [expandida, setExpandida] = useState(null);
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
-  const PAGE_SIZE = useFitPageSize(wrapRef);
+  const PAGE_SIZE = useFitPageSize(wrapRef, { fallback: LIVRO_POR_PAGINA });
   const { sorted: criaturasSorted, sortKey, sortDir, toggleSort } = useSort(criaturas);
   const ehAdmin = useEhAdmin();
   const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
@@ -1496,63 +1582,49 @@ function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo, pedi
   };
 
   return (
-    <div className="fp-page">
-    <div className="fp-card best best-criaturas">
-      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={titulo || (lang === 'en' ? 'Creatures' : 'Criaturas')}
+    <div className="pjs diario-pagina livro-pagina">
+      {/* A Verificação saiu do Compêndio em 15/11/2026 ("tenho menu de
+          'verificação' que eu não quero", usuário). CriaturasAuditoriaPainel
+          continua no código. */}
+      <BestPageHeader eyebrow={lang === 'en' ? 'BESTIARY' : 'BESTIÁRIO'} title={titulo || (lang === 'en' ? 'Creatures' : 'Criaturas')} trilho={trilho}
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search' : 'Buscar'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
-          dicaNovo={lang === 'en' ? 'New creature' : 'Nova criatura'}
-          /* Verifica se os nomes em criaturas.magia ainda casam com o catálogo —
-             o furo que a auditoria de magias não alcança (rename silencioso). */
-          ferramentas={ehAdmin && <CriaturasAuditoriaPainel criaturas={criaturas} lang={lang} />} />} />
+          dicaNovo={lang === 'en' ? 'New creature' : 'Nova criatura'} />} />
 
-      <LivroLayout>
       {filtered.length === 0 ? (
-        <div className="best-empty">{textoListaVazia({ query, modoJogador, lang, oQue: 'criaturas', oQueEn: 'creature' })}</div>
+        <div className="best-empty diario-empty-lg">{textoListaVazia({ query, modoJogador, lang, oQue: 'criaturas', oQueEn: 'creature' })}</div>
       ) : (
         <>
-          <div className="best-table-wrap" ref={wrapRef}>
-            <Table>
-              <TableHeader><TableRow>
-                {cols.map((c) => <SortHead key={c.key} col={c.key} sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{c.label}</SortHead>)}
-              </TableRow></TableHeader>
-              <TableBody>
+          <LivroCartoes wrapRef={wrapRef} onAbrir={setExpandida}
+            cartoes={pageSlice.map((row) => {
+              /* O olho de QUEM PODE VER na mesa ativa, no canto do nome — onde
+                 o cartão de Reinos o põe. */
+              const vis = visibilidadeDaCriatura(row);
+              return {
+                chave: row.id, nome: row.nome, icone: iconeTipoCriatura(row.tipo) || 'ti-paw',
+                linha1: _partes(row.tipo, row.subtipo),
+                linha2: row.estagio != null && row.estagio !== '' ? (lang === 'en' ? 'Stage ' : 'Estágio ') + row.estagio : null,
+                canto: vis ? (
+                  <span className={'pj-card-status diario-vis-ic diario-vis-ic--' + vis.modo}
+                    role="img" aria-label={vis.rotulo}
+                    onMouseEnter={(e) => mostrarTipStat(e, vis.rotulo)}
+                    onMouseLeave={esconderTipStat}>
+                    <i className={'ti ' + ({ todos: 'ti-eye', ninguem: 'ti-eye-off' }[vis.modo] || 'ti-eye-exclamation')} aria-hidden="true" />
+                  </span>
+                ) : null,
+              };
+            })} />
                 {pageSlice.map((row) => {
                   const isOpen = expandida === row.id;
+                  if (!isOpen) return null;
                   return (
                     <React.Fragment key={row.id}>
-                      <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : row.id)}>
-                        {cols.map((c) => c.key === 'nome' ? (
-                          <TableCell key={c.key} className="best-name">
-                            {/* A PATENTE (C, B, A, S… pelo estágio) saiu em 26/09/2026
-                                ("pode remover aqueles ícones de C,A,B,S"). No lugar, o
-                                ícone de QUEM PODE VER na mesa ativa, como em Reinos —
-                                só com mesa selecionada, que é onde a pergunta existe. */}
-                            {/* A classe da criatura (26/09/2026) — o mesmo ícone do token. */}
-                            <IconeDoNome icone={iconeTipoCriatura(row.tipo) || 'ti-paw'} />
-                            {(() => {
-                              const vis = visibilidadeDaCriatura(row);
-                              if (!vis) return null;
-                              return (
-                                <span className={'diario-vis-ic diario-vis-ic--' + vis.modo}
-                                  role="img" aria-label={vis.rotulo}
-                                  onMouseEnter={(e) => mostrarTipStat(e, vis.rotulo)}
-                                  onMouseLeave={esconderTipStat}>
-                                  <i className={'ti ' + ({ todos: 'ti-eye', ninguem: 'ti-eye-off' }[vis.modo] || 'ti-eye-exclamation')} aria-hidden="true" />
-                                </span>
-                              );
-                            })()}
-                            {fmt(row[c.key])}</TableCell>
-                        ) : (
-                          <TableCell key={c.key}>{fmt(row[c.key])}</TableCell>
-                        ))}
-                      </TableRow>
                       {isOpen && (
                         <BestDetalheModal title={row.nome} lang={lang} onClose={() => setExpandida(null)}
                           /* A criatura mantém o corpo anterior até a etapa do
                              bestiário poder vê-la (22/10/2026). */
-                          extraClass="modal-criatura"
+                          extraClass="modal-criatura modal-ambientacao"
                           acoes={[
                             /* O olho vem ANTES do lápis, como nas janelas de
                                Reinos e Conhecidos. */
@@ -1681,14 +1753,9 @@ function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo, pedi
                     </React.Fragment>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </div>
           <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
         </>
       )}
-      </LivroLayout>
-    </div>
     {editando !== undefined && (
       <CatalogoEditor
         tabela="criaturas"
@@ -2305,7 +2372,7 @@ function MagiasAuditoriaPainel({ magias, lang, onRecarregar }) {
 }
 
 /* ============================== [18] MagiasList — Mestre vê todas as magias do banco; jogador só as compradas ============================== */
-function MagiasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
+function MagiasList({ ac, lang, modoJogador, filtro, titulo, pedido = null, trilho = null }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [magias, setMagias] = useState(null);
   const { sorted: magiasSorted, sortKey, sortDir, toggleSort } = useSort(magias);
@@ -2314,7 +2381,7 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
   const [expandida, setExpandida] = useState(null);
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
-  const PAGE_SIZE = useFitPageSize(wrapRef);
+  const PAGE_SIZE = useFitPageSize(wrapRef, { fallback: LIVRO_POR_PAGINA });
   const ehAdmin = useEhAdmin();
   const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
   const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
@@ -2356,9 +2423,8 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
-    <div className="fp-page">
-    <div className="fp-card best best-auto best-magias">
-      <BestPageHeader eyebrow={lang === 'en' ? 'TRAINING' : 'TREINAMENTO'} title={titulo || (lang === 'en' ? 'Spells' : 'Magias')}
+    <div className="pjs diario-pagina livro-pagina">
+      <BestPageHeader eyebrow={lang === 'en' ? 'TRAINING' : 'TREINAMENTO'} title={titulo || (lang === 'en' ? 'Spells' : 'Magias')} trilho={trilho}
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search' : 'Buscar'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
@@ -2368,31 +2434,23 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
              daqui a pedido do usuário. Ver MagiasPainel. */
           ferramentas={ehAdmin && <MagiasPainel magias={magias} lang={lang} />} />} />
 
-      <LivroLayout>
       {filtered.length === 0 ? (
-        <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'magias', oQueEn: 'spell' })}</div>
+        <div className="best-empty diario-empty-lg">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'magias', oQueEn: 'spell' })}</div>
       ) : (
         <>
-          <div className="best-table-wrap" ref={wrapRef}>
-            <Table>
-              <TableHeader><TableRow>
-                <SortHead col='nome' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Name' : 'Nome'}</SortHead>
-                {/* Evocação, Alcance e Duração (22/10/2026): pedido do usuário. */}
-                <SortHead col='evocacao' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Casting' : 'Evocação'}</SortHead>
-                <SortHead col='alcance' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Range' : 'Alcance'}</SortHead>
-                <SortHead col='duracao' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Duration' : 'Duração'}</SortHead>
-              </TableRow></TableHeader>
-              <TableBody>
+          {/* Classe e tipo na primeira linha; Evocação, Alcance e Duração
+              (as colunas de 22/10/2026) na segunda. */}
+          <LivroCartoes wrapRef={wrapRef} onAbrir={setExpandida}
+            cartoes={pageSlice.map((m) => ({
+              chave: m.key, nome: m.nome, icone: ICONE_TIPO_MAGIA[m.tipo] || 'ti-sparkles',
+              linha1: _partes(m.classe, m.tipo),
+              linha2: _partes(m.evocacao, abreviarAlcance(m.alcance), m.duracao).join(' · ') || null,
+            }))} />
                 {pageSlice.map((m) => {
                   const isOpen = expandida === m.key;
+                  if (!isOpen) return null;
                   return (
                     <React.Fragment key={m.id}>
-                      <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : m.key)}>
-                        <TableCell className="best-name"><IconeDoNome icone={ICONE_TIPO_MAGIA[m.tipo] || 'ti-sparkles'} />{m.nome}</TableCell>
-                        <TableCell className="best-magia-dado">{m.evocacao || '—'}</TableCell>
-                        <TableCell className="best-magia-dado">{abreviarAlcance(m.alcance) || '—'}</TableCell>
-                        <TableCell className="best-magia-dado">{m.duracao || '—'}</TableCell>
-                      </TableRow>
                       {isOpen && (() => {
                         // Modo jogador: só os níveis que ele COMPROU (spec §3 "só os níveis
                         // comprados") — interseção entre "nível que existe" (m.nivel_N
@@ -2403,7 +2461,7 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
                           ? new Set(NIVEIS_MAGIA.slice(0, conhecido.magias.get(m.key) || 0))
                           : null;
                         return (
-                        <BestDetalheModal title={m.nome} lang={lang} onClose={() => setExpandida(null)}
+                        <BestDetalheModal title={m.nome} lang={lang} onClose={() => setExpandida(null)} extraClass="modal-ambientacao"
                           acoes={[ehAdmin && { icone: 'ti-pencil', rotulo: lang === 'en' ? 'Edit' : 'Editar',
                             onClick: () => { setExpandida(null); setEditando(m); } }]}>
                           <BestMagiaFicha m={m} lang={lang} niveisPermitidos={niveisPermitidos} />
@@ -2413,14 +2471,9 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
                     </React.Fragment>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </div>
           <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
         </>
       )}
-      </LivroLayout>
-    </div>
     {editando !== undefined && (
       <CatalogoEditor
         tabela="magias"
@@ -2437,7 +2490,7 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
 }
 
 /* ============================== [19] HabilidadesList — Mestre vê todas as habilidades (DB); jogador só as que tem ============================== */
-function HabilidadesList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
+function HabilidadesList({ ac, lang, modoJogador, filtro, titulo, pedido = null, trilho = null }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [habilidades, setHabilidades] = useState(null);
   const { sorted: habSorted, sortKey, sortDir, toggleSort } = useSort(habilidades);
@@ -2446,7 +2499,7 @@ function HabilidadesList({ ac, lang, modoJogador, filtro, titulo, pedido = null 
   const [expandida, setExpandida] = useState(null);
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
-  const PAGE_SIZE = useFitPageSize(wrapRef);
+  const PAGE_SIZE = useFitPageSize(wrapRef, { fallback: LIVRO_POR_PAGINA });
   const ehAdmin = useEhAdmin();
   const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
   const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
@@ -2486,41 +2539,33 @@ function HabilidadesList({ ac, lang, modoJogador, filtro, titulo, pedido = null 
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
-    <div className="fp-page">
-    <div className="fp-card best best-auto">
-      <BestPageHeader eyebrow={lang === 'en' ? 'TRAINING' : 'TREINAMENTO'} title={titulo || (lang === 'en' ? 'Skills' : 'Habilidades')}
+    <div className="pjs diario-pagina livro-pagina">
+      <BestPageHeader eyebrow={lang === 'en' ? 'TRAINING' : 'TREINAMENTO'} title={titulo || (lang === 'en' ? 'Skills' : 'Habilidades')} trilho={trilho}
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search' : 'Buscar'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
           dicaNovo={lang === 'en' ? 'New skill' : 'Nova habilidade'} />} />
 
-      <LivroLayout>
       {filtered.length === 0 ? (
-        <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'habilidades', oQueEn: 'skill' })}</div>
+        <div className="best-empty diario-empty-lg">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'habilidades', oQueEn: 'skill' })}</div>
       ) : (
         <>
-          <div className="best-table-wrap" ref={wrapRef}>
-            <Table>
-              <TableHeader><TableRow>
-                <SortHead col='nome' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Name' : 'Nome'}</SortHead>
-              </TableRow></TableHeader>
-              <TableBody>
+          <LivroCartoes wrapRef={wrapRef} onAbrir={setExpandida}
+            cartoes={pageSlice.map((h) => ({
+              chave: h.key, nome: h.nome, icone: CHIP_ICON[h.grupo] || 'ti-bolt',
+              linha1: _partes(h.grupo),
+            }))} />
                 {pageSlice.map((h) => {
                   const isOpen = expandida === h.key;
+                  if (!isOpen) return null;
                   /* Toda habilidade abre desde 26/09/2026: a janela ganhou a lista
                      por extenso (grupo, atributo, vantagem…), que não depende da
                      descrição. A restrição de uso continua fora (14/09/2026). */
                   const temDetalhe = true;
                   return (
                     <React.Fragment key={h.key}>
-                      <TableRow className={isOpen ? 'on' : ''} style={temDetalhe ? { cursor: 'pointer' } : undefined} onClick={temDetalhe ? () => setExpandida(isOpen ? null : h.key) : undefined}>
-                        <TableCell className="best-name">
-                          <IconeDoNome icone={CHIP_ICON[h.grupo] || 'ti-bolt'} />
-                          {h.nome}
-                        </TableCell>
-                      </TableRow>
                       {isOpen && temDetalhe && (
-                        <BestDetalheModal title={h.nome} lang={lang} onClose={() => setExpandida(null)}
+                        <BestDetalheModal title={h.nome} lang={lang} onClose={() => setExpandida(null)} extraClass="modal-ambientacao"
                           acoes={[ehAdmin && { icone: 'ti-pencil', rotulo: lang === 'en' ? 'Edit' : 'Editar',
                             onClick: () => { setExpandida(null); setEditando(h); } }]}>
                           <BestHabilidadeFicha h={h} lang={lang} />
@@ -2529,14 +2574,9 @@ function HabilidadesList({ ac, lang, modoJogador, filtro, titulo, pedido = null 
                     </React.Fragment>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </div>
           <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
         </>
       )}
-      </LivroLayout>
-    </div>
     {editando !== undefined && (
       <CatalogoEditor
         tabela="habilidades"
@@ -2672,7 +2712,7 @@ function TecnicasAuditoriaPainel({ tecnicas, lang, onRecarregar }) {
   );
 }
 
-function TecnicasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
+function TecnicasList({ ac, lang, modoJogador, filtro, titulo, pedido = null, trilho = null }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [tecnicas, setTecnicas] = useState(null);
   const { sorted: tecnicasSorted, sortKey, sortDir, toggleSort } = useSort(tecnicas);
@@ -2681,7 +2721,7 @@ function TecnicasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) 
   const [expandida, setExpandida] = useState(null);
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
-  const PAGE_SIZE = useFitPageSize(wrapRef);
+  const PAGE_SIZE = useFitPageSize(wrapRef, { fallback: LIVRO_POR_PAGINA });
   const ehAdmin = useEhAdmin();
   const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
   const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
@@ -2721,40 +2761,32 @@ function TecnicasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) 
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
-    <div className="fp-page">
-    <div className="fp-card best best-auto">
-      <BestPageHeader eyebrow={lang === 'en' ? 'TRAINING' : 'TREINAMENTO'} title={titulo || (lang === 'en' ? 'Techniques' : 'Técnicas')}
+    <div className="pjs diario-pagina livro-pagina">
+      <BestPageHeader eyebrow={lang === 'en' ? 'TRAINING' : 'TREINAMENTO'} title={titulo || (lang === 'en' ? 'Techniques' : 'Técnicas')} trilho={trilho}
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search' : 'Buscar'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
           dicaNovo={lang === 'en' ? 'New technique' : 'Nova técnica'}
-          /* Mesmo motivo do painel das magias: é onde o texto da técnica é
-             editado, e a tabela exige autenticação que esta tela já tem. */
-          ferramentas={ehAdmin && (<>
-            <TecnicasAuditoriaPainel tecnicas={tecnicas} lang={lang} onRecarregar={carregarTecnicas} />
-            {typeof TecnicasSugestoesPainel === 'function' && <TecnicasSugestoesPainel lang={lang} />}
-          </>)} />} />
+          /* A Verificação (TecnicasAuditoriaPainel) saiu em 15/11/2026, a
+             pedido do usuário; ficam as Sugestões. */
+          ferramentas={ehAdmin && typeof TecnicasSugestoesPainel === 'function' && <TecnicasSugestoesPainel lang={lang} />} />} />
 
-      <LivroLayout>
       {filtered.length === 0 ? (
-        <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'técnicas', oQueEn: 'technique' })}</div>
+        <div className="best-empty diario-empty-lg">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'técnicas', oQueEn: 'technique' })}</div>
       ) : (
         <>
-          <div className="best-table-wrap" ref={wrapRef}>
-            <Table>
-              <TableHeader><TableRow>
-                <SortHead col='nome' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Name' : 'Nome'}</SortHead>
-              </TableRow></TableHeader>
-              <TableBody>
+          <LivroCartoes wrapRef={wrapRef} onAbrir={setExpandida}
+            cartoes={pageSlice.map((t) => ({
+              chave: t.key, nome: t.nome, icone: CHIP_ICON[t.uso] || 'ti-swords',
+              linha1: _partes(t.tipo), linha2: t.uso || null,
+            }))} />
                 {pageSlice.map((t) => {
                   const isOpen = expandida === t.key;
+                  if (!isOpen) return null;
                   return (
                     <React.Fragment key={t.id || t.key}>
-                      <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : t.key)}>
-                        <TableCell className="best-name"><IconeDoNome icone={CHIP_ICON[t.uso] || 'ti-swords'} />{t.nome}</TableCell>
-                      </TableRow>
                       {isOpen && (
-                        <BestDetalheModal title={t.nome} lang={lang} onClose={() => setExpandida(null)}
+                        <BestDetalheModal title={t.nome} lang={lang} onClose={() => setExpandida(null)} extraClass="modal-ambientacao"
                           acoes={[ehAdmin && { icone: 'ti-pencil', rotulo: lang === 'en' ? 'Edit' : 'Editar',
                             onClick: () => { setExpandida(null); setEditando(t); } }]}>
                           <BestTecnicaFicha t={t} lang={lang} />
@@ -2763,14 +2795,9 @@ function TecnicasList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) 
                     </React.Fragment>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </div>
           <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
         </>
       )}
-      </LivroLayout>
-    </div>
     {editando !== undefined && (
       <CatalogoEditor
         tabela="tecnicas"
@@ -2984,7 +3011,7 @@ function BestTecnicaFicha({ t, lang, linhasExtras }) {
    A instância soma "onde está" e a quantidade; a loja soma preço e estoque
    (`extras`). O que vai para o passe NÃO se repete na lista (`omitir`). */
 function celulasDoItem(it, lang, opcoes) {
-  const { quantidade, onde, resistenciaTexto, extras } = opcoes || {};
+  const { quantidade, onde, resistenciaTexto, extras, soMagia } = opcoes || {};
   const en = lang === 'en';
   const fmt = (v) => String(Number(v)).replace('.', ',');
   const tem = (v) => v != null && v !== '' && v !== 0 && v !== '0';
@@ -2994,6 +3021,11 @@ function celulasDoItem(it, lang, opcoes) {
     c.push({ chave: 'magia', rotulo: en ? 'Spell' : 'Magia', texto: true, lider: true,
       valor: it.magia + (nv != null ? ` · ${en ? 'Level' : 'Nível'} ${nv}` : '') });
   }
+  /* SÓ A MAGIA (15/11/2026, usuário, sobre a janela do Compêndio: "Remove o
+     card e transforme em lista, dano, resistência e ocupa. O card acima será
+     usado para apresentar magias, por exemplo em 'Aleteias'"). Os números
+     descem para a lista (numerosDoItem) e o grupo para a frase. */
+  if (soMagia) return c;
   if (onde) c.push({ chave: 'onde', rotulo: en ? 'Where' : 'Onde está', valor: onde, texto: true });
   (extras || []).filter(Boolean).forEach((e) => c.push(e));
   if (Number(quantidade) > 1) c.push({ chave: 'quantidade', rotulo: en ? 'Quantity' : 'Quantidade', valor: Number(quantidade) });
@@ -3188,15 +3220,18 @@ function fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId, semNume
     }
   }
 
-  /* 6. "Pertence ao grupo de armas perfuração leve, seu ataque é ajustado
-     pelo atributo agilidade e seu alcance é de 5 metros." — uma frase só. */
+  /* 6. "Seu ataque é ajustado pelo atributo agilidade, e seu grupo é o de
+     corte leve." (usuário, 15/11/2026) — o atributo e o alcance primeiro, o
+     grupo fecha a frase. Antes (30/10/2026) o grupo a abria: "Pertence ao
+     grupo de armas perfuração leve, seu ataque é ajustado…". */
   const oracoes = [];
+  let oracaoGrupo = null;
   if (ehArma(it)) {
     const grupos = sai('grupo') ? null : gruposDeArmaPorExtenso(it.grupo_armas, en);
     if (grupos) {
       const varios = grupos.includes(',');
-      oracoes.push(<React.Fragment key="grupo">{en ? (varios ? 'belongs to the weapon groups ' : 'belongs to the weapon group ')
-        : (varios ? 'pertence aos grupos de armas ' : 'pertence ao grupo de armas ')}
+      oracaoGrupo = (<React.Fragment key="grupo">{en ? (varios ? 'its groups are ' : 'its group is ')
+        : (varios ? 'seus grupos são os de ' : 'seu grupo é o de ')}
         <StatusNoTexto>{en ? grupos : grupos.toLocaleLowerCase('pt-BR')}</StatusNoTexto></React.Fragment>);
     }
   }
@@ -3211,12 +3246,17 @@ function fraseDoItem(it, lang, { fora, resistenciaTexto, criaturasPorId, semNume
     oracoes.push(<React.Fragment key="alcance">{en ? 'its range is ' : 'seu alcance é de '}
       <StatusNoTexto>{en ? `${num(metros)} ${metros === 1 ? 'meter' : 'meters'}` : `${num(metros)} ${metros === 1 ? 'metro' : 'metros'}`}</StatusNoTexto></React.Fragment>);
   }
-  if (oracoes.length) {
+  if (oracoes.length || oracaoGrupo) {
     // A primeira oração abre a frase: maiúscula na primeira letra.
-    const [primeira, ...resto] = oracoes;
+    const [primeira, ...resto] = oracoes.length ? oracoes : [oracaoGrupo];
     const cap = React.cloneElement(primeira, {}, ...React.Children.toArray(primeira.props.children).map((c, i) => (
       i === 0 && typeof c === 'string' ? c.charAt(0).toUpperCase() + c.slice(1) : c)));
-    frases.push(<React.Fragment key="arma">{juntar([cap, ...resto])}.</React.Fragment>);
+    /* Com o grupo, ele fecha com ", e" e as outras se separam por vírgula:
+       "…agilidade, seu alcance é de 5 metros, e seu grupo é o de…". */
+    const corpo = oracoes.length && oracaoGrupo
+      ? <>{[cap, ...resto].flatMap((o, i) => (i === 0 ? [o] : [', ', o]))}{en ? ', and ' : ', e '}{oracaoGrupo}</>
+      : juntar([cap, ...resto]);
+    frases.push(<React.Fragment key="arma">{corpo}.</React.Fragment>);
   }
   if (it.categoria_equip === 'escudo') {
     const maos = (n) => (en ? `${n} ${n === 1 ? 'hand' : 'hands'}` : `${n} ${n === 1 ? 'mão' : 'mãos'}`);
@@ -3372,7 +3412,12 @@ function fraseDosEfeitos(it, en, num) {
   return <>{inicio}{juntar(ajuda)}{atrapalha.length ? <>{en ? ', but ' : ', mas '}{juntar(atrapalha)}</> : null}.</>;
 }
 
-function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, resistenciaTexto, depois, omitir }) {
+/* `emLinhas` (15/11/2026, usuário, sobre a janela do Compêndio: "os itens de
+   'Características' vão dividir o modal em duas colunas. Como é feito com
+   'criaturas', etc."): os números viram linhas da lista de duas colunas —
+   cada um um .best-stat--linha, como Alcance e Duração na janela da magia —
+   em vez do quadro de largura inteira (ItemNumeros), que segue no inventário. */
+function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, resistenciaTexto, depois, omitir, emLinhas = false }) {
   const fora = new Set(omitir || []);
   const se = (chave, linha) => (fora.has(chave) ? null : linha);
   // O que a frase das Características diz sai das linhas (30/10/2026).
@@ -3405,7 +3450,14 @@ function BestItemFicha({ it, lang, magias, criaturasPorId, linhasDaInstancia, re
       <BestFichaLista titulo={lang === 'en' ? 'Traits' : 'Características'} colunas={2}>
         {/* A frase vem primeiro, na largura inteira; "Onde está" e o resto
             seguem como linhas, embaixo dela (30/10/2026). */}
-        {numeros.length > 0 && <li className="best-frase best-numeros"><ItemNumeros celulas={numeros} /></li>}
+        {emLinhas
+          ? numeros.map((c) => (
+            <li key={c.chave} className="best-stat best-stat--linha item-numero" data-numero={c.chave}>
+              <span className="best-stat-lbl">{c.rotulo}</span>
+              <span className={'best-stat-val item-numero-valor' + (c.tom ? ' st-tom st-tom--' + c.tom : '')}>{c.valor}</span>
+            </li>
+          ))
+          : numeros.length > 0 && <li className="best-frase best-numeros"><ItemNumeros celulas={numeros} /></li>}
         {frase && <li className="best-frase">{frase}</li>}
         {/* Linhas da INSTÂNCIA (inventário): quantidade, onde está, bônus. */}
         {linhasDaInstancia}
@@ -3504,7 +3556,7 @@ function BestItemMagia({ item, magias, lang, semCabeca }) {
 }
 
 /* ============================== [21] ItensList — Mestre vê todos os itens; jogador só os que possui ============================== */
-function ItensList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
+function ItensList({ ac, lang, modoJogador, filtro, titulo, pedido = null, trilho = null }) {
   const { Table, TableHeader, TableBody, TableRow, TableHead, TableCell, Badge } = (typeof UI !== 'undefined' ? UI : {});
   const [itens, setItens] = useState(null);
   const { sorted: itensSorted, sortKey, sortDir, toggleSort } = useSort(itens);
@@ -3513,7 +3565,7 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
   const [expandida, setExpandida] = useState(null);
   const [page, setPage] = useState(1);
   const wrapRef = React.useRef(null);
-  const PAGE_SIZE = useFitPageSize(wrapRef);
+  const PAGE_SIZE = useFitPageSize(wrapRef, { fallback: LIVRO_POR_PAGINA });
   const ehAdmin = useEhAdmin();
   const [editando, setEditando] = useState(undefined); // undefined=fechado, null=criando, objeto=editando
   const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
@@ -3558,9 +3610,8 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
   const pageSlice = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return (
-    <div className="fp-page">
-    <div className="fp-card best best-auto">
-      <BestPageHeader eyebrow={lang === 'en' ? 'TRADE' : 'COMÉRCIO'} title={titulo || (lang === 'en' ? 'Items' : 'Itens')}
+    <div className="pjs diario-pagina livro-pagina">
+      <BestPageHeader eyebrow={lang === 'en' ? 'TRADE' : 'COMÉRCIO'} title={titulo || (lang === 'en' ? 'Items' : 'Itens')} trilho={trilho}
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search' : 'Buscar'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
@@ -3568,31 +3619,26 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
           /* Sugestões de itens para batalha. Itens não tem verificação. */
           ferramentas={ehAdmin && typeof ItensSugestoesPainel === 'function' && <ItensSugestoesPainel lang={lang} />} />} />
 
-      <LivroLayout>
       {filtered.length === 0 ? (
-        <div className="best-empty">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'itens', oQueEn: 'item' })}</div>
+        <div className="best-empty diario-empty-lg">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'itens', oQueEn: 'item' })}</div>
       ) : (
         <>
-          <div className="best-table-wrap" ref={wrapRef}>
-            <Table>
-              <TableHeader><TableRow>
-                <SortHead col='nome' sortKey={sortKey} sortDir={sortDir} toggleSort={toggleSort}>{lang === 'en' ? 'Name' : 'Nome'}</SortHead>
-              </TableRow></TableHeader>
-              <TableBody>
+          {/* O retrato é a pintura do item (arteDoItem, a mesma do
+              inventário); sem ela, o ícone do item ou do grupo (CHIP_ICON). */}
+          <LivroCartoes wrapRef={wrapRef} onAbrir={setExpandida}
+            cartoes={pageSlice.map((it) => ({
+              chave: it.slug, nome: it.nome,
+              imagem: (typeof window !== 'undefined' && typeof window.arteDoItem === 'function' && window.arteDoItem(it)) || null,
+              icone: it.icone || CHIP_ICON[it.grupo] || 'ti-box',
+              linha1: _partes(it.grupo, it.tipo_item || it.tipo),
+            }))} />
                 {pageSlice.map((it) => {
                   const isOpen = expandida === it.slug;
+                  if (!isOpen) return null;
                   return (
                     <React.Fragment key={it.id || it.slug}>
-                      <TableRow className={isOpen ? 'on' : ''} style={{ cursor: 'pointer' }} onClick={() => setExpandida(isOpen ? null : it.slug)}>
-                        <TableCell className="best-name">
-                          {/* O ícone do item ao lado do nome (26/09/2026). Item sem ícone
-                              próprio usa o do grupo (CHIP_ICON), o mesmo do submenu. */}
-                          <i className={'ti ' + (it.icone || CHIP_ICON[it.grupo] || 'ti-box') + ' best-item-ic'} aria-hidden="true" />
-                          {it.nome}
-                        </TableCell>
-                      </TableRow>
                       {isOpen && (
-                        <BestDetalheModal title={it.nome} lang={lang} onClose={() => setExpandida(null)}
+                        <BestDetalheModal title={it.nome} lang={lang} onClose={() => setExpandida(null)} extraClass="modal-ambientacao"
                           /* SEM A PINTURA (28/10/2026, usuário: "ao clicar em um
                              item pelo livro de regras, não mostrar a imagem do
                              item"). Ela entrou em 26/10 e empurrava a ficha do
@@ -3601,10 +3647,10 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
                              onde o item é um objeto que se tem, e não uma
                              entrada de catálogo que se consulta. */
                           /* Passe + página única (22/10/2026), como na janela do inventário. */
-                          topo={passeDoItem(it, lang).topo} semAbas
+                          topo={passeDoItem(it, lang, { soMagia: true }).topo} semAbas
                           acoes={[ehAdmin && { icone: 'ti-pencil', rotulo: lang === 'en' ? 'Edit' : 'Editar',
                             onClick: () => { setExpandida(null); setEditando(it); } }]}>
-                          <BestItemFicha it={it} lang={lang} magias={magias} criaturasPorId={criaturasPorId} omitir={passeDoItem(it, lang).omitir} />
+                          <BestItemFicha it={it} lang={lang} magias={magias} criaturasPorId={criaturasPorId} omitir={passeDoItem(it, lang, { soMagia: true }).omitir} emLinhas />
                           {/* itens.doc_url guarda o link do CONTEÚDO do item — hoje só os
                               três livros da campanha o usam, apontando pro texto da obra.
                               Até 11/09/2026 o campo existia no editor e nenhuma tela o lia:
@@ -3640,14 +3686,9 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo, pedido = null }) {
                     </React.Fragment>
                   );
                 })}
-              </TableBody>
-            </Table>
-          </div>
           <BestPagination page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={setExpandida} lang={lang} />
         </>
       )}
-      </LivroLayout>
-    </div>
     {editando !== undefined && (
       <CatalogoEditor
         tabela="itens"
@@ -3684,7 +3725,6 @@ const LIVRO_TIPOS = [
   { secao: 'habilidades', icone: 'ti-bolt',     pt: 'Habilidade', en: 'Skill',     conhecido: 'habilidades', ptP: 'Habilidades', enP: 'Skills',     todos: ['Ver todas as habilidades', 'See all skills'] },
 ];
 let indiceDoLivro = null;   // Promise<Array<{ secao, chave, nome }>>
-const NOVO_DO_TIPO = { criaturas: 'Nova criatura', itens: 'Novo item', magias: 'Nova magia', tecnicas: 'Nova técnica', habilidades: 'Nova habilidade' };
 function carregarIndiceDoLivro() {
   if (indiceDoLivro) return indiceDoLivro;
   /* O detalhe ao lado do nome (23/10/2026): o grupo do item, o tipo da
@@ -3753,8 +3793,6 @@ function BuscaLivro({ lang = 'pt', modoJogador = false, onClose, onEscolher }) {
   const inputRef = useRef(null);
   const listaRef = useRef(null);
   const { carregando: carregandoConhecido, conhecido } = useConhecidoDoJogador(modoJogador);
-  // Quem cria no catálogo (o mesmo teste do + que ficava nas páginas do Livro).
-  const podeCriar = useEhAdmin();
 
   useEffect(() => {
     let vivo = true;
@@ -3893,15 +3931,10 @@ function BuscaLivro({ lang = 'pt', modoJogador = false, onClose, onEscolher }) {
                         </button>
                       )}
                       <span>{en ? t.enP : t.ptP} · {g.total}</span>
-                      {/* CRIAR (23/10/2026): com as páginas do Livro fora do
-                          menu, o + do catálogo mora aqui, no tipo escolhido. */}
-                      {tipo && podeCriar && (
-                        <button type="button" className="busca-livro-novo"
-                          onClick={() => onEscolher({ secao: tipo, novo: true })}>
-                          <i className="ti ti-plus" aria-hidden="true" />
-                          {en ? 'New ' + t.en.toLowerCase() : (NOVO_DO_TIPO[tipo] || 'Novo')}
-                        </button>
-                      )}
+                      {/* O "+ Novo" SAIU daqui em 15/11/2026 (usuário: "No
+                          ctrl + k vamos remover apenas o '+ novo item', agora as
+                          novas entradas serão pelo compêndio"). Criar é o + do
+                          trilho de cada página do Compêndio. */}
                     </li>
                     {g.itens.map((r) => {
                       n += 1;

@@ -257,7 +257,7 @@ function temLevelUpPendente(p) {
    ela precisa SABER quem são (onPersonagens) e PODER abrir (pjPedido*). O
    estado continua aqui: quem manda na ficha aberta é esta lista, e a barra só
    pede. */
-function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userProfile = null, mesaAtivaId = null, abrirNovoPersonagemRef, onDentroDeMenu, onFichaAberta, onNomePjAtivo, voltarToken = 0, abaFicha = null, abaToken = 0, onAbaFicha = null, sairToken = 0, pjPedidoId = null, pjPedidoToken = 0, onPersonagens = null,
+function PersonagensList({ ac, t, lang, profile = 'player', convidarPrimeiro = false, currentUserId, userProfile = null, mesaAtivaId = null, abrirNovoPersonagemRef, onDentroDeMenu, onFichaAberta, onNomePjAtivo, voltarToken = 0, abaFicha = null, abaToken = 0, onAbaFicha = null, sairToken = 0, pjPedidoId = null, pjPedidoToken = 0, onPersonagens = null,
   acaoPjId = null, acaoPj = null, acaoPjToken = 0,
   onCompanheiros = null, compPedidoId = null, compPedidoToken = 0 }) {
   const isMaster = profile === 'master';
@@ -382,9 +382,12 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   // Expõe abrir() via ref pro botão "Novo personagem" do pill do topo
   // (shell.jsx) acionar de fora — mesmo padrão de abrirNovaHistoriaRef em
   // historias.jsx. Respeita o limite do plano free aqui dentro.
+  // No limite da conta (15/11/2026) o botão de fora também não abre o assistente:
+  // o banco recusaria só no último passo. A frase do limite fica na página.
+  const noLimitePjRef = React.useRef(false);
   useEffect(() => {
     if (abrirNovoPersonagemRef) {
-      abrirNovoPersonagemRef.current = () => { if (!isMaster) setModalOpen(true); };
+      abrirNovoPersonagemRef.current = () => { if (!isMaster && !noLimitePjRef.current) setModalOpen(true); };
     }
   }, [abrirNovoPersonagemRef, isMaster]);
 
@@ -694,13 +697,47 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
   const termoPj = semAcentoPj(busca.trim());
   const listaVisivel = !termoPj ? personagens : personagens.filter((p) =>
     semAcentoPj([p.nome, p.sobrenome, p.raca, p.profissao, isMaster ? profilesMap[p.user_id] : ''].join(' ')).includes(termoPj));
+  /* O LIMITE DA CONTA (15/11/2026): Plebeu 1 personagem, Nobre 4 — contando os
+     que existem, então excluir abre a vaga ("Um personagem só, mas se o
+     personagem for excluído, ele poderá criar outro", usuário). O banco
+     recusa igual (trg_limite_personagens); aqui o + some e a frase diz por quê. */
+  const conta = (typeof window !== 'undefined' && window.contaDoUsuario) || null;
+  const tetoPj = conta && conta.limites ? conta.limites.personagens : null;
+  const meusPjs = (pjData?.personagens ?? []).filter((p) => !currentUserId || p.user_id === currentUserId).length;
+  const noLimitePj = tetoPj != null && !pjLoading && meusPjs >= tetoPj;
+  noLimitePjRef.current = noLimitePj;
+  const avisoLimitePj = noLimitePj && typeof window.avisoLimitePersonagens === 'function'
+    ? window.avisoLimitePersonagens(conta.efetiva, lang) : null;
   // O Mestre só cria com uma mesa escolhida: é a mesa que diz a quem dar a ficha.
-  const podeCriarPj = !isMaster || !!mesaAtivaId;
+  const podeCriarPj = (!isMaster || !!mesaAtivaId) && !noLimitePj;
   const BuscaENovo = window.BestBuscaENovo;
 
+  /* O PRIMEIRO PERSONAGEM (15/11/2026). Usuário: "Para o jogador, na página
+     'Ficha' quando não houver personagem criado, mostre um grande card ocupando
+     a tela toda" e, no mesmo pedido, "será uma tela convidando o jogador a
+     criar seu personagem". No lugar da lista vazia (só a busca e o +), o
+     cartão inteiro com um convite e um botão, que abre o assistente. Só na
+     Ficha (`convidarPrimeiro`): é a porta do Jogador. */
+  const primeiroPj = convidarPrimeiro && !isMaster && personagens.length === 0;
+
   return (
-    <div className="pjs">
-      {BuscaENovo && (
+    <div className={'pjs' + (primeiroPj ? ' pjs-primeiro' : '')}>
+      {primeiroPj && (
+        <section className="hist-primeira pjs-primeiro-convite" aria-labelledby="pjs-primeiro-titulo">
+          {window.SeloMenestrel && <window.SeloMenestrel size={56} />}
+          <h2 id="pjs-primeiro-titulo" className="hist-primeira-titulo">{lang === 'en' ? 'Create your character' : 'Crie o seu personagem'}</h2>
+          <p className="hist-primeira-texto">
+            {lang === 'en'
+              ? 'Every adventure in Tagmar starts with them. The wizard takes you through race, profession and attributes, and your character is born with the book of their profession.'
+              : 'Toda aventura em Tagmar começa por ele. O assistente leva você pela raça, pela profissão e pelos atributos, e o personagem já nasce com o livro da sua profissão.'}
+          </p>
+          <button type="button" className="btn-primary" onClick={() => setModalOpen(true)}>
+            <i className="ti ti-user-plus" aria-hidden="true" />
+            {lang === 'en' ? 'Create character' : 'Criar personagem'}
+          </button>
+        </section>
+      )}
+      {!primeiroPj && BuscaENovo && (
         <div className="cartoes-barra">
           <BuscaENovo
             ac={ac}
@@ -712,10 +749,11 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
             dicaNovo={lang === 'en' ? 'New character' : 'Novo personagem'} />
         </div>
       )}
+      {!primeiroPj && avisoLimitePj && <p className="pjs-limite">{avisoLimitePj}</p>}
       {termoPj && listaVisivel.length === 0 && (
         <div className="best-empty">{lang === 'en' ? `No character matches "${busca.trim()}".` : `Nenhum personagem com "${busca.trim()}".`}</div>
       )}
-      <div className="pjs-grid">
+      {!primeiroPj && <div className="pjs-grid">
         {listaVisivel.map((p) => (
           <PersonagemCard
             key={p.id}
@@ -752,7 +790,7 @@ function PersonagensList({ ac, t, lang, profile = 'player', currentUserId, userP
             onDarFicha={isMaster && mesaAtivaId && p.user_id === currentUserId ? () => setDarFichaDe(p) : undefined}
             lang={lang} />
         ))}
-      </div>
+      </div>}
 
       {modalOpen && (
         <NovoPersonagemModal

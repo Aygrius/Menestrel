@@ -82,7 +82,7 @@ afterEach(() => { cleanup(); });
 const abrir = async (Lista, nome) => {
   render(<div className="menestrel-ui"><Lista ac={{}} lang="pt" /></div>);
   const linha = await vi.waitFor(() => {
-    const tr = [...document.querySelectorAll('tbody tr')].find((t) => t.textContent.includes(nome));
+    const tr = [...document.querySelectorAll('.diario-cartao')].find((t) => t.textContent.includes(nome));
     expect(tr).toBeTruthy();
     return tr;
   });
@@ -200,11 +200,16 @@ describe('janelas do catálogo', () => {
        E a decifração das três letras. */
     // Desde 30/10/2026 o atributo é dito na frase das Características.
     expect(mapa['Atributo']).toBeUndefined();
-    expect(det.querySelector('.best-frase-item').textContent).toMatch(/ajustado pelo atributo força\./);
-    expect(mapa['Dano']).toBeUndefined();
-    // O grupo por extenso vale no passe também: a célula e a linha de
-    // Características são o mesmo dado, e uma esconde a outra.
-    expect(passe()).toMatchObject({ dano: '4', ocupa: '1', grupo: 'Corte Leve' });
+    // 15/11/2026: "Seu ataque é ajustado pelo atributo agilidade, e seu grupo é o de corte leve."
+    expect(det.querySelector('.best-frase-item').textContent).toMatch(/ajustado pelo atributo força, e seu grupo é o de corte leve\./);
+    // No Compêndio o Dano é linha da lista de duas colunas (15/11/2026, "como é feito com 'criaturas', etc.").
+    expect(mapa['Dano']).toBe('4');
+    /* SEM O PASSE (15/11/2026, usuário: "Remove o card e transforme em lista,
+       dano, resistência e ocupa"): o passe fica só para a magia do item. */
+    expect(document.querySelector('.item-passe')).toBeNull();
+    const numero = (k) => det.querySelector(`[data-numero="${k}"] .item-numero-valor`).textContent;
+    expect(numero('dano')).toBe('4');
+    expect(numero('ocupa')).toBe('1');
   });
 
   /* Item cujo único número é Ocupa não ganha passe (uma faixa vazia): o
@@ -332,11 +337,11 @@ describe('itens: ícone na tabela e efeitos na janela', () => {
   it('o nome leva o ícone do item', async () => {
     render(<div className="menestrel-ui"><window.ItensList ac={{}} lang="pt" /></div>);
     const tr = await vi.waitFor(() => {
-      const t = [...document.querySelectorAll('tbody tr')].find((x) => x.textContent.includes('Diária em Estalagem'));
+      const t = [...document.querySelectorAll('.diario-cartao')].find((x) => x.textContent.includes('Diária em Estalagem'));
       expect(t).toBeTruthy();
       return t;
     });
-    expect(tr.querySelector('.best-name i.ti').className).toContain('ti-home');
+    expect(tr.querySelector('.pj-card-portrait i.ti').className).toContain('ti-home');
   });
 
   it('o serviço sem descrição mostra o efeito positivo', async () => {
@@ -368,7 +373,7 @@ describe('arma: eficácia contra cada armadura', () => {
     TABELAS.itens = [...TABELAS.itens, { slug: 'lanca', nome: 'Lança', grupo: 'Armas', categoria_equip: 'arma', dano: 20, dano_l: -4, dano_m: 0, dano_p: 4 }];
     const det = await abrir(window.ItensList, 'Lança');
     // Pesada/Média/Leve numa linha só, sem sinal (07/11/2026, usuário: "vira 'Destreza' e o valor aparece 7/4/6").
-    expect(det.querySelector('[data-numero="eficacia"] dt').textContent).toBe('Destreza');
+    expect(det.querySelector('[data-numero="eficacia"] .best-stat-lbl').textContent).toBe('Destreza');
     expect(det.querySelector('[data-numero="eficacia"] .item-numero-valor').textContent).toBe('4/0/-4');
   });
 
@@ -385,11 +390,11 @@ describe('ícone ao lado do nome, em cada tabela', () => {
   const iconeDe = async (Lista, nome) => {
     render(<div className="menestrel-ui"><Lista ac={{}} lang="pt" /></div>);
     const tr = await vi.waitFor(() => {
-      const t = [...document.querySelectorAll('tbody tr')].find((x) => x.textContent.includes(nome));
+      const t = [...document.querySelectorAll('.diario-cartao')].find((x) => x.textContent.includes(nome));
       expect(t).toBeTruthy();
       return t;
     });
-    return tr.querySelector('.best-name i.ti').className;
+    return tr.querySelector('.pj-card-portrait i.ti').className;
   };
   it('magia pelo tipo', async () => { expect(await iconeDe(window.MagiasList, 'Bola de Fogo')).toContain('ti-wand'); });
   it('técnica pelo uso', async () => { expect(await iconeDe(window.TecnicasList, 'Carga de Lança')).toContain('ti-diamond'); }); // uso Único
@@ -400,7 +405,8 @@ describe('item com resistência', () => {
   it('a janela mostra a Resistência', async () => {
     TABELAS.itens = [...TABELAS.itens, { slug: 'escudo', nome: 'Escudo de Madeira', grupo: 'Armaduras', resistencia: 12 }];
     await abrir(window.ItensList, 'Escudo de Madeira');
-    expect(passe().resistencia).toBe('12');
+    // Na lista desde 15/11/2026 (o passe ficou para a magia).
+    expect(document.querySelector('[data-numero="resistencia"] .item-numero-valor').textContent).toBe('12');
   });
 });
 
@@ -430,7 +436,7 @@ describe('abas nos modais de detalhe', () => {
     cleanup();
     await abrir(window.ItensList, 'Adaga');
     expect(abas()).toEqual([]);
-    expect(document.querySelector('.modal-item .best-secao--lista')).toBeTruthy();
+    expect(document.querySelector('.modal-best-detalhe .best-secao--lista')).toBeTruthy();
   });
 });
 

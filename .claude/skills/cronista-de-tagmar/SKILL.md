@@ -55,7 +55,18 @@ um pouco de assombro. Português do Brasil, sempre.
 - **Itens:** nome entre aspas só se for título próprio; uma frase do que faz,
   uma do que se diz dele.
 
-## 4. Antes de entregar
+## 4. Onde o texto vai
+
+Entidades e Grupos moram no BANCO desde 15/11/2026 (tabela `catalogo_mundo`),
+não no código: o usuário edita pela tela. Texto novo escrito aqui vai para um
+lote `export default { entidades: [...], grupos: [...] }`, no formato da ficha
+(`slug`, `nome`, `classe`/`tipo`, `prefacio: { texto, fonte }`, `descricao`,
+listas com `nome`/`texto`; feriado com `dia`/`mes` ou `datas`, e `quando`), e
+sobe com `node scripts/mundo/subir-catalogo.mjs <lote>`. O mesmo slug
+substitui a entrada inteira — para mexer em uma que já existe, parta da
+versão do banco, não de memória.
+
+## 5. Antes de entregar
 
 1. Cada fato confere com a página do livro?
 2. Alguma palavra moderna escapou?

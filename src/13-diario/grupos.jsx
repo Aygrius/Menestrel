@@ -15,7 +15,7 @@
 
 const _grp = (nome) => (typeof window !== 'undefined' ? window[nome] : undefined);
 
-function GrupoDetalhe({ grupo: g, lang, onClose }) {
+function GrupoDetalhe({ grupo: g, lang, onClose, onEditar = null }) {
   const en = lang === 'en';
   const Janela = (typeof BestDetalheModal !== 'undefined' && BestDetalheModal) || _grp('BestDetalheModal');
   const Lista = (typeof EntidadeLista !== 'undefined' && EntidadeLista) || _grp('EntidadeLista');
@@ -32,36 +32,30 @@ function GrupoDetalhe({ grupo: g, lang, onClose }) {
   const tem = (lista) => Array.isArray(lista) && lista.length > 0;
   const tipo = (typeof tipoDoGrupo === 'function' ? tipoDoGrupo : _grp('tipoDoGrupo'))?.(g, lang);
   return (
-    <Janela title={g.nome} lang={lang} onClose={onClose} acoes={[]}>
-      {g.epigrafe && secao(en ? 'Epigraph' : 'Epígrafe', (
+    <Janela title={g.nome} lang={lang} onClose={onClose} extraClass="modal-ambientacao"
+      acoes={onEditar ? [{ chave: 'editar', icone: 'ti-pencil', rotulo: en ? 'Edit' : 'Editar', onClick: onEditar }] : []}>
+      {/* OS SETE TÓPICOS (15/11/2026, usuário): Epígrafe, História,
+          Localização, Admissão, Organização, Relíquias e Rumores. O tipo, o
+          título e a pintura abrem a História, que é por onde se começa. */}
+      {g.epigrafe && g.epigrafe.texto && secao(en ? 'Epigraph' : 'Epígrafe', (
         <>
           {paragrafos(g.epigrafe.texto)}
           {g.epigrafe.autor && <p className="ent-fonte">{g.epigrafe.autor}</p>}
         </>
       ), 'ent-prefacio')}
-      {g.prefacio && secao(en ? 'Prologue' : 'Prólogo', (
-        <>
-          {paragrafos(g.prefacio.texto)}
-          {g.prefacio.fonte && <p className="ent-fonte">{g.prefacio.fonte}</p>}
-        </>
-      ), 'ent-prefacio')}
-      {secao(en ? 'Description' : 'Descrição', (
+      {secao(en ? 'History' : 'História', (
         <>
           {(tipo || g.titulo) && (
             <p className="diario-det-resumo">{[tipo, g.titulo].filter(Boolean).join(' · ')}</p>
           )}
           {g.imagem && <div className="diario-det-art"><img src={g.imagem} alt={g.nome} /></div>}
-          {paragrafos(g.descricao)}
+          {paragrafos(g.historia)}
         </>
-      ), 'best-secao--descricao')}
-      {texto(en ? 'History' : 'História', g.historia)}
-      {tem(g.locais) && secao(en ? 'Places' : 'Locais', <Lista itens={g.locais} meta={(l) => l.onde} />)}
-      {texto(en ? 'Symbols' : 'Símbolos', g.simbolos)}
-      {texto(en ? 'Goals' : 'Objetivos', g.objetivos)}
+      ), 'best-secao--descricao grp-texto')}
+      {tem(g.locais) && secao(en ? 'Location' : 'Localização', <Lista itens={g.locais} meta={(l) => l.onde} />)}
       {texto(en ? 'Admission' : 'Admissão', g.admissao)}
-      {texto(en ? 'Ethics' : 'Ética', g.etica)}
       {texto(en ? 'Organization' : 'Organização', g.organizacao)}
-      {tem(g.liderancas) && secao(en ? 'Leaders' : 'Lideranças', <Lista itens={g.liderancas} meta={(l) => l.cargo} />)}
+      {tem(g.reliquias) && secao(en ? 'Relics' : 'Relíquias', <Lista itens={g.reliquias} />)}
       {tem(g.rumores) && secao(en ? 'Rumors' : 'Rumores', <Lista itens={g.rumores} />)}
     </Janela>
   );
@@ -69,7 +63,14 @@ function GrupoDetalhe({ grupo: g, lang, onClose }) {
 
 function GruposView({ lang, trilhoPaginas = null, grupos }) {
   const en = lang === 'en';
-  const lista0 = grupos || (typeof GRUPOS !== 'undefined' && GRUPOS) || _grp('GRUPOS') || [];
+  /* EDITÁVEL DESDE 15/11/2026 (13-diario/catalogo-mundo.jsx), como Entidades. */
+  const vigentes = (_grp('useCatalogoMundo') || (() => null))('grupo');
+  // Só pergunta ao banco se é admin quando o editor existe (sem ele não há o que liberar).
+  const ehAdmin = ((_grp('EditorMundo') && _grp('useEhAdmin')) || (() => false))();
+  const [editando, setEditando] = React.useState(null);
+  const Editor = _grp('EditorMundo');
+  const lista0 = grupos || (Array.isArray(vigentes) ? vigentes : []);
+  const esperando = !grupos && !Array.isArray(vigentes);   // null = carregando; 'erro' = o banco falhou
   const [query, setQuery] = React.useState('');
   const [aberto, setAberto] = React.useState(null);
   const q = query.trim().toLowerCase();
@@ -80,11 +81,22 @@ function GruposView({ lang, trilhoPaginas = null, grupos }) {
   const Busca = (typeof BestBuscaENovo !== 'undefined' && BestBuscaENovo) || _grp('BestBuscaENovo');
   const ac = (typeof ADMIN_COPY !== 'undefined' && (ADMIN_COPY[lang] || ADMIN_COPY.pt)) || {};
   const grpAberto = aberto ? lista0.find((g) => g.slug === aberto) : null;
+  /* PAGINADA COMO AS OUTRAS ABAS (15/11/2026, usuário: "Os cards na aba
+     'grupos' parecem ligeiramente maiores que os cards das outras abas"). A
+     grade divide a altura da página entre as fileiras, e as outras abas têm a
+     paginação embaixo, que come a altura dela; sem ela, a grade de Grupos
+     ficava mais alta e cada cartão, maior. Mesmo número de Entidades e Reinos. */
+  const POR_PAGINA = 18;
+  const [page, setPage] = React.useState(1);
+  const totalPages = Math.max(1, Math.ceil(lista.length / POR_PAGINA));
+  const safePage = Math.min(page, totalPages);
+  const pagina = lista.slice((safePage - 1) * POR_PAGINA, safePage * POR_PAGINA);
+  const Paginas = (typeof BestPagination !== 'undefined' && BestPagination) || _grp('BestPagination');
   /* O monograma do cartão: "Colégio Alquímico" daria seis "C" seguidos; vale
      a primeira letra do nome próprio, depois de "Colégio", "do", "das". */
   const inicial = (nome) => {
     const palavras = String(nome || '?').split(/\s+/)
-      .filter((p) => !/^(col[eé]gio|ordem|guilda|d[oae]s?)$/i.test(p));
+      .filter((p) => !/^(col[eé]gio|ordem|guilda|confraria|academia|trilha|d[oae]s?)$/i.test(p));
     return (palavras[0] || String(nome || '?')).charAt(0).toUpperCase();
   };
 
@@ -92,19 +104,25 @@ function GruposView({ lang, trilhoPaginas = null, grupos }) {
     <div className="pjs diario-pagina">
       <div className={'diario-pagina-barra cartoes-barra' + (trilhoPaginas ? ' livro-trilho trilho-unido' : '')}>
         {Busca && (
-          <Busca ac={ac} placeholder={en ? 'Search' : 'Buscar'} query={query} setQuery={setQuery}
-            podeCriar={false} antes={trilhoPaginas} />
+          <Busca ac={ac} placeholder={en ? 'Search' : 'Buscar'} query={query} setQuery={(v) => { setQuery(v); setPage(1); }}
+            podeCriar={!!(ehAdmin && Editor)} onNovo={() => setEditando({ entrada: null })}
+            dicaNovo={en ? 'New group' : 'Novo grupo'} antes={trilhoPaginas} />
         )}
       </div>
 
-      {lista.length === 0 ? (
+      {esperando ? (
+        vigentes === 'erro'
+          ? <div className="best-empty diario-empty-lg">{en ? 'Could not load the groups. Reload the page to try again.' : 'Não foi possível carregar os grupos. Recarregue a página para tentar de novo.'}</div>
+          : (_grp('Carregando') ? React.createElement(_grp('Carregando'), { lang }) : null)
+      ) : lista.length === 0 ? (
         <div className="best-empty diario-empty-lg">
           {q ? (en ? `No result for "${query}".` : `Nenhum resultado para "${query}".`)
              : (en ? 'Nothing registered yet.' : 'Nada cadastrado ainda.')}
         </div>
       ) : (
+        <>
         <div className="pjs-grid diario-cartoes">
-          {lista.map((g) => {
+          {pagina.map((g) => {
             const abrir = () => setAberto(g.slug);
             return (
               <div className="pj-card-wrap" key={g.slug}>
@@ -134,9 +152,18 @@ function GruposView({ lang, trilhoPaginas = null, grupos }) {
             );
           })}
         </div>
+        {Paginas && <Paginas page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} lang={lang} />}
+        </>
       )}
 
-      {grpAberto && <GrupoDetalhe grupo={grpAberto} lang={lang} onClose={() => setAberto(null)} />}
+      {grpAberto && !editando && <GrupoDetalhe grupo={grpAberto} lang={lang} onClose={() => setAberto(null)}
+        onEditar={ehAdmin && Editor ? () => setEditando({ entrada: grpAberto }) : null} />}
+      {editando && Editor && (
+        <Editor tipo="grupo" entrada={editando.entrada} lang={lang}
+          onClose={() => setEditando(null)}
+          onSalvo={(d) => { setEditando(null); setAberto(d.slug); }}
+          onExcluido={() => { setEditando(null); setAberto(null); }} />
+      )}
     </div>
   );
 }

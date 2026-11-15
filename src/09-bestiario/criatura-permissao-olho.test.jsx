@@ -115,8 +115,8 @@ const montar = (props = {}) => render(
   <CriaturasList ac={ac()} lang="pt" modoJogador={false} {...props} />
 );
 
-const pronta = () => waitFor(() => expect(document.querySelector('tbody tr')).toBeTruthy());
-const linhas = () => [...document.querySelectorAll('tbody tr:not(.best-detail)')];
+const pronta = () => waitFor(() => expect(document.querySelector('.diario-cartao')).toBeTruthy());
+const linhas = () => [...document.querySelectorAll('.diario-cartao')];
 const linhaDe = (nome) => linhas().find((tr) => (tr.textContent || '').includes(nome));
 /* O olho e o lápis moram no CABEÇALHO DA JANELA desde 26/09/2026 ("o ícone de
    lápis deve aparecer do lado do x de fechar o modal"): abre a ficha pela
@@ -195,7 +195,7 @@ describe('o ícone de quem pode ver, ao lado do nome', () => {
   it('com mesa: olho na liberada, olho riscado na que ninguém vê', async () => {
     stubBanco(); montar({ historiaId: 13 });
     await pronta();
-    await waitFor(() => expect(linhaDe('Lobisomem').querySelector('.best-name .diario-vis-ic')).toBeTruthy());
+    await waitFor(() => expect(linhaDe('Lobisomem').querySelector('.pj-name-linha .diario-vis-ic')).toBeTruthy());
     expect(linhaDe('Lobisomem').querySelector('.diario-vis-ic i').className).toBe('ti ti-eye');
     expect(linhaDe('Balor').querySelector('.diario-vis-ic i').className).toBe('ti ti-eye-off');
   });
@@ -203,7 +203,7 @@ describe('o ícone de quem pode ver, ao lado do nome', () => {
   it('sem mesa, não há ícone', async () => {
     stubBanco(); montar({ historiaId: null });
     await pronta();
-    expect(document.querySelector('.best-name .diario-vis-ic')).toBeNull();
+    expect(document.querySelector('.pj-name-linha .diario-vis-ic')).toBeNull();
   });
 });
 

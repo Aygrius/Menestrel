@@ -38,7 +38,8 @@ describe('a Ambientação do Mestre', () => {
   });
 
   it('no menu lateral é um item só, sem gaveta', () => {
-    expect(shell).toMatch(/if \(no\.trilho\) \{[\s\S]{0,400}onClick=\{\(\) => irPara\(no\)\}/);
+    // A guarda `!bloqueio` (15/11/2026): o Diário do Jogador sem personagem fica inativo.
+    expect(shell).toMatch(/if \(no\.trilho\) \{[\s\S]{0,700}onClick=\{\(\) => \{ if \(!bloqueio\) irPara\(no\); \}\}/);
   });
 
   /* Dentro da página, não numa faixa acima (04/11/2026, usuário: 'na ficha o
@@ -56,6 +57,29 @@ describe('a Ambientação do Mestre', () => {
 
   it('cada folha tem ícone próprio, não o pontinho de recuo', () => {
     expect(shell).toMatch(/lugares: 'ti-crown', cidades: 'ti-building', locais: 'ti-map-pin', npcs: 'ti-user'/);
+  });
+});
+
+/* COMPÊNDIO (15/11/2026, usuário: "Adicione um novo menu, abaixo de
+   ambientação, chamado de compêndio [...] o conteúdo será aquele de itens,
+   criaturas, magias, etc que temos no ctrl + k"). */
+describe('o Compêndio', () => {
+  const LISTAS = ['criaturas', 'itens', 'magias', 'tecnicas', 'habilidades'];
+  it('vem logo abaixo da Ambientação (Mestre) e do Diário (Jogador)', () => {
+    const m = nav.NAV_MESA.master.mesa;
+    const iAmb = m.findIndex((n) => n.rotulo && n.rotulo.pt === 'Ambientação');
+    expect(m[iAmb + 1].id).toBe('compendio');
+    const p = nav.NAV_MESA.player.mesa;
+    expect(p[p.findIndex((n) => n.id === 'diario') + 1].id).toBe('compendio');
+  });
+  it('é grupo de trilho com as cinco listas da busca, na ordem do trilho do livro', () => {
+    const c = nav.NAV_MESA.master.mesa.find((n) => n.id === 'compendio');
+    expect(c.trilho).toBe(true);
+    expect(c.rotulo.pt).toBe('Compêndio');
+    expect(c.filhos.map((f) => f.secao)).toEqual(LISTAS);
+  });
+  it('tem ícone próprio', () => {
+    expect(shell).toMatch(/compendio: 'ti-book',/);
   });
 });
 
@@ -99,5 +123,22 @@ describe('o rodapé da Mesa nas três páginas', () => {
     const est = readFileSync(resolve(__dirname, '../06-historias/estoque-mestre.jsx'), 'utf8');
     expect(bat).toMatch(/\{trilhoPaginas && <div id="pg-rodape-slot" className="pg-rodape" \/>\}/);
     expect(est).toMatch(/\{trilhoPaginas && <div id="pg-rodape-slot" className="pg-rodape estoque-rodape" \/>\}/);
+  });
+});
+
+/* 15/11/2026, usuário: "Para o jogador, o menu 'Mesa' ficará inativo se não
+   houver personagem vinculado a nenhuma mesa. E o menu 'Diário' ficará
+   inativo se não houver personagem criado." */
+describe('Mesa e Diário do Jogador inativos', () => {
+  it('Mesa apaga sem personagem em mesa; Diário, sem personagem', () => {
+    expect(shell).toMatch(/no\.secao === 'aventuras' && !acessoJogador\.temMesa/);
+    expect(shell).toMatch(/no\.id === 'diario' && !acessoJogador\.temPj/);
+  });
+  it('vale qualquer personagem do Jogador, não só o ativo', () => {
+    expect(shell).toMatch(/from\('personagens'\)\.select\('id'\)\.eq\('user_id', user\.id\)/);
+    expect(shell).toMatch(/overlaps\('protagonista_ids', ids\)/);
+  });
+  it('o item inativo não navega e diz o porquê no balão', () => {
+    expect(shell).toMatch(/aria-disabled=\{bloqueio \? true : undefined\}\s*\{\.\.\.propsTip\(abrirNavTip, fecharNavTip, bloqueio\)\}\s*onClick=\{\(\) => \{ if \(!bloqueio\) irPara\(no\); \}\}/);
   });
 });

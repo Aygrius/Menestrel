@@ -584,6 +584,8 @@ function AdminEmpty({ ac, sectionLabel }) {
      headerExtra    — opcional: node extra no header, à direita do título (ex.: stepper)
      footerCenter   — opcional: node centralizado no footer, entre Cancelar e a ação
                       primária (ex.: saldo de pontos de um wizard)
+     footerLeft     — opcional: node no lado esquerdo do footer, NO LUGAR do Cancelar
+                      (ex.: o Excluir dos editores de catálogo, 15/11/2026)
      footerBeforeConfirm — opcional: node inserido no lado direito do footer, ANTES do
                       botão de ação primária (ex.: botão "Voltar" de um wizard)
      extraClass     — opcional: classe extra no .ms-modal, para overrides pontuais
@@ -629,6 +631,7 @@ function ModalShell({
   headerExtra = null,
   footerCenter = null,
   footerBeforeConfirm = null,
+  footerLeft = null,
   extraClass = '',
   lang = 'pt',
   children,
@@ -636,7 +639,7 @@ function ModalShell({
   const en = lang === 'en';
   const finalCancelLabel = cancelLabel || (en ? 'Cancel' : 'Cancelar');
   const finalConfirmLabel = confirmLabel || (en ? 'Save' : 'Salvar');
-  const hasFooter = !!(onCancel || onConfirm || footerCenter || footerBeforeConfirm);
+  const hasFooter = !!(onCancel || onConfirm || footerCenter || footerBeforeConfirm || footerLeft);
 
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
@@ -713,11 +716,12 @@ function ModalShell({
         {hasFooter && (
           <div className="ms-footer">
             <div className="ms-footer-left">
-              {onCancel && (
+              {/* footerLeft (15/11/2026) toma o lugar do Cancelar — o Excluir dos editores de catálogo. */}
+              {footerLeft || (onCancel && (
                 <button type="button" className="btn-ghost btn-md" onClick={onCancel} disabled={cancelDisabled}>
                   {finalCancelLabel}
                 </button>
-              )}
+              ))}
             </div>
             {footerCenter && <div className="ms-footer-center">{footerCenter}</div>}
             <div className="ms-footer-right">
@@ -783,10 +787,16 @@ function MenuRow({ children, onClick, disabled, danger, extraStyle, title }) {
 
 /* AS PALETAS (23/10/2026). A ordem e os nomes são os do estudo; a amostra é
    fundo, chão, tinta e a cor viva. O CSS de cada uma mora no fim de index.css
-   (:root[data-paleta="…"]). Sem escolha, vale PALETA_PADRAO. */
+   (:root[data-paleta="…"]). Sem escolha, vale PALETA_PADRAO.
+   NOMES DE DEUSES (15/11/2026, usuário): "Couro e Ouro" virou Crezir e
+   "Ferro e Brasa" virou Crizagom; Ganis (azul e roxo) e Maira (verde) são
+   novas. O `id` das duas antigas NÃO mudou: é ele que está guardado no
+   navegador de cada um, e trocá-lo devolveria todo mundo à padrão. */
 const PALETAS = [
-  { id: 'couro', pt: 'Couro e Ouro', en: 'Leather and Gold', amostra: ['#120D06', '#17110A', '#F1E6CF', '#E0BE68'] },
-  { id: 'ferro', pt: 'Ferro e Brasa', en: 'Iron and Ember', amostra: ['#181A1D', '#202326', '#F0EEEA', '#F08A3C'] },
+  { id: 'couro', pt: 'Crezir', en: 'Crezir', amostra: ['#120D06', '#17110A', '#F1E6CF', '#E0BE68'] },
+  { id: 'ferro', pt: 'Crizagom', en: 'Crizagom', amostra: ['#181A1D', '#202326', '#8E8B85', '#C9D3DE'] },
+  { id: 'ganis', pt: 'Ganis', en: 'Ganis', amostra: ['#140F24', '#2E2448', '#22A99C', '#4FD8EE'] },
+  { id: 'maira', pt: 'Maira', en: 'Maira', amostra: ['#0D1712', '#25352B', '#B85F38', '#E8B83A'] },
 ];
 const PALETA_PADRAO = 'couro';
 function aplicarPaleta(id) {
@@ -796,7 +806,7 @@ function aplicarPaleta(id) {
   return v;
 }
 
-function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, profile, onConfiguracoes = null, onHelp, onConvites, onLogout, onClose }) {
+function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, profile, conta = null, contaValidaAte = null, onConfiguracoes = null, onHelp, onConvites, onLogout, onClose }) {
   const ref = React.useRef(null);
   const [pos, setPos] = useState(null);
 
@@ -866,6 +876,18 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, prof
           )}
           {email && (
             <div className="mc-um-email">{email}</div>
+          )}
+          {/* O TIPO DA CONTA (15/11/2026): Imperador, Conselheiro, Nobre (e
+              até quando vale) ou Plebeu. */}
+          {conta && (
+            <div className={'mc-um-conta' + (conta === 'imperador' ? ' is-imperador' : '')}>
+              {({ imperador: ['Imperador', 'Emperor'], conselheiro: ['Conselheiro', 'Counselor'], nobre: ['Nobre', 'Noble'], plebeu: ['Plebeu', 'Commoner'] }[conta] || ['Plebeu', 'Commoner'])[lang === 'en' ? 1 : 0]}
+              {contaValidaAte && !Number.isNaN(new Date(contaValidaAte).getTime()) && (
+                <span className="mc-um-conta-ate">
+                  {(lang === 'en' ? ' · until ' : ' · até ') + new Date(contaValidaAte).toLocaleDateString(lang === 'en' ? 'en-US' : 'pt-BR')}
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -945,7 +967,7 @@ function modoNotificacaoValido(v) {
 // A Reforma do Grimório (página do claude.ai, privada do dono da conta).
 const URL_CONFERENCIA_MAGIAS = 'https://claude.ai/artifact/Ksg62jNXu9aB3WBQQLy5u4';
 function ConfiguracoesModal({ lang, setLang, paleta, onSetPaleta, modoNotificacao, onSetModoNotificacao,
-  profile = 'player', podeTrocarPerfil = false, onSetProfile = null, onTestesCombate = null, onImagens = null, onClose }) {
+  profile = 'player', podeTrocarPerfil = false, onSetProfile = null, onTestesCombate = null, onImagens = null, onContas = null, ehImperador = false, onClose }) {
   const en = lang === 'en';
   const Janela = (typeof ModalShell === 'function' ? ModalShell : window.ModalShell);
   const pilula = (rotulo, opcoes, valor, escolher) => (
@@ -982,7 +1004,10 @@ function ConfiguracoesModal({ lang, setLang, paleta, onSetPaleta, modoNotificaca
     </button>
   );
   const modo = modoNotificacaoValido(modoNotificacao);
-  const ferramentasMestre = profile === 'master';
+  /* Testes de combate, Imagens e a Conferência das magias são do dono do
+     sistema, não de todo Mestre (15/11/2026: Nobres e Conselheiros também
+     mestram, e a Conferência é uma página privada do Imperador). */
+  const ferramentasMestre = profile === 'master' && ehImperador;
   return (
     <Janela title={en ? 'Settings' : 'Configurações'} lang={lang} size="full" extraClass="cfg-modal" onClose={onClose}>
       <section className="cfg-grupo" aria-label={en ? 'Preferences' : 'Preferências'}>
@@ -1015,6 +1040,19 @@ function ConfiguracoesModal({ lang, setLang, paleta, onSetPaleta, modoNotificaca
               { id: 'master', pt: 'Mestre', en: 'Master' },
               { id: 'player', pt: 'Jogador', en: 'Player' },
             ], profile, onSetProfile))}
+        </section>
+      )}
+
+      {/* O IMPERADOR (15/11/2026): as contas — quem é Plebeu, Nobre ou
+          Conselheiro, e até quando vale o Nobre. Só o Imperador vê; o banco
+          recusa os outros do mesmo jeito (ver 10-shell/contas.jsx). */}
+      {onContas && (
+        <section className="cfg-grupo" aria-label={en ? 'Emperor' : 'Imperador'}>
+          <h4 className="mn-rotulo cfg-grupo-cab">{en ? 'Emperor' : 'Imperador'}</h4>
+          {linha(en ? 'Accounts' : 'Contas',
+            en ? 'Who is a Commoner, a Noble or a Counselor, and until when each Noble lasts.'
+               : 'Quem é Plebeu, Nobre ou Conselheiro, e até quando vale cada Nobre.',
+            abrir('ti-users', en ? 'Open' : 'Abrir', onContas))}
         </section>
       )}
 
@@ -2005,7 +2043,7 @@ function CentralMensagens({ lang, historiaId, sidebarLargura = 208, ehMestre = f
    vêm das ENTIDADES (01-core/entidades.jsx) — uma fonte só por feriado. O
    Festival de Renascimento de Maira estava em 3 do mês do Sangue; o livro diz
    "3º dia do mês da Rosa" (deuses.pdf, Maira), e passou para 3/10. */
-const FERIADOS_FANTASY = [
+const FERIADOS_ESTACOES = [
   /* Aqui ficam só as estações. Toda festa de deus ou de príncipe vem da
      ENTIDADE dela (01-core/entidades.jsx), com o nome do livro — uma fonte
      só por feriado: os deuses saíram daqui em 08 e 13/11/2026, e as duas
@@ -2015,9 +2053,21 @@ const FERIADOS_FANTASY = [
   { dia:  5, mes:  5, nome: 'Equinócio de Outono' },
   { dia:  5, mes:  8, nome: 'Solstício de Inverno' },
   { dia:  6, mes: 11, nome: 'Equinócio de Primavera' },
+];
+const FERIADOS_FANTASY = [
+  ...FERIADOS_ESTACOES,
   ...((typeof feriadosDasEntidades === 'function' ? feriadosDasEntidades
     : (typeof window !== 'undefined' && window.feriadosDasEntidades) || (() => []))()),
 ];
+/* O CALENDÁRIO SEGUE AS ENTIDADES EDITADAS (15/11/2026, escolha do usuário:
+   "Sim, o calendário segue"). Quem edita uma entidade é o admin, pela tela
+   (13-diario/catalogo-mundo.jsx); quando o catálogo do banco chega ou muda,
+   ele manda aqui os feriados de todas as entidades, e a lista é refeita NO
+   LUGAR — quem já a leu (proximoFeriado, feriadosDoDia) vê a nova. */
+function refazerFeriadosDoCalendario(dasEntidades) {
+  FERIADOS_FANTASY.length = 0;
+  FERIADOS_FANTASY.push(...FERIADOS_ESTACOES, ...(dasEntidades || []));
+}
 
 // Converte (dia, mes) em número sequencial dentro do ano fantasy.
 // Assume meses 1–12 com 30 dias cada + mês 13 com 1 dia = 361 dias/ano.
@@ -4260,6 +4310,30 @@ function proximaMesaAtiva(minhasHistorias, mesaAtivaId) {
   return null;                                             // a mesa salva sumiu
 }
 
+/* A CONTA QUE VALE AGORA (15/11/2026) — o espelho, na tela, de
+   public.conta_efetiva (scripts/sql/tipos-de-conta-e-forum-2026-11-15.sql):
+   o Nobre com a validade vencida vale Plebeu. Quem decide é o banco; isto só
+   evita oferecer o que ele vai recusar. */
+const LIMITES_DA_CONTA = {
+  imperador:   { mestre: true,  historias: null, personagens: null },
+  conselheiro: { mestre: true,  historias: null, personagens: null },
+  nobre:       { mestre: true,  historias: 1,    personagens: 4 },
+  plebeu:      { mestre: false, historias: 0,    personagens: 1 },
+};
+function contaEfetivaDoPerfil(perfil) {
+  const tipo = perfil && perfil.tipo_conta;
+  if (!LIMITES_DA_CONTA[tipo]) return 'plebeu';
+  if (tipo === 'nobre' && perfil.conta_valida_ate && new Date(perfil.conta_valida_ate).getTime() < Date.now()) return 'plebeu';
+  return tipo;
+}
+/* "A conta Plebeu permite 1 personagem…" — a mesma frase do banco, antes do clique. */
+function avisoLimitePersonagens(conta, lang) {
+  const en = lang === 'en';
+  if (conta === 'plebeu') return en ? 'A Commoner account has 1 character. Delete it to create another.' : 'A conta Plebeu permite 1 personagem. Exclua o atual para criar outro.';
+  if (conta === 'nobre') return en ? 'A Noble account has up to 4 characters. Delete one to create another.' : 'A conta Nobre permite 4 personagens. Exclua um para criar outro.';
+  return null;
+}
+
 function devePersistirPerfil(noServidor, local) {
   if (noServidor === null || noServidor === undefined) return false;
   return noServidor !== local;
@@ -4289,7 +4363,15 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     return 'player'; // padrão para contas novas
   });
 
-  const profile = ehAdmin ? profileEscolhido : 'player';
+  /* MESTRE É DE QUEM PAGA (15/11/2026): "Teremos a conta gratuita chamada de
+     Plebeu, que não poderá mudar seu perfil para mestre" (usuário). Nobre em
+     dia, Conselheiro e Imperador escolhem; Plebeu é sempre Jogador. O banco
+     garante o mesmo (trg_mestre_somente_admin). */
+  const contaEfetiva = ehAdmin ? 'imperador' : contaEfetivaDoPerfil(userProfile);
+  const podeMestrar = LIMITES_DA_CONTA[contaEfetiva].mestre;
+  const profile = podeMestrar ? profileEscolhido : 'player';
+  // As outras fases leem a conta daqui (Personagens: o limite antes do +).
+  if (typeof window !== 'undefined') window.contaDoUsuario = { efetiva: contaEfetiva, limites: LIMITES_DA_CONTA[contaEfetiva] };
 
   /* A PALETA DO USUÁRIO (23/10/2026): a do perfil no servidor manda; antes
      dela chegar, a da última visita (localStorage, já aplicada no index.html
@@ -4495,12 +4577,13 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
      viraram a mesma tabela de Itens e Magias, mas ficaram fora desta lista e a
      tabela saía mais estreita que a das outras ("a largura da tabela em
      lugares, npcs está menor que em itens, magias" — usuário). */
-  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'locais', 'npcs', 'entidades', 'grupos', 'mapa', 'memorias', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem', 'cena', 'batalha', 'loja_mesa', 'jogadores', 'ficha', 'inventario', 'loja'].includes(current.id);
+  const isWide = ['criaturas', 'magias', 'habilidades', 'tecnicas', 'itens', 'itens_campanha', 'lugares', 'cidades', 'locais', 'npcs', 'entidades', 'grupos', 'mapa', 'forum', 'memorias', 'personagens_j', 'personagens_m', 'historias', 'convites', 'aventuras', 'guia_personagem', 'cena', 'batalha', 'loja_mesa', 'jogadores', 'ficha', 'inventario', 'loja'].includes(current.id);
 
   // ── Modal de convite (botão "Convites" na sidebar) ───────────
   const [conviteModalAberto, setConviteModalAberto] = useState(false);
   // A galeria das pinturas (26/10/2026) — abre pelo menu do usuário, Mestre.
   const [imagensAberto, setImagensAberto] = useState(false);
+  const [contasAberto, setContasAberto] = useState(false);
   const [testesCombateAberto, setTestesCombateAberto] = useState(false);
   // Token que incrementa quando um convite é aceito — força AventurasJogador a recarregar.
   const [aventurasReloadToken, setAventurasReloadToken] = useState(0);
@@ -4513,6 +4596,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   // localStorage só pra não perder a escolha ao trocar de aba (mesmo
   // padrão de menestrel.profile/section acima).
   const [minhasHistorias, setMinhasHistorias] = useState(null); // null = ainda não carregou; [] = carregou mas vazio; [{id, titulo}] = lista real
+  const tetoHistorias = LIMITES_DA_CONTA[contaEfetiva].historias;
+  const limiteDeHistoriasAtingido = tetoHistorias != null && Array.isArray(minhasHistorias) && minhasHistorias.length >= tetoHistorias;
   // Sobe a cada clique na barra lateral — ver o onClick do .mc-navitem.
   const [navToken, setNavToken] = useState(0);
   const [mesaAtivaId, setMesaAtivaId] = useState(() => {
@@ -4607,6 +4692,48 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     })();
     return () => { cancel = true; };
   }, [user, profile]);
+  /* MESA E DIÁRIO SÓ QUANDO HÁ O QUE MOSTRAR (15/11/2026). Usuário: "Para o
+     jogador, o menu 'Mesa' ficará inativo se não houver personagem vinculado
+     a nenhuma mesa. E o menu 'Diário' ficará inativo se não houver personagem
+     criado." Vale QUALQUER personagem do Jogador, não só o ativo. Reconfere a
+     cada troca de página (criar um personagem ou aceitar um convite muda a
+     resposta) e a cada convite aceito. null = ainda não sabe: tudo ativo,
+     para o menu não piscar apagado na entrada. */
+  /* O catálogo do mundo editado (Entidades e Grupos, 15/11/2026) chega logo na
+     entrada: os feriados das entidades editadas valem no calendário mesmo
+     para quem nunca abriu a página Entidades. */
+  useEffect(() => {
+    if (!user || !user.id) return;
+    const carregar = (typeof carregarCatalogoMundo === 'function' ? carregarCatalogoMundo : window.carregarCatalogoMundo);
+    if (carregar) carregar();
+  }, [user]);
+  const [acessoJogador, setAcessoJogador] = useState(null);   // { temPj, temMesa }
+  useEffect(() => {
+    if (profile !== 'player' || !user || !user.id) { setAcessoJogador(null); return undefined; }
+    let cancel = false;
+    (async () => {
+      const { data: pjs, error } = await supabaseClient.from('personagens').select('id').eq('user_id', user.id);
+      if (cancel || error) return;                  // erro não apaga o menu
+      const ids = (pjs || []).map((p) => p.id);
+      if (!ids.length) { setAcessoJogador({ temPj: false, temMesa: false }); return; }
+      const { data: hs, error: e2 } = await supabaseClient.from('historias').select('id').overlaps('protagonista_ids', ids).limit(1);
+      if (cancel || e2) return;
+      setAcessoJogador({ temPj: true, temMesa: (hs || []).length > 0 });
+    })();
+    return () => { cancel = true; };
+  }, [user, profile, currentId, aventurasReloadToken]);
+  /* O porquê do item apagado, no balão do menu. */
+  const bloqueioJogador = (no) => {
+    if (profile !== 'player' || !acessoJogador) return null;
+    const en = lang === 'en';
+    if (no.secao === 'aventuras' && !acessoJogador.temMesa) {
+      return acessoJogador.temPj
+        ? (en ? 'None of your characters is at a table yet. Accept an invitation to join one.' : 'Nenhum personagem seu está numa mesa. Aceite um convite para entrar em uma.')
+        : (en ? 'Create a character and join a table to open it.' : 'Crie um personagem e entre numa mesa para abrir.');
+    }
+    if (no.id === 'diario' && !acessoJogador.temPj) return en ? 'Create a character to open the journal.' : 'Crie um personagem para abrir o diário.';
+    return null;
+  };
   /* ENTRAR NUMA MESA É GESTO DO MESTRE (20/09/2026). Este efeito ESCOLHIA uma
      mesa sozinho (`minhasHistorias[0]`) sempre que o id salvo não casava com a
      lista. Fazia sentido enquanto existia o dropdown de mesas; com o botão de
@@ -4678,6 +4805,15 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   const [identAberto, setIdentAberto] = useState(false);
   // Ação da mesa pedida pelo menu (Pausar/Editar/Excluir, 23/10/2026): a Cena executa.
   const [acaoMesa, setAcaoMesa] = useState(null);
+  /* "Criar mesa" no menu da mesa (15/11/2026): o pedido fica de pé até a
+     lista de histórias (dona do modal) montar e abrir a janela. */
+  const [pedirNovaMesa, setPedirNovaMesa] = useState(false);
+  const novaMesaAtendida = React.useCallback(() => setPedirNovaMesa(false), []);
+  /* A lista de histórias avisa as mesas que tem (a recém-criada entra no menu). */
+  const aoListarHistorias = React.useCallback((hs) => {
+    if (profile !== 'master') return;
+    setMinhasHistorias(hs.map((h) => ({ id: h.id, titulo: h.titulo, pausada: h.pausada })));
+  }, [profile]);
   // Gavetas do grupo da mesa (Diário; a Loja do Mestre): quais estão abertas.
   const [gavetas, setGavetas] = useState({});
   const [navAberta, setNavAberta] = useState(false); // celular: a folha "Mais"
@@ -4815,9 +4951,11 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     bestiario: 'ti-skull', comercio: 'ti-backpack', historias: 'ti-books',
     /* As folhas da Ambientação no trilho do topo (04/11/2026): todas com
        versão filled (src/tabler-filled.css). */
-    lugares: 'ti-crown', cidades: 'ti-building', locais: 'ti-map-pin', npcs: 'ti-user', entidades: 'ti-sun', grupos: 'ti-flag', mapa: 'ti-map', memorias: 'ti-feather',
+    lugares: 'ti-crown', cidades: 'ti-building', locais: 'ti-map-pin', npcs: 'ti-user', entidades: 'ti-sun', grupos: 'ti-flag', mapa: 'ti-map', forum: 'ti-messages', memorias: 'ti-feather',
     // A Mesa do Mestre (Cena, Batalha, Loja): o glifo da Mesa do Jogador.
     mesa_mestre: 'ti-map-2',
+    // Compêndio (15/11/2026): as listas do livro — Criaturas, Itens, Magias…
+    compendio: 'ti-book',
   };
   const iconeDe = (no) => ICONE_NAV[no.id] || ICONE_NAV[no.secao] || 'ti-point';
   const rotuloDe = (no) => {
@@ -4886,16 +5024,28 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
       })}
     </nav>
   ) : null;
+  /* O COMPÊNDIO IGUAL À AMBIENTAÇÃO (15/11/2026, usuário: "ao abrir eu tenho
+     menu de 'verificação' que eu não quero, o botão de buscar está do lado
+     errado, há uma lista com visualização, ou seja, não está igual
+     ambientação"). O trilho das cinco listas é o da Ambientação: as páginas
+     (as folhas do Compêndio, `trilhoPaginas`), a busca e o +, numa pílula só,
+     DENTRO da página — cada lista o desenha (BestPageHeader, 09-bestiario).
+     O FILTRO SAIU (15/11/2026, usuário: "Remova o filtro do compêndio, deixe
+     apenas o botão de buscar"); sem ele, as listas abrem sempre inteiras. */
+  const ehLivro = ['criaturas', 'itens', 'magias', 'tecnicas', 'habilidades'].includes(current.id);
+  const trilhoLivro = ehLivro ? { antes: trilhoPaginas } : null;
   const itemNav = (no, extraClasse) => {
     // As partes da ficha dividem a seção; quem marca é a aba aberta (23/10/2026).
     const ativo = !no.filhos && no.secao === secaoMarcada
       && (no.secao !== 'ficha' || !no.filtro || no.filtro === (abaFichaAtual || 'ficha'));
+    const bloqueio = bloqueioJogador(no);
     return (
       <button key={(no.secao || no.id) + ':' + (no.filtro || '')} type="button"
-        className={'mc-navitem' + (extraClasse ? ' ' + extraClasse : '') + (ativo ? ' is-active' : '')}
+        className={'mc-navitem' + (extraClasse ? ' ' + extraClasse : '') + (ativo ? ' is-active' : '') + (bloqueio ? ' is-inativo' : '')}
         aria-current={ativo ? 'page' : undefined}
-
-        onClick={() => irPara(no)}>
+        aria-disabled={bloqueio ? true : undefined}
+        {...propsTip(abrirNavTip, fecharNavTip, bloqueio)}
+        onClick={() => { if (!bloqueio) irPara(no); }}>
         <i className={'ti ' + iconeDe(no)} aria-hidden="true" />
         <span>{rotuloDe(no)}</span>
       </button>
@@ -4987,10 +5137,13 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
        (ver `grupoDoTrilho`). Aceso em qualquer uma das folhas. */
     if (no.trilho) {
       const contem = contemSecao(no);
+      const bloqueio = bloqueioJogador(no);
       return (
-        <button key={no.id} type="button" className={'mc-navitem' + (contem ? ' is-active' : '')}
+        <button key={no.id} type="button" className={'mc-navitem' + (contem ? ' is-active' : '') + (bloqueio ? ' is-inativo' : '')}
           aria-current={contem ? 'page' : undefined}
-          onClick={() => irPara(no)}>
+          aria-disabled={bloqueio ? true : undefined}
+          {...propsTip(abrirNavTip, fecharNavTip, bloqueio)}
+          onClick={() => { if (!bloqueio) irPara(no); }}>
           <i className={'ti ' + iconeDe(no)} aria-hidden="true" />
           <span>{rotuloDe(no)}</span>
         </button>
@@ -5201,6 +5354,17 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                       </button>
                     ))}
                     {/* "Todas as mesas" saiu do menu (23/10/2026, pedido do usuário). */}
+                    {/* CRIAR MESA (15/11/2026, usuário: "No botão 'Escolher mesa' faltou a
+                        opção 'Criar mesa'"). Quem tem o modal é a HistoriasList, montada na
+                        página inicial e na Cena; de outra página, vai para uma delas antes. */}
+                    <button type="button" role="menuitem" className="mc-menu-item"
+                      onClick={() => {
+                        setIdentAberto(false);
+                        if (current.id !== 'historias' && current.id !== 'cena') ir(mesaAtivaId ? 'cena' : 'historias');
+                        setPedirNovaMesa(true);
+                      }}>
+                      <i className="ti ti-plus" aria-hidden="true" /><span>{lang === 'en' ? 'Create table' : 'Criar mesa'}</span>
+                    </button>
                     {/* ESTA MESA (23/10/2026): Pausar, Editar e Excluir saíram do card
                         da Cena e moram aqui, junto do nome da mesa. A ação vai para a
                         Cena (HistoriasList), que é quem as executa (acaoMesa). */}
@@ -5337,6 +5501,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 fullName={fullName !== user.email ? fullName : null}
                 avatarUrl={avatarUrl}
                 firstName={firstName}
+                conta={contaEfetiva}
+                contaValidaAte={contaEfetiva === 'nobre' && userProfile ? userProfile.conta_valida_ate : null}
                 onConfiguracoes={() => { setUserMenuOpen(false); setConfigAberto(true); }}
                 profile={profile}
                 lang={lang}
@@ -5409,52 +5575,6 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 entram aqui por portal; vazia, ela some (:empty). Eram botões
                 redondos flutuando nas bordas, por cima do título e da marca. */}
             {(fichaAtiva || current.id === 'personagens_m') && <div id="mc-acoes-ficha" className="mc-acoes-ficha" role="toolbar" aria-label={lang === 'en' ? 'Sheet actions' : 'Ações da ficha'} />}
-            {/* O TRILHO DO LIVRO DE REGRAS (23/10/2026): as cinco seções e a busca
-                da lista aberta (que a lista põe em #livro-trilho-busca). */}
-            {['criaturas', 'itens', 'magias', 'tecnicas', 'habilidades'].includes(current.id) && (
-              <div className="cartoes-barra livro-trilho">
-                <div className="best-header-acoes">
-                  <div id="livro-trilho-busca" className="livro-trilho-busca" />
-                  {[
-                    ['criaturas', 'ti-skull', 'Criaturas', 'Creatures'],
-                    ['itens', 'ti-backpack', 'Itens', 'Items'],
-                    ['magias', 'ti-sparkles', 'Magias', 'Spells'],
-                    ['tecnicas', 'ti-sword', 'Técnicas', 'Techniques'],
-                    ['habilidades', 'ti-bolt', 'Habilidades', 'Skills'],
-                  ].map(([s, ic, pt, enR]) => (
-                    <button key={s} type="button" className={'mc-acao' + (current.id === s ? ' is-ativo' : '')}
-                      aria-current={current.id === s ? 'page' : undefined} onClick={() => ir(s, '')}>
-                      <i className={'ti ' + ic} aria-hidden="true" />
-                      <span className="mc-acao-rotulo">{lang === 'en' ? enR : pt}</span>
-                    </button>
-                  ))}
-                  {/* O FILTRO (23/10/2026): as divisões do antigo menu (classe da
-                      criatura, grupo do item, classe e tipo da magia…), num seletor
-                      do trilho. "Todos" é o padrão. */}
-                  {(() => {
-                    const opcoes = [];
-                    const andar = (nos, nivel) => (nos || []).forEach((no) => {
-                      if (no.secao === current.id && no.filtro) opcoes.push({ filtro: no.filtro, rotulo: (no.rotulo && (no.rotulo[lang] || no.rotulo.pt)) || no.filtro, nivel });
-                      if (no.filhos) andar(no.filhos, no.secao === current.id && no.filtro ? nivel + 1 : nivel);
-                    });
-                    andar(nav.regras, 0);
-                    if (!opcoes.length) return null;
-                    return (
-                      <label className="livro-filtro">
-                        <i className="ti ti-filter" aria-hidden="true" />
-                        <select value={secaoFiltro || ''} aria-label={lang === 'en' ? 'Filter' : 'Filtro'}
-                          onChange={(e) => { setSecaoFiltro(e.target.value); setNavToken((n) => n + 1); }}>
-                          <option value="">{lang === 'en' ? 'All' : 'Todos'}</option>
-                          {opcoes.map((o) => (
-                            <option key={o.filtro} value={o.filtro}>{(o.nivel ? '\u2003' : '') + o.rotulo}</option>
-                          ))}
-                        </select>
-                      </label>
-                    );
-                  })()}
-                </div>
-              </div>
-            )}
             {current.id === 'criaturas' ? (
               /* `historiaId` (17/09/2026): habilita o botão de OLHO na tabela
                  — quem pode ver cada criatura NA MESA ATIVA. Disponibilizar
@@ -5462,12 +5582,12 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                  alcançava por Histórias → card da mesa → botão "Lore"; o
                  botão saiu no mesmo dia e a função veio pra cá. O Jogador
                  recebe o id igual e a CriaturasList ignora (modoJogador). */
-              <CriaturasList ac={ac} lang={lang} modoJogador={profile === 'player'} historiaId={mesaAtivaId} filtro={viaBusca ? '' : filtroAtual} titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'criaturas' ? pedidoLivro : null} />
+              <CriaturasList trilho={trilhoLivro} ac={ac} lang={lang} modoJogador={profile === 'player'} historiaId={mesaAtivaId} filtro="" titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'criaturas' ? pedidoLivro : null} />
             ) : (profile === 'player' && ABAS_DA_FICHA[current.id]) ? (
               /* Ficha, Inventário e Loja (22/10/2026): a ficha do personagem
                  ativo, aberta na aba que o menu pediu. Sem personagem ativo, a
                  lista para escolher — "Ficha" é a porta do Jogador. */
-              <PersonagensList ac={ac} t={t} lang={lang} profile="player" currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo}
+              <PersonagensList ac={ac} t={t} lang={lang} profile="player" convidarPrimeiro={current.id === 'ficha'} currentUserId={user.id} userProfile={userProfile} soAcoes={['modal', 'editar', 'evoluir', 'deletar']} abrirNovoPersonagemRef={abrirNovoPersonagemRef} onDentroDeMenu={setPersonagensDentroDeMenu} onFichaAberta={setFichaAtiva} onNomePjAtivo={setNomePjAtivo}
                 /* Amigos é página da ficha (02/11/2026) mas não é folha do menu Ficha:
                    o filtro cru passa, senão cairia na primeira folha. */
                 abaFicha={current.id === 'ficha' ? ((secaoFiltro === 'amigos' ? 'amigos' : filtroAtual) || 'ficha') : ABAS_DA_FICHA[current.id]} abaToken={navToken}
@@ -5477,6 +5597,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                  Loja e Jogadores abrem direto as páginas que eram botões dentro
                  dele. Sem mesa escolhida, todas as mesas para escolher uma. */
               <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={mesaAtivaId} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu}
+                pedirNova={pedirNovaMesa && !['batalha', 'loja_mesa', 'jogadores'].includes(current.id)} onNovaAtendida={novaMesaAtendida} onHistorias={aoListarHistorias}
                 onEntrarMesa={(id) => { setMesaAtivaId(id); }}
                 acaoMesa={acaoMesa}
                 vista={{ batalha: 'batalha', loja_mesa: 'loja', jogadores: 'convites' }[current.id] || null}
@@ -5502,13 +5623,13 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 compPedidoId={compPedido.id} compPedidoToken={compPedido.token}
                 compPedidoParte={compPedido.parte} />
             ) : current.id === 'magias' ? (
-              <MagiasList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={viaBusca ? '' : filtroAtual} titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'magias' ? pedidoLivro : null} />
+              <MagiasList trilho={trilhoLivro} ac={ac} lang={lang} modoJogador={profile === 'player'} filtro="" titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'magias' ? pedidoLivro : null} />
             ) : current.id === 'habilidades' ? (
-              <HabilidadesList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={viaBusca ? '' : filtroAtual} titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'habilidades' ? pedidoLivro : null} />
+              <HabilidadesList trilho={trilhoLivro} ac={ac} lang={lang} modoJogador={profile === 'player'} filtro="" titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'habilidades' ? pedidoLivro : null} />
             ) : current.id === 'tecnicas' ? (
-              <TecnicasList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={viaBusca ? '' : filtroAtual} titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'tecnicas' ? pedidoLivro : null} />
+              <TecnicasList trilho={trilhoLivro} ac={ac} lang={lang} modoJogador={profile === 'player'} filtro="" titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'tecnicas' ? pedidoLivro : null} />
             ) : current.id === 'itens' ? (
-              <ItensList ac={ac} lang={lang} modoJogador={profile === 'player'} filtro={viaBusca ? '' : filtroAtual} titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'itens' ? pedidoLivro : null} />
+              <ItensList trilho={trilhoLivro} ac={ac} lang={lang} modoJogador={profile === 'player'} filtro="" titulo={viaBusca ? undefined : tituloPagina} pedido={pedidoLivro && pedidoLivro.secao === 'itens' ? pedidoLivro : null} />
             ) : current.id === 'itens_campanha' ? (
               /* A mesa ativa (23/10/2026): sem ela a página buscava os itens de
                  história nenhuma e ficava sempre vazia. */
@@ -5517,7 +5638,8 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             ) : current.id === 'historias' ? (
               /* "Todas as mesas" (seletor do topo): a lista inteira; entrar
                  numa leva à Cena dela. */
-              <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={null} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} onEntrarMesa={(id) => { setMesaAtivaId(id); ir('cena'); }} />
+              <HistoriasList ac={ac} t={t} lang={lang} currentUserId={user.id} userProfile={userProfile} mesaAtivaId={null} abrirNovaHistoriaRef={abrirNovaHistoriaRef} onDentroDeMenu={setHistoriasDentroDeMenu} onEntrarMesa={(id) => { setMesaAtivaId(id); ir('cena'); }}
+                pedirNova={pedirNovaMesa} onNovaAtendida={novaMesaAtendida} onHistorias={aoListarHistorias} />
             ) : current.id === 'entidades' ? (
               /* ENTIDADES (08/11/2026): deuses, titãs e príncipes. Catálogo do
                  mundo, igual para Mestre e Jogador e sem mesa nem PJ — o que
@@ -5535,6 +5657,10 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                  mesa ou de personagem é outro mapa, não o mesmo atualizado. */
               <MapaView lang={lang} profile={profile} historiaId={mesaAtivaId} pj={profile === 'player' ? pjAtivo : null}
                 trilhoPaginas={trilhoPaginas} key={'mapa:' + (mesaAtivaId || 0) + ':' + ((profile === 'player' && pjAtivo && pjAtivo.id) || 0)} />
+            ) : current.id === 'forum' ? (
+              /* FÓRUM (15/11/2026): as salas de conversa (14-forum/forum.jsx).
+                 Não depende de mesa nem de personagem: é da conta. */
+              typeof ForumView !== 'undefined' ? <ForumView lang={lang} /> : null
             ) : (current.id === 'lugares' || current.id === 'cidades' || current.id === 'locais' || current.id === 'npcs' || current.id === 'memorias') ? (
               /* AS TRÊS QUE VIERAM DO DIÁRIO. Para o JOGADOR são o mesmo
                  DiarioView travado num tipo (ver `tipoFixo`), e sem personagem
@@ -5629,7 +5755,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           mesaAtivaId={mesaAtivaId}
           setMesaAtivaId={setMesaAtivaId}
           profile={profile}
-          onNovaHistoria={(current.id === 'historias' || current.id === 'cena') ? () => abrirNovaHistoriaRef.current && abrirNovaHistoriaRef.current() : null}
+          /* O Nobre abre 1 história (15/11/2026): com ela aberta, o botão
+             some — o banco recusaria a segunda. */
+          onNovaHistoria={(current.id === 'historias' || current.id === 'cena') && !limiteDeHistoriasAtingido ? () => abrirNovaHistoriaRef.current && abrirNovaHistoriaRef.current() : null}
           esconderSeletorEBotaoNovo={(current.id === 'historias' || current.id === 'cena') && historiasDentroDeMenu}
           sidebarLargura={SIDEBAR_LARGURA}
           onNovoPersonagem={current.id === 'personagens_j' ? () => abrirNovoPersonagemRef.current && abrirNovoPersonagemRef.current() : null}
@@ -5707,10 +5835,16 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           <ConfiguracoesModal lang={lang} setLang={setLang}
             paleta={paleta} onSetPaleta={escolherPaleta}
             modoNotificacao={modoNotificacao} onSetModoNotificacao={escolherModoNotificacao}
-            profile={profile} podeTrocarPerfil={ehAdmin} onSetProfile={escolherPerfil}
+            profile={profile} podeTrocarPerfil={podeMestrar} onSetProfile={escolherPerfil} ehImperador={ehAdmin}
             onTestesCombate={() => setTestesCombateAberto(true)}
             onImagens={() => setImagensAberto(true)}
+            onContas={ehAdmin && typeof ContasModal !== 'undefined' ? () => setContasAberto(true) : null}
             onClose={() => setConfigAberto(false)} />
+        )}
+
+        {/* As contas — "Contas", nas Configurações, só o Imperador (15/11/2026) */}
+        {contasAberto && ehAdmin && typeof ContasModal !== 'undefined' && (
+          <ContasModal lang={lang} onClose={() => setContasAberto(false)} />
         )}
 
         {/* A simulação de batalha — "Testes de combate", nas Configurações (06/11/2026) */}
@@ -5819,7 +5953,7 @@ function App() {
     if (!userId) { setProfile(null); return; }
     const { data, error } = await supabaseClient
       .from('profiles')
-      .select('plano, plano_escolhido_em, pj_ativo_id, perfil_tipo, paleta, notificacoes')
+      .select('plano, plano_escolhido_em, pj_ativo_id, perfil_tipo, paleta, notificacoes, tipo_conta, conta_valida_ate')
       .eq('id', userId)
       .maybeSingle();
     if (error) {
@@ -6045,12 +6179,14 @@ Object.assign(window, {
   efeitosDoTempo,
   proximaMesaAtiva,
   // Puras, expostas pro teste do log de tempo (10-shell/log-tempo-mesa.test.js).
-  feriadosDoDia, rotuloDataJogo, textoEventoData, textoEventoHora, textoEventoLocal, textoEventoTempo,
+  feriadosDoDia, refazerFeriadosDoCalendario, rotuloDataJogo, textoEventoData, textoEventoHora, textoEventoLocal, textoEventoTempo,
   // O relógio anda com a batalha (14/11/2026) — 12-batalha chama no encerramento.
   instanteDoRelogio, relogioDepoisDe, textoEventoBatalhaDurou, avancarRelogioDaMesa,
   // Pura, exposta pro teste da corrida de perfil_tipo
   // (10-shell/perfil-persistencia.test.js).
   devePersistirPerfil,
+  // A conta que vale e os limites dela (15/11/2026) — Personagens os lê.
+  LIMITES_DA_CONTA, contaEfetivaDoPerfil, avisoLimitePersonagens,
 });
 /* ══ A LÂMINA DOS TRILHOS (04/11/2026) ════════════════════════════════════════
    Pedido do usuário: "Crie uma animação no trilho ao passar o mouse entre um

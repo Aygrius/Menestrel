@@ -122,8 +122,10 @@ describe('o menu do Jogador: Ficha, Mesa e Diário', () => {
   const mesa = nav.NAV_MESA.player.mesa;
   const acha = (id) => mesa.find((n) => n.id === id);
 
-  it('três itens, nenhuma gaveta', () => {
-    expect(mesa.map((n) => n.id)).toEqual(['ficha_ficha', 'aventuras', 'diario']);
+  // Compêndio (15/11/2026): as listas do livro, grupo de trilho depois do Diário.
+  it('quatro itens, nenhuma gaveta', () => {
+    // Fórum (15/11/2026): as salas de conversa, depois do Compêndio.
+    expect(mesa.map((n) => n.id || n.secao)).toEqual(['ficha_ficha', 'aventuras', 'diario', 'compendio', 'forum']);
     expect(acha('ficha_ficha').filhos).toBeUndefined();
     expect(acha('aventuras').filhos).toBeUndefined();
   });

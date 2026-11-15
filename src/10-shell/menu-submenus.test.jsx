@@ -206,9 +206,9 @@ describe('categoriaTecnica — pelo tipo', () => {
 /* ── O filtro nas listas ──────────────────────────────────────────────── */
 const montar = async (Componente, props) => {
   render(<div className="menestrel-ui"><Componente ac={{}} lang="pt" {...props} /></div>);
-  await vi.waitFor(() => expect(document.querySelector('tbody tr') || document.querySelector('.best-empty')).toBeTruthy());
+  await vi.waitFor(() => expect(document.querySelector('.diario-cartao') || document.querySelector('.best-empty')).toBeTruthy());
 };
-const nomes = () => [...document.querySelectorAll('.best-name')].map((el) => el.textContent.replace('›', '').trim()).sort();
+const nomes = () => [...document.querySelectorAll('.diario-cartao-nome')].map((el) => el.textContent.replace('›', '').trim()).sort();
 const titulo = () => document.querySelector('.fp-card-top h2').textContent;
 
 describe('cada folha filtra a lista', () => {

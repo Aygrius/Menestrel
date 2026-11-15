@@ -141,7 +141,8 @@ describe('sair escolhe outro personagem', () => {
     expect(trecho).toContain('setCurrentId(secao);');
     expect(trecho).toContain('if (!semVoltar) setNavToken((n) => n + 1);');
     // E os itens do menu passam por ela (via `irPara`, desde 26/10/2026).
-    expect(shell).toContain('onClick={() => irPara(no)}');
+    // A guarda `!bloqueio` (15/11/2026): Mesa e Diário do Jogador podem estar inativos.
+    expect(shell).toContain('onClick={() => { if (!bloqueio) irPara(no); }}');
     expect(shell).toContain('const d = destinoDe(no);');
   });
 

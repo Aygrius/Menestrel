@@ -27,37 +27,42 @@ beforeAll(() => {
 });
 afterEach(cleanup);
 
-describe('o catálogo', () => {
-  it('os seis colégios de magia, com os tópicos do livro', () => {
-    const slugs = window.GRUPOS.map((g) => g.slug).sort();
-    expect(slugs).toEqual(['alquimico', 'conhecimento', 'elemental', 'ilusoes', 'naturalista', 'necromantico']);
-    for (const g of window.GRUPOS) {
-      expect(g.tipo, g.slug).toBe('colegio');
-      expect(window.tipoDoGrupo(g, 'pt'), g.slug).toBe('Colégio de Magia');
-      expect(g.epigrafe && g.epigrafe.texto, g.slug).toBeTruthy();
-      expect(g.prefacio.texto.length, g.slug).toBeGreaterThan(200);
-      expect(String(g.descricao).length, g.slug).toBeGreaterThan(100);
-      expect(g.historia, g.slug).toBeTruthy();
-      expect(g.simbolos, g.slug).toBeTruthy();
-    }
+/* O TEXTO MORA NO BANCO desde 15/11/2026 (catalogo_mundo): um exemplo pequeno. */
+const g = (slug, nome) => ({
+  slug, nome, tipo: 'colegio', titulo: 'Transformação',
+  epigrafe: { texto: 'Nada é imutável.', autor: 'Astar' },
+  historia: 'Antigo.', admissao: 'Por exame.', organizacao: 'Um conselho.',
+  locais: [{ nome: 'A torre', onde: 'Dantsen' }],
+  reliquias: [{ nome: 'O cálice', texto: 'Transmuta.' }],
+  rumores: [{ nome: 'O corvo', texto: 'Fala.' }],
+});
+const GRUPOS = [g('alquimico', 'Colégio Alquímico'), g('necromantico', 'Colégio Necromântico')];
+
+describe('o vocabulário', () => {
+  it('o tipo do grupo tem nome', () => {
+    // 15/11/2026: o tipo e a profissão que ele reúne ("Colégio (Magos)").
+    expect(window.tipoDoGrupo(GRUPOS[0], 'pt')).toBe('Colégio · Magos');
+    expect(window.tipoDoGrupo(GRUPOS[0], 'en')).toBe('College · Mages');
+    expect(Object.keys(window.GRUPO_TIPOS)).toEqual(['colegio', 'ordem', 'guilda', 'confraria', 'academia', 'trilha']);
+    expect(window.tipoDoGrupo({ tipo: 'trilha' }, 'pt')).toBe('Trilha · Rastreadores');
   });
 });
 
 describe('a página', () => {
-  it('mostra um cartão por colégio e abre a ficha com os tópicos', () => {
+  it('mostra um cartão por grupo e abre a ficha com os tópicos', () => {
     const { container, getByText } = render(
-      <div className="menestrel-ui"><window.GruposView lang="pt" /></div>,
+      <div className="menestrel-ui"><window.GruposView lang="pt" grupos={GRUPOS} /></div>,
     );
-    expect(container.querySelectorAll('.pj-card')).toHaveLength(6);
+    expect(container.querySelectorAll('.pj-card')).toHaveLength(2);
     fireEvent.click(getByText('Colégio Alquímico'));
     const titulos = [...document.querySelectorAll('.best-secao-titulo')].map((h) => h.textContent);
-    for (const t of ['Epígrafe', 'Prólogo', 'Descrição', 'História', 'Símbolos']) expect(titulos).toContain(t);
+    // Os sete tópicos de 15/11/2026, nesta ordem.
+    expect(titulos).toEqual(['Epígrafe', 'História', 'Localização', 'Admissão', 'Organização', 'Relíquias', 'Rumores']);
   });
 
   it('a busca filtra pelo nome', () => {
-    const { container } = render(<div className="menestrel-ui"><window.GruposView lang="pt" /></div>);
-    const input = container.querySelector('input');
-    fireEvent.change(input, { target: { value: 'necro' } });
+    const { container } = render(<div className="menestrel-ui"><window.GruposView lang="pt" grupos={GRUPOS} /></div>);
+    fireEvent.change(container.querySelector('input'), { target: { value: 'necro' } });
     const nomes = [...container.querySelectorAll('.diario-cartao-nome')].map((n) => n.textContent);
     expect(nomes).toEqual(['Colégio Necromântico']);
   });

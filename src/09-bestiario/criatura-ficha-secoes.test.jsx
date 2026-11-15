@@ -174,10 +174,10 @@ const montar = (props = {}) => render(
   <CriaturasList ac={window.ADMIN_COPY.pt} lang="pt" modoJogador={false} historiaId={13} {...props} />
 );
 
-const pronta = () => waitFor(() => expect(document.querySelector('tbody tr')).toBeTruthy());
+const pronta = () => waitFor(() => expect(document.querySelector('.diario-cartao')).toBeTruthy());
 const cabecalho = () => [...document.querySelectorAll('thead th')]
   .map((th) => (th.textContent || '').replace(/[▲▼›]/g, '').trim()).filter(Boolean);
-const linhas = () => [...document.querySelectorAll('tbody tr:not(.best-detail)')];
+const linhas = () => [...document.querySelectorAll('.diario-cartao')];
 const linhaDe = (nome) => linhas().find((tr) => (tr.textContent || '').includes(nome));
 
 const abrir = async (nome) => {
@@ -223,23 +223,23 @@ describe('o submenu de classe filtra a tabela', () => {
   it('com filtro Animal, só as criaturas da classe — e o título diz a classe', async () => {
     stubBanco(); montar({ filtro: 'Místico', titulo: 'Místicos' });
     await pronta();
-    const nomes = linhas().map((tr) => tr.querySelector('.best-name').textContent.trim());
+    const nomes = linhas().map((tr) => tr.querySelector('.diario-cartao-nome').textContent.trim());
     expect(nomes).toEqual(['Águia Real']);
     expect(document.querySelector('.fp-card-top h2').textContent).toBe('Místicos');
   });
 });
 
 describe('a ficha abre numa janela', () => {
-  /* 23/10/2026: no Livro de Regras a ficha abre no PAINEL ao lado da lista
-     (role=region), não numa janela por cima. */
-  it('fora da tabela, no painel, com o nome no título', async () => {
+  /* 15/11/2026: o Compêndio ficou igual à Ambientação — sem o painel ao
+     lado; a ficha abre na janela, a mesma do Ctrl+K. */
+  it('fora da grade, numa janela, com o nome no título', async () => {
     stubBanco(); montar();
     await pronta();
     const det = await abrir('Águia');
-    expect(det.closest('table'), 'a ficha não pode morar dentro da tabela').toBeNull();
-    const janela = det.closest('[role="region"]');
-    expect(janela.closest('.livro-painel')).toBeTruthy();
+    expect(det.closest('.livro-cartoes'), 'a ficha não pode morar dentro da grade').toBeNull();
+    const janela = det.closest('[role="dialog"]');
     expect(janela).toBeTruthy();
+    expect(document.querySelector('.livro-painel')).toBeNull();
     expect(janela.querySelector('.ms-title').textContent).toBe('Águia');
   });
 
@@ -278,9 +278,9 @@ describe('Técnica, Habilidade e Magia abrem janela ao clicar', () => {
       .find((c) => c.textContent.includes('Sentidos'));
     expect(linha.getAttribute('role')).toBe('button');
     fireEvent.click(linha);
-    // A consulta abre por cima, em janela; a ficha está no painel.
+    // A consulta abre por cima da janela da ficha.
     const janelas = document.querySelectorAll('[role="dialog"]');
-    expect(janelas.length).toBe(1);
+    expect(janelas.length).toBe(2);
     const consulta = janelas[janelas.length - 1];
     expect(consulta.querySelector('.ms-title').textContent).toMatch(/Sentidos/);
     expect(consulta.textContent).toMatch(/Perceber o que escapa aos outros\./);
@@ -292,10 +292,10 @@ describe('Técnica, Habilidade e Magia abrem janela ao clicar', () => {
     await pronta();
     const det = await abrir('Águia');
     fireEvent.click([...secao(det, 'Habilidades').querySelectorAll('.best-stat')][0]);
-    expect(document.querySelectorAll('[role="dialog"]').length).toBe(1);
+    expect(document.querySelectorAll('[role="dialog"]').length).toBe(2);
     fireEvent.keyDown(window, { key: 'Escape' });
-    expect(document.querySelectorAll('[role="dialog"]').length).toBe(0);
-    expect(document.querySelector('.livro-painel .best-detail'), 'a ficha do painel fica').toBeTruthy();
+    expect(document.querySelectorAll('[role="dialog"]').length).toBe(1);
+    expect(document.querySelector('.best-detail'), 'a ficha de baixo fica').toBeTruthy();
   });
 });
 
@@ -305,10 +305,12 @@ describe('a tabela guarda só o mínimo', () => {
   /* SÓ O NOME desde 26/09/2026: "em todas as tabelas de itens, magias, etc,
      remova as colunas e deixe apenas o nome e o botão de editar". Classe virou
      o submenu; subtipo, elemento, plano e estágio foram para a janela. */
-  it('só a coluna Nome — e os botões', async () => {
+  /* 15/11/2026: sem tabela — cartões, como na Ambientação. */
+  it('sem tabela: cartões com o nome', async () => {
     stubBanco(); montar();
     await pronta();
-    expect(cabecalho()).toEqual(['Nome']);
+    expect(document.querySelector('table')).toBeNull();
+    expect(linhaDe('Águia').querySelector('.diario-cartao-nome').textContent.trim()).toBe('Águia');
   });
 
   it('as colunas de números saíram', async () => {
@@ -333,10 +335,10 @@ describe('a tabela guarda só o mínimo', () => {
     expect(tr.querySelector('button .ti-pencil'), 'botão de editar').toBeNull();
   });
 
-  it('sem mesa selecionada, a coluna Visibilidade não existe', async () => {
+  it('sem mesa selecionada, o olho de Visibilidade não existe', async () => {
     stubBanco(); montar({ historiaId: null });
     await pronta();
-    expect(cabecalho()).toEqual(['Nome']);
+    expect(document.querySelector('.diario-vis-ic')).toBeNull();
   });
 });
 
@@ -738,7 +740,7 @@ describe('a tabela não mostra mais a patente', () => {
    montaria e plano." (usuário, 26/09/2026) — sem acento e sem caixa. */
 describe('a busca de criaturas olha além do nome', () => {
   const buscar = (txt) => fireEvent.change(document.querySelector('.fp-card-top input[type="search"]'), { target: { value: txt } });
-  const nomes = () => linhas().map((tr) => tr.querySelector('.best-name').textContent.trim()).sort();
+  const nomes = () => linhas().map((tr) => tr.querySelector('.diario-cartao-nome').textContent.trim()).sort();
 
   it('pela classe, sem acento', async () => {
     stubBanco(); montar();

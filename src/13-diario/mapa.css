@@ -76,6 +76,7 @@
 #root .menestrel-ui .mp-quadro-cab .col { margin-left: auto; text-align: right; }
 #root .menestrel-ui .mp-quadro { list-style: none; margin: 0; padding: 0; }
 #root .menestrel-ui .mp-quadro li + li { border-top: 1px solid var(--regua); }
+#root .menestrel-ui .mp-quadro li.mp-quadro-cab + li { border-top: 0; }   /* o cabeçalho já traz a régua dele */
 #root .menestrel-ui .mp-tela .mp-linha {
   width: 100%; min-height: 44px; padding: 8px; display: flex; align-items: center; gap: 10px; text-align: left; border-radius: 6px;
 }
@@ -157,15 +158,26 @@
 
 /* Ferramentas sobre o mapa */
 #root .menestrel-ui .mp-barra { position: absolute; top: 12px; right: 12px; left: 12px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: none; }
-#root .menestrel-ui .mp-grupo { display: flex; gap: 2px; padding: 4px; border-radius: 999px; background: rgba(18,13,6,.88); box-shadow: 0 0 0 1px var(--regua-forte); pointer-events: auto; }
+/* O TRILHO DO MAPA É O DO TOPO (15/11/2026, usuário: "O trilho do mapa,
+   precisa seguir o estilo de trilho que temos no topo"). A mesma pílula de
+   .cartoes-barra .best-header-acoes (chão opaco, borda padrão, 5px por
+   dentro) e os botões de .livro-trilho .mc-acao (34px, ícone em ouro,
+   rótulo 700/15px, ativo com o véu de ouro). */
+#root .menestrel-ui .mp-grupo {
+  display: flex; align-items: center; gap: 2px; padding: 5px; border-radius: 999px; pointer-events: auto;
+  background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte);
+}
 #root .menestrel-ui .mp-grupo:empty { display: none; }
-#root .menestrel-ui .mp-tela .mp-ferr { height: 36px; min-width: 36px; padding: 0 14px 0 11px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; font-weight: 700; font-size: var(--fs-sm); color: var(--tinta); }
-#root .menestrel-ui .mp-ferr i { font-size: 18px; color: var(--vivo); }
+#root .menestrel-ui .mp-tela .mp-ferr {
+  height: 34px; min-width: 34px; padding: 0 12px 0 10px; border: 1px solid transparent; border-radius: 999px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  font: 700 15px var(--font-body); color: var(--tinta-2); transition: background-color .15s ease, color .15s ease;
+}
+#root .menestrel-ui .mp-ferr i { font-size: 17px; color: var(--vivo); }
 #root .menestrel-ui .mp-tela .mp-ferr.so-ico { padding: 0; }
-#root .menestrel-ui .mp-tela .mp-ferr:hover { background: rgba(138,110,64,.24); }
+#root .menestrel-ui .mp-tela .mp-ferr:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
 #root .menestrel-ui .mp-ferr:active { translate: 0 1px; }
-#root .menestrel-ui .mp-tela .mp-ferr[aria-pressed="true"] { background: var(--mp-ouro); color: var(--mp-tinta-escura); }
-#root .menestrel-ui .mp-ferr[aria-pressed="true"] i { color: var(--mp-tinta-escura); }
+#root .menestrel-ui .mp-tela .mp-ferr[aria-pressed="true"] { background: var(--vivo-fundo); color: var(--tinta); }
 #root .menestrel-ui .mp-ferr:focus-visible { outline-offset: 1px; }
 
 #root .menestrel-ui .mp-aviso {
@@ -189,7 +201,7 @@
   #root .menestrel-ui .mp-mapa { grid-row: 1; }
   #root .menestrel-ui .mp-painel { grid-row: 2; padding: 14px 0 0; }
   #root .menestrel-ui .mp-barra { top: 8px; right: 8px; left: 8px; }
-  #root .menestrel-ui .mp-tela .mp-ferr { height: 40px; min-width: 40px; }
+  #root .menestrel-ui .mp-tela .mp-ferr { height: 40px; min-width: 40px; }  /* toque no celular */
   #root .menestrel-ui .mp-barra.cheia .mp-ferr span { display: none; }
   #root .menestrel-ui .mp-tela .mp-barra.cheia .mp-ferr { padding: 0; }
   #root .menestrel-ui .mp-aviso { top: 62px; right: 8px; }

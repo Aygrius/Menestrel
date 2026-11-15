@@ -110,16 +110,16 @@ describe('BuscaLivro', () => {
     expect(b.nomes()).toHaveLength(5);
   });
 
-  it('quem cria no catálogo vê o "+ Nova magia" no tipo, e ele pede o editor em branco', async () => {
+  /* O + SAIU DA PALETA (15/11/2026, usuário: "No ctrl + k vamos remover
+     apenas o '+ novo item', agora as novas entradas serão pelo compêndio"). */
+  it('nem quem cria no catálogo vê o + na paleta: criar é pelo Compêndio', async () => {
     window.__ehAdmin = true;
     try {
-      let escolhido = null;
-      await abrir({ onEscolher: (r) => { escolhido = r; } });
-      expect(document.querySelector('.busca-livro-novo'), 'sem tipo, não há +').toBeNull();
+      await abrir({});
       fireEvent.click(screen.getByText('Magias'));
       await act(async () => {});
-      fireEvent.click(screen.getByText('Nova magia'));
-      expect(escolhido).toEqual({ secao: 'magias', novo: true });
+      expect(document.querySelector('.busca-livro-novo')).toBeNull();
+      expect(screen.queryByText('Nova magia')).toBeNull();
     } finally { window.__ehAdmin = false; }
   });
 

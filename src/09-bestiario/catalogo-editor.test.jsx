@@ -24,6 +24,8 @@ import '../01-core/bases-item.jsx';
 import '../10-shell/shell.jsx';
 import './criatura-formulas.jsx';
 import './catalogo-descritores.jsx';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 let CatalogoEditor;
 let ultimoInsert = null, ultimoUpdate = null, erroSimulado = null;
@@ -579,7 +581,7 @@ describe('criatura e item Animal — a mesma entrada', () => {
 
 /* "No rodapé adicionar um botão para excluir." (usuário, 14/09/2026) */
 describe('excluir (criaturas)', () => {
-  const botaoExcluir = () => screen.queryAllByRole('button').find((b) => /Excluir|Confirmar exclusão/.test(b.getAttribute('aria-label') || ''));
+  const botaoExcluir = () => screen.queryAllByRole('button').find((b) => /^(Excluir|Confirmar exclusão)$/.test(b.textContent.trim()));
 
   it('só aparece editando uma criatura, no rodapé', () => {
     montar({ tabela: 'criaturas', linha: null, onExcluido: () => {} });
@@ -591,12 +593,16 @@ describe('excluir (criaturas)', () => {
     cleanup();
     // Técnicas, magias e habilidades também excluem desde 26/09/2026.
     montar({ tabela: 'tecnicas', linha: { key: 'mira', nome: 'Mira', custo: 1 }, onExcluido: () => {} });
-    expect(botaoExcluir().closest('.ms-header')).toBeTruthy();
+    expect(botaoExcluir().closest('.ms-footer-left')).toBeTruthy();
     cleanup();
     montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Lobo' }, onExcluido: () => {} });
-    // Ícone ao lado do X desde 26/09/2026, não mais no rodapé.
-    expect(botaoExcluir().closest('.ms-header')).toBeTruthy();
-    expect(botaoExcluir().closest('.ms-footer')).toBeNull();
+    /* No lugar do Cancelar desde 15/11/2026 ("apenas escrito 'Excluir'"):
+       no rodapé, à esquerda, só texto — e o Cancelar some. */
+    expect(botaoExcluir().closest('.ms-footer-left')).toBeTruthy();
+    expect(botaoExcluir().closest('.ms-header')).toBeNull();
+    expect(botaoExcluir().textContent).toBe('Excluir');
+    expect(botaoExcluir().querySelector('.ti')).toBeNull();
+    expect(screen.queryAllByRole('button').some((b) => b.textContent.trim() === 'Cancelar')).toBe(false);
   });
 
   it('dois cliques: o primeiro arma, o segundo apaga e avisa', async () => {
@@ -604,9 +610,9 @@ describe('excluir (criaturas)', () => {
     montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Lobo' }, onExcluido });
     fireEvent.click(botaoExcluir());
     expect(ultimoDelete).toBeNull();
-    expect(botaoExcluir().getAttribute('aria-label')).toMatch(/Confirmar exclusão/);
+    expect(botaoExcluir().textContent).toMatch(/Confirmar exclusão/);
     expect(botaoExcluir().classList.contains('is-armado')).toBe(true);
-    expect(document.querySelector('.catalogo-aviso-uso').textContent).toMatch(/Clique de novo na lixeira/);
+    expect(document.querySelector('.catalogo-aviso-uso').textContent).toMatch(/Clique em "Confirmar exclusão"/);
     fireEvent.click(botaoExcluir());
     await vi.waitFor(() => expect(onExcluido).toHaveBeenCalledTimes(1));
     expect(ultimoDelete).toEqual({ tabela: 'criaturas', col: 'id', val: 3 });
@@ -677,7 +683,7 @@ describe('permissão em opções: profissões e especializações', () => {
 });
 
 describe('excluir (itens)', () => {
-  const botaoExcluir = () => screen.queryAllByRole('button').find((b) => /Excluir|Confirmar exclusão/.test(b.getAttribute('aria-label') || ''));
+  const botaoExcluir = () => screen.queryAllByRole('button').find((b) => /^(Excluir|Confirmar exclusão)$/.test(b.textContent.trim()));
   const ADAGA = { slug: 'adaga', nome: 'Adaga', grupo: 'Armas' };
 
   it('aparece editando um item, no rodapé — igual à criatura', () => {
@@ -685,9 +691,9 @@ describe('excluir (itens)', () => {
     expect(botaoExcluir()).toBeUndefined();
     cleanup();
     montar({ tabela: 'itens', linha: ADAGA, onExcluido: () => {} });
-    // Ícone ao lado do X desde 26/09/2026, não mais no rodapé.
-    expect(botaoExcluir().closest('.ms-header')).toBeTruthy();
-    expect(botaoExcluir().closest('.ms-footer')).toBeNull();
+    // No lugar do Cancelar desde 15/11/2026, como na criatura.
+    expect(botaoExcluir().closest('.ms-footer-left')).toBeTruthy();
+    expect(botaoExcluir().closest('.ms-header')).toBeNull();
   });
 
   it('o primeiro clique conta quem carrega o item e avisa; o segundo apaga pelo slug', async () => {
@@ -1488,5 +1494,22 @@ describe('item: a BASE é escolhida no editor', () => {
   it('a base gravada aparece escolhida', () => {
     montar({ tabela: 'itens', linha: { slug: 'm', nome: 'Máscara Verrogari', grupo: 'Vestimentas', slot_equip: 'rosto', base: 'mascara-cobre' } });
     expect(screen.getAllByText(/Máscara de Cobre/).length).toBeGreaterThan(0);
+  });
+});
+
+/* 15/11/2026, usuário: "No modal de editar/criar criatura, os 7 campos de
+   atributo vão ocupar a largura do card todo." */
+describe('os sete atributos numa fileira', () => {
+  it('os campos de escala vão juntos para .catalogo-atributos, de ponta a ponta', () => {
+    montar({ tabela: 'criaturas', linha: { id: 3, nome: 'Lobo' } });
+    const fileira = document.querySelector('.catalogo-form-grid > .catalogo-atributos');
+    expect(fileira).toBeTruthy();
+    expect([...fileira.children].map((c) => c.getAttribute('data-escala')))
+      .toEqual(['intelecto', 'aura', 'carisma', 'forca', 'fisico', 'agilidade', 'percepcao']);
+  });
+  it('o CSS divide a fileira em sete partes iguais e tira a borda dos campos de texto', () => {
+    const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8');
+    expect(css).toMatch(/\.catalogo-form-grid > \.catalogo-atributos \{\r?\n\s*grid-column: 1 \/ -1; display: grid; grid-template-columns: repeat\(7, minmax\(0, 1fr\)\);/);
+    expect(css).toContain('.modal-catalogo :is(.diario-input, .diario-textarea) { border-color: transparent; }');
   });
 });

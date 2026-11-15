@@ -100,7 +100,7 @@ describe('TecnicasList — botão "Novo" e lápis de edição', () => {
     expect(document.querySelector('.btn-icon.btn-sm[aria-label="Novo"]')).toBeTruthy();
     // O lápis mora no cabeçalho da janela desde 26/09/2026, não na linha.
     expect(document.querySelector('tbody [aria-label="Editar"]')).toBeNull();
-    fireEvent.click(document.querySelector('tbody tr'));
+    fireEvent.click(document.querySelector('.diario-cartao'));
     await vi.waitFor(() => expect(document.querySelector('.modal-best-detalhe .ms-acao[aria-label="Editar"]')).toBeTruthy());
   });
 
@@ -109,7 +109,7 @@ describe('TecnicasList — botão "Novo" e lápis de edição', () => {
     montar();
     await esperarLista();
     expect(document.querySelector('[aria-label="Novo"]')).toBeNull();
-    fireEvent.click(document.querySelector('tbody tr'));
+    fireEvent.click(document.querySelector('.diario-cartao'));
     await vi.waitFor(() => expect(document.querySelector('.modal-best-detalhe')).toBeTruthy());
     expect(document.querySelector('.modal-best-detalhe [aria-label="Editar"]')).toBeNull();
   });
@@ -158,7 +158,7 @@ describe('TecnicasList — cabeçalho: busca ao lado do +, sem filtros nem conta
 
 /* "Ao invés de usarmos um texto expansível, eu quero botões ao lado de 'novo'
    no topo, para abrir um modal com as sugestões, etc." (usuário, 14/09/2026) */
-describe('TecnicasList — Verificação e Sugestões são botões ao lado do +', () => {
+describe('TecnicasList — Sugestões é botão ao lado do + (a Verificação saiu em 15/11/2026)', () => {
   const ac = () => window.ADMIN_COPY.pt;
   const esperarLista = () => vi.waitFor(() => expect(document.body.textContent).toMatch(/Mira/));
 
@@ -176,7 +176,8 @@ describe('TecnicasList — Verificação e Sugestões são botões ao lado do +'
         : el.getAttribute('aria-label') === 'Novo' ? '+'
         : el.textContent
     ));
-    expect(ordem).toEqual(['busca', 'Verificação', 'Sugestões', '+']);
+    // A Verificação saiu do Compêndio em 15/11/2026 (pedido do usuário).
+    expect(ordem).toEqual(['busca', 'Sugestões', '+']);
     expect(document.querySelector('.best-auditoria')).toBeNull();
     expect(document.querySelector('.best-aud-head')).toBeNull();
   });
@@ -202,7 +203,7 @@ describe('TecnicasList — Verificação e Sugestões são botões ao lado do +'
     await esperarLista();
     const botoes = await vi.waitFor(() => {
       const bs = [...document.querySelectorAll('.best-painel-abrir')];
-      expect(bs).toHaveLength(2);
+      expect(bs).toHaveLength(1);
       return bs;
     });
     botoes.forEach((b) => expect(b.querySelector('.ti')).toBeNull());
@@ -213,8 +214,7 @@ describe('TecnicasList — Verificação e Sugestões são botões ao lado do +'
       fireEvent.mouseEnter(el);
       return [...document.querySelectorAll('.mn-tip')].map((t) => t.textContent);
     };
-    expect(dicas(botoes[0])).toContain('Verificação do catálogo');
-    expect(dicas(botoes[1])).toContain('Sugestões de técnicas');
+    expect(dicas(botoes[0])).toContain('Sugestões de técnicas');
     expect(dicas(document.querySelector('[aria-label="Novo"]'))).toContain('Nova técnica');
   });
 
@@ -233,11 +233,11 @@ describe('CriaturasList — a linha expandida mostra os calculados', () => {
   const expandir = async () => {
     render(<CriaturasList ac={window.ADMIN_COPY.pt} lang="pt" />);
     const td = await vi.waitFor(() => {
-      const x = [...document.querySelectorAll('td')].find((c) => /Ogro/.test(c.textContent));
+      const x = [...document.querySelectorAll('.diario-cartao-nome')].find((c) => /Ogro/.test(c.textContent));
       expect(x).toBeTruthy();
       return x;
     });
-    fireEvent.click(td.closest('tr'));
+    fireEvent.click(td.closest('.diario-cartao'));
   };
   /* A linha expandida virou OITO SEÇÕES com subtítulo em 17/09/2026 ("use
      cards depois de cada subtítulo"), e os rótulos voltaram a ser palavras —
@@ -320,11 +320,11 @@ describe('HabilidadesList — o detalhe mostra só a descrição', () => {
   it('abre a descrição sem o bloco de Restrição', async () => {
     render(<HabilidadesList ac={window.ADMIN_COPY.pt} lang="pt" />);
     const linha = await vi.waitFor(() => {
-      const td = [...document.querySelectorAll('td')].find((x) => /Escapar/.test(x.textContent));
+      const td = [...document.querySelectorAll('.diario-cartao-nome')].find((x) => /Escapar/.test(x.textContent));
       expect(td).toBeTruthy();
       return td;
     });
-    fireEvent.click(linha.closest('tr'));
+    fireEvent.click(linha.closest('.diario-cartao'));
     expect(document.body.textContent).toMatch(/Permite escapar de amarras/);
     expect(document.body.textContent).not.toMatch(/Restrição/);
     expect(document.body.textContent).not.toMatch(/M, P/);

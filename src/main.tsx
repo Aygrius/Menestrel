@@ -61,6 +61,7 @@ import './02-shell/tweaks-panel.jsx'
 import './04-auth/auth.jsx'
 import './05-convites/convites.jsx'
 import './06-historias/historias.jsx'
+import './06-historias/inicio.jsx'               // a página do Mestre sem mesa (15/11/2026)
 import './07-inventario/inventario.jsx'
 import './07-inventario/loja.jsx'
 import './07-inventario/fabricar.jsx'          // o corpo da receita (a bancada mora na atividade Fabricar)
@@ -78,6 +79,7 @@ import './10-shell/ritual-de-sangue-modal.jsx'   // a janela do Mestre no Ritual
 // A galeria das pinturas ("Imagens", menu do usuário) — usa o ModalShell do shell.
 import './10-shell/galeria-imagens.jsx'
 import './10-shell/testes-combate.jsx'        // a simulação de batalha, para o Mestre (06/11/2026)
+import './10-shell/contas.jsx'                // os tipos de conta, só o Imperador (15/11/2026)
 // Atalhos flutuantes (Habilidade/Magia/Item) ANTES da ficha, que os monta.
 import './11-ficha/atalhos-ficha.jsx'
 import './11-ficha/paginas-ficha.jsx'       // Status, Atividades, Habilidades… em casas (02/11/2026)
@@ -92,10 +94,13 @@ import './12-batalha/batalha.jsx'
 // Tabuleiro DEPOIS de batalha.jsx: usa mesmoParticipante/statusTemEfeito dele.
 import './12-batalha/tabuleiro.jsx'
 import './13-diario/diario.jsx'
+import './13-diario/catalogo-mundo.jsx' // Entidades e Grupos editáveis: código + banco (15/11/2026)
 import './13-diario/entidades.jsx'    // a página Entidades da Ambientação (08/11/2026)
 import './13-diario/grupos.jsx'       // a página Grupos da Ambientação; usa EntidadeLista (13/11/2026)
 import './13-diario/mapa.css'
 import './13-diario/mapa.jsx'         // a página Mapa: a pintura em ladrilhos e o que o Mestre desenha (15/11/2026)
+// Fórum (15/11/2026): salas, tópicos e respostas; usa o ModalShell do shell e o BestBuscaENovo do bestiário.
+import './14-forum/forum.jsx'
 
 // ── data layer (Fase 1): expõe os hooks-ponte no window ──
 import './data/bridge'

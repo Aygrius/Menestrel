@@ -49,10 +49,10 @@ const abrir = () => render(<window.TestesCombateModal lang="pt" onClose={() => {
 /* Nas Configurações (11/11/2026, usuário: "Os testes de combate, imagens e
    perfil também vão ficar dentro de configurações"). Só o Mestre vê. */
 describe('a entrada nas Configurações', () => {
-  const montarCfg = (profile, onTestesCombate) => render(<div id="root"><div className="menestrel-ui">
+  const montarCfg = (profile, onTestesCombate, ehImperador = true) => render(<div id="root"><div className="menestrel-ui">
     <window.ConfiguracoesModal lang="pt" setLang={() => {}} paleta="couro" onSetPaleta={() => {}}
       modoNotificacao="visivel" onSetModoNotificacao={() => {}} profile={profile}
-      onTestesCombate={onTestesCombate} onImagens={() => {}} onClose={() => {}} /></div></div>);
+      onTestesCombate={onTestesCombate} onImagens={() => {}} ehImperador={ehImperador} onClose={() => {}} /></div></div>);
   it('o Mestre abre os testes por lá; o Jogador não vê a entrada', () => {
     const abrirTestes = vi.fn();
     montarCfg('master', abrirTestes);

@@ -337,6 +337,22 @@ function CatalogoEscala({ campo, label, valor, onChange, disabled, t }) {
   );
 }
 
+/* OS SETE ATRIBUTOS NUMA FILEIRA (15/11/2026, usuário: "No modal de
+   editar/criar criatura, os 7 campos de atributo vão ocupar a largura do card
+   todo"). Na grade de 8 colunas, sete campos de uma coluna deixavam a oitava
+   vazia. Os campos de escala seguidos vão para uma fileira própria, de ponta a
+   ponta, em partes iguais. */
+function agruparAtributos(els) {
+  const out = []; let fila = [];
+  const fechar = () => { if (fila.length) out.push(<div key="atributos" className="catalogo-atributos">{fila}</div>); fila = []; };
+  els.forEach((el) => {
+    if (el && el.props && el.props.campo && el.props.campo.escala) fila.push(el);
+    else { fechar(); out.push(el); }
+  });
+  fechar();
+  return out;
+}
+
 // ---------- CatalogoCampo — um controle por tipo do descritor ----------
 /* ── CampoIcone (23/10/2026) ──────────────────────────────────────────────
    "No modal de editar item, o ícone também terá o mesmo estilo da moeda,
@@ -1152,13 +1168,17 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
      pele das ações do BestDetalheModal (ms-close ms-acao). Continua em dois
      cliques: o primeiro arma (lixeira com X, em vermelho) e o aviso no corpo
      diz o que vai acontecer; o segundo exclui. */
+  /* NO LUGAR DO CANCELAR (15/11/2026, usuário: "O botão de 'excluir' vai
+     deixar de ficar ao lado do botão de x, e vai ficar no lugar do botão de
+     'cancelar', apenas escrito 'Excluir'"). O X fecha sem salvar, então o
+     Cancelar era redundante. Os dois cliques continuam: o primeiro arma
+     ("Confirmar exclusão") e o aviso no corpo diz o preço. */
   const rotuloExcluir = excluindo ? t.editorExcluindo : (confirmandoExcluir ? t.editorExcluirConfirmar : t.editorExcluir);
   const botaoExcluir = podeExcluir ? (
     <button type="button"
-      className={'ms-close ms-acao ms-acao--perigo catalogo-btn-excluir' + (confirmandoExcluir ? ' is-armado' : '')}
-      onClick={excluir} disabled={saving || excluindo}
-      aria-label={rotuloExcluir}>
-      <i className={'ti ' + (confirmandoExcluir ? 'ti-trash-x' : 'ti-trash')} aria-hidden="true" />
+      className={'btn-danger btn-md catalogo-btn-excluir' + (confirmandoExcluir ? ' is-armado' : '')}
+      onClick={excluir} disabled={saving || excluindo}>
+      {rotuloExcluir}
     </button>
   ) : null;
 
@@ -1182,13 +1202,13 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
       onConfirm={salvar}
       confirmLabel={saving ? t.editorSalvando : undefined}
       confirmDisabled={saving || excluindo || !obrigatoriosOk}
-      headerExtra={botaoExcluir}>
-      {/* A lixeira armada avisa NO TOPO, perto do ícone que foi clicado — o
-          formulário é longo e o fim dele fica fora da tela. Com itens, diz
-          também quantos personagens perdem o item. */}
+      footerLeft={botaoExcluir}>
+      {/* O Excluir armado avisa NO TOPO — o formulário é longo e quem rolou
+          até o rodapé não lê o fim dele. Com itens, diz também quantos
+          personagens perdem o item. */}
       {confirmandoExcluir && !excluindo && (
         <div className="err-msg catalogo-aviso-uso" role="alert">
-          {lang === 'en' ? 'Click the trash again to delete. ' : 'Clique de novo na lixeira para excluir. '}
+          {lang === 'en' ? 'Click "Confirm delete" to delete. ' : 'Clique em "Confirmar exclusão" para excluir. '}
           {emUso > 0 && (lang === 'en'
             ? `${emUso} character${emUso === 1 ? ' carries' : 's carry'} this item. Deleting it removes it from ${emUso === 1 ? 'that inventory' : 'those inventories'}.`
             : `${emUso} personage${emUso === 1 ? 'm carrega' : 'ns carregam'} este item. Excluir o tira ${emUso === 1 ? 'desse inventário' : 'desses inventários'}.`)}
@@ -1199,7 +1219,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
             Montaria, Peso e Altura cabem na linha de Nome e Subtipo. */}
         {/* `ocultoSe(form)` (30/10/2026): oculto que depende do item — a grade
             de efeitos OU as duas prosas, conforme a grade lê a prosa inteira. */}
-        {descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto
+        {agruparAtributos(descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto
           && !(typeof campo.ocultoSe === 'function' && campo.ocultoSe(form))
           && campo.tipo !== 'derivado' && campoDoGrupo(campo, form)).map((campoBruto) => {
           /* `opcoesDe` (26/10/2026): a lista depende da LINHA, não só do
@@ -1249,7 +1269,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
           return campo.largura === 'curta'
             ? <div key={chave} className="catalogo-campo-curto" data-campo={campo.col}>{el}</div>
             : el;
-        })}
+        }))}
       </div>
       {error && <div className="err-msg">{error}</div>}
     </ModalShell>

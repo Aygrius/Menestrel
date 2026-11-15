@@ -227,7 +227,8 @@ describe('a entrada no menu do usuário', () => {
     expect(shellFonte.indexOf("en ? 'Images' : 'Imagens'", cfg)).toBeGreaterThan(cfg);
   });
   it('é só do Mestre — a galeria é pauta de produção', () => {
-    expect(shellFonte).toMatch(/const ferramentasMestre = profile === 'master';/);
+    // Do Imperador desde 15/11/2026: Nobres e Conselheiros também mestram.
+    expect(shellFonte).toMatch(/const ferramentasMestre = profile === 'master' && ehImperador;/);
   });
   it('o modal é montado quando a entrada é clicada', () => {
     expect(shellFonte).toMatch(/onImagens=\{\(\) => setImagensAberto\(true\)\}/);

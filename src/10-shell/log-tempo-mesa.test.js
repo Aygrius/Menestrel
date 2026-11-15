@@ -60,6 +60,10 @@ describe('rotuloDataJogo — a data escrita por extenso', () => {
 });
 
 describe('textoEventoData — a data muda, e o feriado vai junto', () => {
+  /* Os feriados das entidades vêm do banco desde 15/11/2026 (catalogo_mundo):
+     o teste passa os seus, como o catálogo faria ao chegar. */
+  beforeAll(() => window.refazerFeriadosDoCalendario([{ dia: 1, mes: 2, nome: 'Dia do Mar' }, { dia: 5, mes: 2, nome: 'Jejum da Piedade' }]));
+
   it('dia comum anuncia só a data', () => {
     const txt = textoEventoData(DIA_11, false);
     expect(txt).toContain(rotuloDataJogo(DIA_11));

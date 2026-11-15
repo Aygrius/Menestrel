@@ -1,13 +1,16 @@
 /* ============================================================
-   magias-colunas.test.jsx — colunas da tabela de magias (22/10/2026)
+   magias-colunas.test.jsx — Evocação, Alcance e Duração da magia
    ============================================================
-   "Na tabela de magias, adicione a coluna evocação, alcance e duração."
-   O alcance sai abreviado como na janela da magia ("20 metros" → "20 m"),
-   campo vazio vira "—", e as colunas novas ordenam como o Nome — com os
-   números na ordem natural ("2 rodadas" antes de "10 rodadas").
+   22/10/2026: "Na tabela de magias, adicione a coluna evocação, alcance e
+   duração." O alcance sai abreviado como na janela da magia ("20 metros" →
+   "20 m").
+
+   15/11/2026: o Compêndio ficou igual à Ambientação (cartões, sem tabela).
+   Os três valores moram na segunda linha do cartão, nesta ordem, e o que
+   está vazio simplesmente não aparece. A primeira linha é classe e tipo.
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
-import { render, cleanup, fireEvent } from '@testing-library/react';
+import { render, cleanup } from '@testing-library/react';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
@@ -46,34 +49,26 @@ afterEach(cleanup);
 
 const montar = async () => {
   render(<div className="menestrel-ui"><window.MagiasList ac={{}} lang="pt" /></div>);
-  await vi.waitFor(() => expect(document.querySelector('tbody tr')).toBeTruthy());
+  await vi.waitFor(() => expect(document.querySelector('.diario-cartao')).toBeTruthy());
 };
-const cabecalhos = () => [...document.querySelectorAll('thead th')].map((th) => th.textContent.replace(/[▲▼]/g, '').trim());
-const linha = (nome) => [...document.querySelectorAll('tbody tr')]
-  .find((tr) => tr.querySelector('.best-name').textContent.trim() === nome);
-const celulas = (nome) => [...linha(nome).querySelectorAll('td')].map((td) => td.textContent.trim());
-const nomes = () => [...document.querySelectorAll('.best-name')].map((el) => el.textContent.trim());
+const cartao = (nome) => [...document.querySelectorAll('.diario-cartao')]
+  .find((c) => c.querySelector('.diario-cartao-nome').textContent.trim() === nome);
+const linhas = (nome) => [...cartao(nome).querySelectorAll('.diario-cartao-meta')].map((el) => el.textContent.trim());
 
-describe('tabela de magias', () => {
-  it('cabeçalho: Nome, Evocação, Alcance, Duração', async () => {
+describe('cartão de magia', () => {
+  it('sem tabela', async () => {
     await montar();
-    expect(cabecalhos()).toEqual(['Nome', 'Evocação', 'Alcance', 'Duração']);
+    expect(document.querySelector('table')).toBeNull();
   });
 
-  it('cada linha traz os três valores; alcance abreviado', async () => {
+  it('segunda linha: evocação · alcance abreviado · duração', async () => {
     await montar();
-    expect(celulas('Bola de Fogo')).toEqual(['Bola de Fogo', '10 rodadas', '20 m', 'Instantânea']);
-    expect(celulas('Cura')).toEqual(['Cura', '2 rodadas', 'Toque', '1 hora']);
+    expect(linhas('Bola de Fogo')).toEqual(['Básica', '10 rodadas·20 m·Instantânea'.split('·').join(' · ')]);
+    expect(linhas('Cura')).toEqual(['Básica', '2 rodadas · Toque · 1 hora']);
   });
 
-  it('campo vazio vira travessão', async () => {
+  it('campo vazio não aparece', async () => {
     await montar();
-    expect(celulas('Vôo')).toEqual(['Vôo', 'Ritual', '—', '—']);
-  });
-
-  it('Evocação ordena com os números na ordem natural', async () => {
-    await montar();
-    fireEvent.click([...document.querySelectorAll('thead th')][1]);
-    expect(nomes()).toEqual(['Cura', 'Bola de Fogo', 'Vôo']);
+    expect(linhas('Vôo')).toEqual(['Perdida', 'Ritual']);
   });
 });

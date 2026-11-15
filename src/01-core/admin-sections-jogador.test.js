@@ -102,6 +102,8 @@ describe('ADMIN_SECTIONS.master — as dez seções', () => {
       // Cidades entrou em 26/09/2026, logo depois de Reinos (lugares); Locais, em 22/10/2026; Entidades, em 08/11/2026.
       'historias', 'personagens_m', 'lugares', 'cidades', 'locais', 'npcs', 'entidades', 'grupos', 'mapa', 'criaturas', 'itens',
       'itens_campanha', 'magias', 'tecnicas', 'habilidades',
+      // Fórum (15/11/2026): de toda conta.
+      'forum',
     ]);
   });
 

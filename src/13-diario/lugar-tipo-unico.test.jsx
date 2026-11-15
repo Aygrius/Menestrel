@@ -116,10 +116,12 @@ describe('os campos seguem o tipo escolhido', () => {
     expect(screen.queryByText('Governo')).toBeNull();
   });
 
-  it('Nome e Descrição valem pros dois', () => {
+  // Nos lugares a Descrição chama-se História desde 15/11/2026, e a Fundação vem antes dela.
+  it('Nome, Fundação e História valem pros dois', () => {
     montar({ tipo: 'reino', onTipoChange: () => {} });
     expect(screen.queryByText('Nome')).toBeTruthy();
-    expect(screen.queryByText('Descrição')).toBeTruthy();
+    expect(screen.queryByText('Fundação')).toBeTruthy();
+    expect(screen.queryByText('História')).toBeTruthy();
   });
 });
 

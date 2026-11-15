@@ -31,7 +31,7 @@
    Mestre leva DIRETO à Batalha, à Loja e aos Jogadores (convites) da mesa
    ativa — antes eram botões dentro do card. Com `vista`, a lista abre já
    nessa página; fechar chama `onFecharVista` (volta para a Cena). */
-function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAtivaId = null, abrirNovaHistoriaRef, onDentroDeMenu, onEntrarMesa = null, vista = null, onFecharVista = null, acaoMesa = null, trilhoPaginas = null }) {
+function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAtivaId = null, abrirNovaHistoriaRef, onDentroDeMenu, onEntrarMesa = null, vista = null, onFecharVista = null, acaoMesa = null, trilhoPaginas = null, pedirNova = false, onNovaAtendida = null, onHistorias = null }) {
   const th = t.historias;
   const { data: histData, isLoading: histLoading, error: histError, refetch } =
     window.useHistoriasData(currentUserId);
@@ -100,6 +100,22 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
       abrirNovaHistoriaRef.current = () => setModalOpen(true);
     }
   }, [abrirNovaHistoriaRef]);
+
+  /* "CRIAR MESA" NO MENU LATERAL (15/11/2026, usuário: "No botão 'Escolher
+     mesa' faltou a opção 'Criar mesa'"). O menu pede, e quem tem o modal abre
+     — mesmo que a lista tenha acabado de montar por causa do pedido. */
+  useEffect(() => {
+    if (!pedirNova || !Array.isArray(historias)) return;
+    setModalOpen(true);
+    if (onNovaAtendida) onNovaAtendida();
+  }, [pedirNova, historias, onNovaAtendida]);
+
+  /* O menu "Escolher mesa" lista as mesas que o shell carregou na entrada;
+     sem este aviso, a mesa recém-criada só aparecia nele depois de recarregar
+     a página — e agora é o único lugar de onde se entra numa mesa. */
+  useEffect(() => {
+    if (onHistorias && histData && Array.isArray(histData.historias)) onHistorias(histData.historias);
+  }, [histData, onHistorias]);
 
   /* A PRIMEIRA MESA (22/10/2026). Quem escolhe "Vou mestrar" na primeira
      entrada cai aqui sem mesa nenhuma. Criada a primeira pelo estado vazio, o
@@ -238,6 +254,11 @@ function HistoriasList({ ac, t, lang, currentUserId, userProfile = null, mesaAti
         <div className="pjs-empty">
           <p>{th.lista.comecarAventura}</p>
         </div>
+      ) : (!mesaAtivaId && window.InicioNovidades) ? (
+        /* SEM MESA, A PÁGINA INICIAL (15/11/2026): as novidades do sistema no
+           lugar dos cards das mesas — ver 06-historias/inicio.jsx. Escolher e
+           criar mesa ficou no "Escolher mesa" do menu lateral. */
+        <window.InicioNovidades lang={lang} />
       ) : (
         <div className="hist-grid">
           {historiasFiltradas.map((h) => (
