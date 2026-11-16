@@ -7,13 +7,26 @@
    de mapa, criação de personagem, etc." e "No botão 'Escolher mesa' faltou a
    opção 'Criar mesa'".
    ============================================================ */
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, cleanup } from '@testing-library/react';
+import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { render, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import './inicio.jsx';
 
 afterEach(cleanup);
+/* As reações vão ao banco (noticias_reacoes): um banco de mentira, que anota. */
+let escritas = [];
+beforeEach(() => {
+  escritas = [];
+  const tabela = () => {
+    const b = { select: () => Promise.resolve({ data: [{ noticia: 'mapa-da-mesa', reacao: 'gostei' }], error: null }),
+      upsert: (linha) => { escritas.push({ op: 'upsert', linha }); return Promise.resolve({ error: null }); },
+      delete: () => ({ eq: (c, v) => { escritas.push({ op: 'delete', v }); return Promise.resolve({ error: null }); } }) };
+    return b;
+  };
+  window.supabaseClient = { from: tabela };
+  globalThis.supabaseClient = window.supabaseClient;
+});
 const fonte = (rel) => readFileSync(resolve(__dirname, rel), 'utf8');
 
 describe('as novidades do sistema', () => {
@@ -24,11 +37,27 @@ describe('as novidades do sistema', () => {
     expect([...datas].sort().reverse()).toEqual(datas);
     window.NOTICIAS_DO_SISTEMA.forEach((n) => expect(window.AREAS_NOTICIA[n.area]).toBeTruthy());
   });
-  it('a página mostra uma linha por notícia, com data e área', () => {
+  // 15/11/2026: sem rolagem — quatro por página, a paginação no pé; sem o convite de escolher mesa.
+  it('a página mostra quatro notícias por vez, com data e área, e sem o convite', () => {
     render(<div id="root"><div className="menestrel-ui"><window.InicioNovidades lang="pt" /></div></div>);
     expect(document.querySelector('.inicio-titulo').textContent).toBe('Novidades do Menestrel');
-    expect(document.querySelectorAll('.inicio-noticia')).toHaveLength(window.NOTICIAS_DO_SISTEMA.length);
+    expect(document.querySelectorAll('.inicio-noticia')).toHaveLength(Math.min(window.NOTICIAS_POR_PAGINA, window.NOTICIAS_DO_SISTEMA.length));
     expect(document.querySelector('.inicio-noticia time').getAttribute('dateTime')).toBe(window.NOTICIAS_DO_SISTEMA[0].data);
+    expect(document.body.textContent).not.toMatch(/Escolha uma mesa no menu lateral/);
+  });
+  it('toda notícia tem um id único, que é a chave da reação', () => {
+    const ids = window.NOTICIAS_DO_SISTEMA.map((n) => n.id);
+    expect(ids.every(Boolean)).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+  it('gostei e não gostei: mostra a marcada, troca e desmarca', async () => {
+    render(<div id="root"><div className="menestrel-ui"><window.InicioNovidades lang="pt" /></div></div>);
+    const linha = (id) => [...document.querySelectorAll('.inicio-noticia')][window.NOTICIAS_DO_SISTEMA.findIndex((n) => n.id === id)];
+    await waitFor(() => expect(linha('mapa-da-mesa').querySelector('[aria-label="Gostei"]').getAttribute('aria-pressed')).toBe('true'));
+    fireEvent.click(linha('mapa-da-mesa').querySelector('[aria-label="Não gostei"]'));
+    await waitFor(() => expect(escritas).toContainEqual({ op: 'upsert', linha: { noticia: 'mapa-da-mesa', reacao: 'nao_gostei' } }));
+    fireEvent.click(linha('mapa-da-mesa').querySelector('[aria-label="Não gostei"]'));
+    await waitFor(() => expect(escritas).toContainEqual({ op: 'delete', v: 'mapa-da-mesa' }));
   });
   it('sem mesa escolhida, a lista de histórias mostra o início no lugar dos cards', () => {
     expect(fonte('historias.jsx')).toMatch(/\(!mesaAtivaId && window\.InicioNovidades\) \? \([\s\S]{0,300}<window\.InicioNovidades lang=\{lang\} \/>[\s\S]{0,40}\) : \(\s*<div className="hist-grid">/);

@@ -105,19 +105,21 @@ function ForumLegenda({ en }) {
   );
 }
 
-function ForumCurtir({ curtidas, curtido, onAlternar, en, desativado = false }) {
+/* O CORAÇÃO É UM BOTÃO COMO OS OUTROS (15/11/2026, usuário: "o ícone de
+   coração terá o mesmo estilo dos outros (editar, excluir, etc) não precisa
+   mostrar a quantidade"). O .btn-icon de Editar e Apagar; curtido, em ouro. */
+function ForumCurtir({ curtido, onAlternar, en, desativado = false }) {
   return (
-    <button type="button" className={'forum-curtir' + (curtido ? ' is-on' : '')} aria-pressed={curtido}
+    <button type="button" className={'btn-icon btn-sm forum-curtir' + (curtido ? ' is-on' : '')} aria-pressed={curtido}
       disabled={desativado}
-      aria-label={(curtido ? (en ? 'Unlike' : 'Descurtir') : (en ? 'Like' : 'Curtir')) + ` (${curtidas})`}
+      aria-label={curtido ? (en ? 'Unlike' : 'Descurtir') : (en ? 'Like' : 'Curtir')}
       onClick={(e) => { e.stopPropagation(); onAlternar(); }}>
-      <i className={'ti ' + (curtido ? 'ti-heart-filled' : 'ti-heart')} aria-hidden="true" />
-      <span className="forum-curtir-n">{curtidas}</span>
+      <i className="ti ti-heart" aria-hidden="true" />
     </button>
   );
 }
 
-/* Quem escreveu: retrato, nome e o tipo da conta (Imperador em ouro). */
+/* Quem escreveu: retrato, nome e o tipo da conta (Imperador na tinta forte). */
 function ForumAutor({ nome, avatar, conta, quando, editado, en }) {
   const nomeConta = (_f('nomeDaConta') || ((t) => t))(conta, en);
   return (
@@ -335,17 +337,20 @@ function ForumView({ lang = 'pt' }) {
      tópicos e quantas salas há dentro; o último tópico (dela ou das de
      dentro), com quem postou e quando. */
   const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
+  /* A LINHA NÃO É UM BOTÃO COM BOTÕES DENTRO (revisão de 15/11/2026): o título
+     é o botão que abre, e a área dele se estende pela linha inteira
+     (.forum-linha-abrir::after) — o coração e o lápis ficam por cima, como
+     botões irmãos. Antes a linha era role="button" com botões dentro, o que
+     confunde leitor de tela e teclado. */
   const linhaSala = (s) => (
-    <div key={s.id} className="mn-quadro-linha forum-linha forum-linha--sala" role="button" tabIndex={0}
-      onClick={() => irSala(s.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); irSala(s.id); } }}>
-      <div className="forum-linha-txt">
+    <li key={s.id} className="mn-quadro-linha forum-linha forum-linha--sala">
+      <button type="button" className="forum-linha-txt forum-linha-abrir" onClick={() => irSala(s.id)}>
         <span className="forum-linha-titulo">
           {s.fechada && <i className="ti ti-lock forum-fechada" aria-label={en ? 'Closed' : 'Fechada'} />}
           {s.nome}
         </span>
         {s.descricao && <span className="forum-linha-meta">{s.descricao}</span>}
-      </div>
+      </button>
       <div className="forum-contas">
         <span>{plural(s.topicos, en ? 'topic' : 'tópico', en ? 'topics' : 'tópicos')}</span>
         <span>{plural(s.salas, en ? 'room' : 'sala', en ? 'rooms' : 'salas')}</span>
@@ -366,21 +371,19 @@ function ForumView({ lang = 'pt' }) {
           <i className="ti ti-pencil" aria-hidden="true" />
         </button>
       ) : <span aria-hidden="true" />}
-    </div>
+    </li>
   );
   /* A LINHA DO TÓPICO (15/11/2026, usuário: "Na página de tópicos, mostre a
      quantidade de visualizações e quantidade de comentários. Mostre o título
      do último post, horário e nome do usuário"). Resposta não tem título: o
      último post é o começo do texto dela; sem resposta, o próprio tópico. */
   const linhaTopico = (t) => (
-    <div key={t.id} className={'mn-quadro-linha forum-linha forum-linha--topico' + (t.novas && !t.fechado ? ' is-novo' : '')} role="button" tabIndex={0}
-      onClick={() => setTopicoId(t.id)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setTopicoId(t.id); } }}>
+    <li key={t.id} className={'mn-quadro-linha forum-linha forum-linha--topico' + (t.novas && !t.fechado ? ' is-novo' : '')}>
       <ForumEstado estado={estadoDoTopico(t)} en={en} />
-      <div className="forum-linha-txt">
+      <button type="button" className="forum-linha-txt forum-linha-abrir" onClick={() => setTopicoId(t.id)}>
         <span className="forum-linha-titulo">{t.titulo}</span>
         <span className="forum-linha-meta">{(t.autor_nome || (en ? 'Someone' : 'Alguém')) + ' · ' + forumQuando(t.criado_em, en)}</span>
-      </div>
+      </button>
       <div className="forum-contas">
         <span>{plural(t.visualizacoes || 0, en ? 'view' : 'visualização', en ? 'views' : 'visualizações')}</span>
         <span>{plural(t.respostas, en ? 'comment' : 'comentário', en ? 'comments' : 'comentários')}</span>
@@ -398,7 +401,7 @@ function ForumView({ lang = 'pt' }) {
         )}
       </div>
       <ForumCurtir curtidas={t.curtidas} curtido={t.eu_curti} en={en} onAlternar={() => curtirTopico(t)} />
-    </div>
+    </li>
   );
   const cabeca = (rotulo, acao = null) => (
     <div className="mn-quadro-cabeca forum-cabeca">
@@ -419,8 +422,8 @@ function ForumView({ lang = 'pt' }) {
           : papel.ehImperador ? (en ? 'No rooms yet. Open the first one with +.' : 'Nenhuma sala ainda. Abra a primeira no +.')
           : (en ? 'No rooms yet.' : 'Nenhuma sala ainda.')}</p>
       ) : (
-        <div className="mn-quadro-grupo forum-quadro" role="list">
-          {lista.map(linhaSala)}
+        <div className="mn-quadro-grupo forum-quadro">
+          <ul className="forum-linhas" aria-label={en ? 'Rooms' : 'Salas'}>{lista.map(linhaSala)}</ul>
         </div>
       );
   } else if (naSala) {
@@ -433,13 +436,13 @@ function ForumView({ lang = 'pt' }) {
         {/* As salas de dentro (15/11/2026): primeiro elas, depois os tópicos.
             O Imperador abre uma nova aqui mesmo. */}
         {(subsalas.length > 0 || papel.ehImperador) && (
-          <div className="mn-quadro-grupo forum-quadro" role="list" aria-label={en ? 'Rooms' : 'Salas'}>
+          <div className="mn-quadro-grupo forum-quadro">
             {cabeca(en ? 'Rooms' : 'Salas', papel.ehImperador && (
               <button type="button" className="btn-ghost btn-sm forum-cabeca-acao" onClick={() => setJanela({ tipo: 'sala', pai: salaId })}>
                 <i className="ti ti-plus" aria-hidden="true" />{en ? 'New room here' : 'Nova sala aqui'}
               </button>
             ))}
-            {subsalas.map(linhaSala)}
+            <ul className="forum-linhas" aria-label={en ? 'Rooms' : 'Salas'}>{subsalas.map(linhaSala)}</ul>
           </div>
         )}
         {topicos === null ? <p className="forum-vazio">{en ? 'Loading topics…' : 'Carregando os tópicos…'}</p>
@@ -448,9 +451,9 @@ function ForumView({ lang = 'pt' }) {
               : podeEscreverAqui ? (en ? 'No topics yet. Start one with +.' : 'Nenhum tópico ainda. Comece um no +.')
               : (en ? 'No topics yet.' : 'Nenhum tópico ainda.')}</p>
           ) : (
-            <div className="mn-quadro-grupo forum-quadro" role="list" aria-label={en ? 'Topics' : 'Tópicos'}>
+            <div className="mn-quadro-grupo forum-quadro">
               {cabeca(en ? 'Topics' : 'Tópicos')}
-              {lista.map(linhaTopico)}
+              <ul className="forum-linhas" aria-label={en ? 'Topics' : 'Tópicos'}>{lista.map(linhaTopico)}</ul>
               <ForumLegenda en={en} />
             </div>
           )}

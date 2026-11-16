@@ -67,6 +67,14 @@
 #root .menestrel-ui .mp-acao i { font-size: 17px; color: var(--tinta-2); }
 #root .menestrel-ui .mp-tela .mp-acao:hover { background: rgba(138,110,64,.24); }
 #root .menestrel-ui .mp-acao:active { translate: 0 1px; }
+/* As ações do lugar em foco, só o ícone (15/11/2026): círculo de 36px; o nome
+   num balão no hover e no foco do teclado, com a pele do .mn-tip. */
+#root .menestrel-ui .mp-tela .mp-acao.so-ico { position: relative; width: 36px; padding: 0; justify-content: center; }
+#root .menestrel-ui .mp-tela .mp-acao.so-ico[data-dica]:is(:hover, :focus-visible)::after {
+  content: attr(data-dica); position: absolute; left: 50%; bottom: calc(100% + 6px); translate: -50% 0; z-index: 6;
+  padding: 6px 10px; border-radius: 8px; border: 1px solid var(--regua-forte); background: var(--p-fundo);
+  color: var(--tinta); font: 600 var(--fs-xs, 12px)/1.2 var(--font-body); white-space: nowrap; pointer-events: none;
+}
 #root .menestrel-ui .mp-tela .mp-acao.perigo:hover { background: rgba(162,59,47,.16); color: var(--alerta); }
 #root .menestrel-ui .mp-acao.perigo:hover i { color: var(--alerta); }
 #root .menestrel-ui .mp-nota { margin: 12px 0 0; font-size: var(--fs-sm); color: var(--tinta-2); text-wrap: pretty; }
@@ -143,7 +151,7 @@
   box-shadow: 0 0 0 1px var(--regua-forte), 0 5px 12px -4px rgba(8,6,2,.8);
 }
 #root .menestrel-ui .mp-tela .mp-marca:hover { color: var(--vivo); }
-#root .menestrel-ui .mp-tela .mp-marca.vila { width: 26px; height: 26px; font-size: 15px; }
+#root .menestrel-ui .mp-tela .mp-marca:is(.vila, .local) { width: 26px; height: 26px; font-size: 15px; }
 #root .menestrel-ui .mp-tela .mp-marca.destino { width: 36px; height: 36px; font-size: 20px; color: var(--vivo); box-shadow: 0 0 0 1.5px var(--vivo), 0 5px 12px -4px rgba(8,6,2,.8); }
 #root .menestrel-ui .mp-mira { width: 34px; height: 34px; translate: -50% -50%; border-radius: 50%; border: 2px solid var(--vivo); box-shadow: 0 0 0 2px rgba(18,13,6,.8), inset 0 0 0 2px rgba(18,13,6,.8); pointer-events: none; }
 #root .menestrel-ui .mp-mira.passa { border-color: var(--tinta); width: 28px; height: 28px; }
@@ -151,6 +159,7 @@
 #root .menestrel-ui .mp-alca { width: 14px; height: 14px; translate: -50% -50%; border-radius: 50%; background: var(--tinta); box-shadow: 0 0 0 2px var(--mp-fundo); pointer-events: none; }
 #root .menestrel-ui .mp-alca.meio { width: 9px; height: 9px; background: var(--tinta-3); }
 #root .menestrel-ui .mp-alca.sel { width: 18px; height: 18px; background: var(--vivo); }
+#root .menestrel-ui .mp-mapa.longe .mp-etiqueta { display: none; }
 #root .menestrel-ui .mp-etiqueta {
   translate: -50% 22px; white-space: nowrap; padding: 2px 9px; border-radius: 999px; pointer-events: none;
   background: rgba(18,13,6,.86); font-weight: 600; font-size: var(--fs-xs); color: var(--tinta);

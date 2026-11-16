@@ -100,11 +100,13 @@ const _lerDatas = (txt) => String(txt || '').split(/[,;]+/).map((s) => s.trim())
 
 const CAMPOS_MUNDO = {
   entidade: [
-    { chave: 'nome', pt: 'Nome', en: 'Name', tipo: 'texto', obrigatorio: true, meia: true },
-    { chave: 'classe', pt: 'Classe', en: 'Class', tipo: 'opcoes', meia: true,
+    /* Nome, Classe, Domínio e Imagem numa linha, a imagem por upload — como
+       no grupo (15/11/2026, usuário: "também deve estar em entidades"). */
+    { chave: 'nome', pt: 'Nome', en: 'Name', tipo: 'texto', obrigatorio: true, quarto: true },
+    { chave: 'classe', pt: 'Classe', en: 'Class', tipo: 'opcoes', quarto: true,
       opcoes: () => Object.entries((typeof ENTIDADE_CLASSES !== 'undefined' && ENTIDADE_CLASSES) || _cmw('ENTIDADE_CLASSES') || {}) },
-    { chave: 'titulo', pt: 'Domínio', en: 'Domain', tipo: 'texto', meia: true },
-    { chave: 'imagem', pt: 'Imagem (endereço)', en: 'Image (URL)', tipo: 'texto', meia: true },
+    { chave: 'titulo', pt: 'Domínio', en: 'Domain', tipo: 'texto', quarto: true },
+    { chave: 'imagem', pt: 'Imagem', en: 'Image', tipo: 'imagem', quarto: true },
     /* Prefácio · História · Política (15/11/2026, usuário), sem tirar nada:
        a História é a descrição, com Locais, Itens e Feriados (o calendário lê
        estes) dentro dela; a Política são as Relações. */
@@ -119,20 +121,25 @@ const CAMPOS_MUNDO = {
     { chave: 'relacoes', pt: 'Política', en: 'Politics', tipo: 'lista', campos: [['nome', 'Nome', 'Name'], ['texto', 'Texto', 'Text', 'area']] },
   ],
   grupo: [
-    { chave: 'nome', pt: 'Nome', en: 'Name', tipo: 'texto', obrigatorio: true, meia: true },
-    { chave: 'tipo', pt: 'Tipo', en: 'Type', tipo: 'opcoes', meia: true,
+    /* NOME, TIPO, TÍTULO E IMAGEM NUMA LINHA (15/11/2026, usuário: "Os botões
+       'nome, tipo, título e imagem' devem ficar inline"); a imagem é um
+       upload, não mais um endereço digitado. */
+    { chave: 'nome', pt: 'Nome', en: 'Name', tipo: 'texto', obrigatorio: true, quarto: true },
+    { chave: 'tipo', pt: 'Tipo', en: 'Type', tipo: 'opcoes', quarto: true,
       opcoes: () => Object.entries((typeof GRUPO_TIPOS !== 'undefined' && GRUPO_TIPOS) || _cmw('GRUPO_TIPOS') || {}) },
-    { chave: 'titulo', pt: 'Título', en: 'Title', tipo: 'texto', meia: true },
-    { chave: 'imagem', pt: 'Imagem (endereço)', en: 'Image (URL)', tipo: 'texto', meia: true },
+    { chave: 'titulo', pt: 'Título', en: 'Title', tipo: 'texto', quarto: true },
+    { chave: 'imagem', pt: 'Imagem', en: 'Image', tipo: 'imagem', quarto: true },
     /* Os sete tópicos de 15/11/2026, na ordem da janela: Epígrafe, História,
        Localização, Admissão, Organização, Relíquias, Rumores. */
     { chave: 'epigrafe.texto', pt: 'Epígrafe', en: 'Epigraph', tipo: 'area', linhas: 3 },
     { chave: 'epigrafe.autor', pt: 'Autor da epígrafe', en: 'Epigraph author', tipo: 'texto' },
     { chave: 'historia', pt: 'História', en: 'History', tipo: 'area', linhas: 10 },
-    { chave: 'locais', pt: 'Localização', en: 'Location', tipo: 'lista', campos: [['nome', 'Nome', 'Name'], ['onde', 'Onde', 'Where'], ['texto', 'Texto', 'Text', 'area']] },
+    /* "Onde" busca uma cidade do catálogo, e a Relíquia, um item (15/11/2026):
+       grava o nome (o que a ficha mostra) e a chave (cidade, item). */
+    { chave: 'locais', pt: 'Localização', en: 'Location', tipo: 'lista', campos: [['nome', 'Nome', 'Name'], ['onde', 'Onde (cidade)', 'Where (city)', 'cidade'], ['texto', 'Texto', 'Text', 'area']] },
     { chave: 'admissao', pt: 'Admissão', en: 'Admission', tipo: 'area', linhas: 4 },
     { chave: 'organizacao', pt: 'Organização', en: 'Organization', tipo: 'area', linhas: 10 },
-    { chave: 'reliquias', pt: 'Relíquias', en: 'Relics', tipo: 'lista', campos: [['nome', 'Nome', 'Name'], ['texto', 'Texto', 'Text', 'area']] },
+    { chave: 'reliquias', pt: 'Relíquias', en: 'Relics', tipo: 'lista', campos: [['nome', 'Item', 'Item', 'item'], ['texto', 'Texto', 'Text', 'area']] },
     { chave: 'rumores', pt: 'Rumores', en: 'Rumors', tipo: 'lista', campos: [['nome', 'Nome', 'Name'], ['texto', 'Texto', 'Text', 'area']] },
   ],
 };
@@ -182,6 +189,134 @@ const _slugLivre = (tipo, nome) => {
   return s;
 };
 
+/* ── A IMAGEM POR UPLOAD (15/11/2026, usuário: "Remova o botão 'Imagem
+   (endereço)' em editar grupo e adicionar um botão para fazer upload de uma
+   imagem") ────────────────────────────────────────────────────────────────
+   Vai para o bucket `avatares`, na pasta de quem envia (a policy só deixa o
+   dono escrever ali) — o mesmo caminho da imagem do capítulo. Imagem grande
+   encolhe para 1600px em WebP antes de subir. */
+const MUNDO_IMAGEM_LADO = 1600;
+function _encolherImagem(file) {
+  return new Promise((ok, falha) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const escala = Math.min(1, MUNDO_IMAGEM_LADO / Math.max(img.width, img.height));
+      const c = document.createElement('canvas');
+      c.width = Math.round(img.width * escala); c.height = Math.round(img.height * escala);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(url);
+      c.toBlob((b) => (b ? ok(b) : falha(new Error('sem_imagem'))), 'image/webp', 0.86);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); falha(new Error('sem_imagem')); };
+    img.src = url;
+  });
+}
+function CampoImagemMundo({ id, rotulo, valor, onMudar, pasta, en }) {
+  const [enviando, setEnviando] = React.useState(false);
+  const [erro, setErro] = React.useState(null);
+  const entradaRef = React.useRef(null);
+  const enviar = async (ev) => {
+    const file = ev.target.files && ev.target.files[0];
+    ev.target.value = '';
+    if (!file) return;
+    if (!/^image\//.test(file.type)) { setErro(en ? 'Choose an image file.' : 'Escolha um arquivo de imagem.'); return; }
+    setErro(null); setEnviando(true);
+    try {
+      const arq = await _encolherImagem(file).catch(() => file);
+      const { data: quem } = await supabaseClient.auth.getUser();
+      const uid = quem && quem.user && quem.user.id;
+      if (!uid) throw new Error(en ? 'Sign in again.' : 'Entre de novo.');
+      const caminho = `${uid}/mundo/${pasta}-${Date.now()}.webp`;
+      const up = await supabaseClient.storage.from('avatares')
+        .upload(caminho, arq, { upsert: true, contentType: arq.type || 'image/webp', cacheControl: '3600' });
+      if (up.error) throw up.error;
+      const { data: pub } = supabaseClient.storage.from('avatares').getPublicUrl(caminho);
+      onMudar(pub.publicUrl);
+    } catch (e) {
+      setErro((en ? 'Could not upload: ' : 'Não deu para enviar: ') + (e.message || e));
+    } finally {
+      setEnviando(false);
+    }
+  };
+  return (
+    <div className="mundo-imagem">
+      <span className="diario-field-label" id={id + '-rot'}>{rotulo}</span>
+      <div className="mundo-imagem-linha">
+        {valor && <img className="mundo-imagem-mini" src={valor} alt="" />}
+        <button type="button" className="btn-ghost btn-sm mundo-imagem-enviar" aria-describedby={id + '-rot'}
+          disabled={enviando} onClick={() => entradaRef.current && entradaRef.current.click()}>
+          <i className={'ti ' + (enviando ? 'ti-loader-2' : 'ti-upload')} aria-hidden="true" />
+          {enviando ? (en ? 'Uploading…' : 'Enviando…') : valor ? (en ? 'Replace' : 'Trocar') : (en ? 'Upload' : 'Enviar')}
+        </button>
+        {valor && !enviando && (
+          <button type="button" className="btn-icon btn-sm" aria-label={en ? 'Remove image' : 'Tirar a imagem'} onClick={() => onMudar('')}>
+            <i className="ti ti-x" aria-hidden="true" />
+          </button>
+        )}
+        <input ref={entradaRef} type="file" accept="image/*" hidden onChange={enviar} />
+      </div>
+      {erro && <p className="mundo-imagem-erro" role="alert">{erro}</p>}
+    </div>
+  );
+}
+
+/* ── A BUSCA NO CATÁLOGO (15/11/2026, usuário: "Ao adicionar localização, o
+   campo para dizer onde deve buscar uma cidade do catálogo. Ao adicionar
+   relíquia também deve buscar um item do catálogo") ─────────────────────
+   Digita, e até oito do catálogo aparecem embaixo; escolher grava o nome e
+   a chave. O texto digitado sem escolher também vale — um lugar que ainda
+   não está no catálogo continua podendo ser escrito. */
+function BuscaNoCatalogo({ id, valor, opcoes, onDigitar, onEscolher, en, carregando }) {
+  const [aberto, setAberto] = React.useState(false);
+  const semAcento = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const q = semAcento(valor).trim();
+  const achados = q ? (opcoes || []).filter((o) => semAcento(o.nome).includes(q)).slice(0, 8) : [];
+  return (
+    <div className="mundo-busca">
+      <input id={id} className="diario-input" value={valor || ''} autoComplete="off" role="combobox"
+        aria-expanded={aberto && achados.length > 0} aria-controls={id + '-lista'}
+        placeholder={carregando ? (en ? 'Loading the catalog…' : 'Carregando o catálogo…') : (en ? 'Search the catalog' : 'Buscar no catálogo')}
+        onFocus={() => setAberto(true)} onBlur={() => setAberto(false)}
+        onChange={(e) => { onDigitar(e.target.value); setAberto(true); }} />
+      {aberto && achados.length > 0 && (
+        <ul id={id + '-lista'} className="mundo-busca-lista" role="listbox">
+          {achados.map((o) => (
+            <li key={o.chave} role="option" aria-selected={false}
+              onMouseDown={(e) => { e.preventDefault(); onEscolher(o); setAberto(false); }}>
+              <span className="mundo-busca-nome">{o.nome}</span>
+              {o.meta && <span className="mundo-busca-meta">{o.meta}</span>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/* As cidades e os itens do catálogo, para a busca — carregados uma vez. */
+let _opcoesMundo = null;
+function useOpcoesDoCatalogo(ligado) {
+  const [opcoes, setOpcoes] = React.useState(_opcoesMundo);
+  React.useEffect(() => {
+    if (!ligado || _opcoesMundo) return undefined;
+    let vivo = true;
+    const paginada = (typeof fetchTabelaPaginada === 'function' ? fetchTabelaPaginada : _cmw('fetchTabelaPaginada'));
+    Promise.all([
+      supabaseClient.rpc('listar_catalogo_global', { p_tipo: 'cidade' }),
+      paginada ? paginada('itens', { colunas: 'slug, nome, grupo', ordem: ['nome'] })
+               : supabaseClient.from('itens').select('slug, nome, grupo').order('nome'),
+    ]).then(([cid, its]) => {
+      const cidades = ((cid && cid.data && cid.data.entradas) || []).map((c) => ({ chave: c.id, nome: c.nome }));
+      const itens = ((its && its.data) || []).map((i) => ({ chave: i.slug, nome: i.nome, meta: i.grupo }));
+      _opcoesMundo = { cidades, itens };
+      if (vivo) setOpcoes(_opcoesMundo);
+    }).catch(() => { if (vivo) setOpcoes({ cidades: [], itens: [] }); });
+    return () => { vivo = false; };
+  }, [ligado]);
+  return opcoes;
+}
+
 /* A JANELA DE EDITAR — a mesma do editor de catálogo (.modal-catalogo):
    campos sem borda, Excluir no rodapé no lugar do Cancelar, em dois cliques. */
 function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
@@ -222,16 +357,28 @@ function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
   };
 
   const rot = (c) => (en ? c.en : c.pt);
+  // As buscas de cidade e item só carregam o catálogo se o formulário as tem.
+  const precisaCatalogo = campos.some((c) => c.tipo === 'lista' && c.campos.some((x) => x[3] === 'cidade' || x[3] === 'item'));
+  const opcoesCatalogo = useOpcoesDoCatalogo(precisaCatalogo);
+  const classeCampo = (c) => 'mundo-campo' + (c.meia ? ' mundo-campo--meia' : '') + (c.quarto ? ' mundo-campo--quarto' : '');
   const campoSimples = (c) => {
     const id = 'mundo-' + c.chave.replace('.', '-');
     const v = _ler(form, c.chave) || '';
     const mudar = (val) => setForm((f) => _gravar(f, c.chave, val));
     if (c.tipo === 'opcoes' && Select) {
       const ops = [{ value: '', label: '—' }, ...c.opcoes().map(([k, o]) => ({ value: k, label: en ? o.en : o.pt }))];
-      return <div key={c.chave} className={'mundo-campo' + (c.meia ? ' mundo-campo--meia' : '')}><Select label={rot(c)} value={v} options={ops} onChange={mudar} /></div>;
+      return <div key={c.chave} className={classeCampo(c)}><Select label={rot(c)} value={v} options={ops} onChange={mudar} /></div>;
+    }
+    if (c.tipo === 'imagem') {
+      return (
+        <div key={c.chave} className={classeCampo(c)}>
+          <CampoImagemMundo id={id} rotulo={rot(c)} valor={v} onMudar={mudar} en={en}
+            pasta={tipo + '-' + (form.slug || _slugLivre(tipo, form.nome || tipo))} />
+        </div>
+      );
     }
     return (
-      <div key={c.chave} className={'mundo-campo' + (c.meia ? ' mundo-campo--meia' : '')}>
+      <div key={c.chave} className={classeCampo(c)}>
         <label className="diario-field-label" htmlFor={id}>{rot(c)}</label>
         {c.tipo === 'area'
           ? <textarea id={id} className="diario-textarea" rows={c.linhas || 4} value={v} onChange={(e) => mudar(e.target.value)} />
@@ -242,6 +389,7 @@ function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
   const campoLista = (c) => {
     const itens = form[c.chave] || [];
     const mudarItem = (i, k, val) => setForm((f) => ({ ...f, [c.chave]: f[c.chave].map((it, j) => (j === i ? { ...it, [k]: val } : it)) }));
+    const mudarItemVarios = (i, patch) => setForm((f) => ({ ...f, [c.chave]: f[c.chave].map((it, j) => (j === i ? { ...it, ...patch } : it)) }));
     const tirar = (i) => setForm((f) => ({ ...f, [c.chave]: f[c.chave].filter((_, j) => j !== i) }));
     const por = () => setForm((f) => ({ ...f, [c.chave]: [...(f[c.chave] || []), {}] }));
     return (
@@ -254,10 +402,17 @@ function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
           <div key={i} className="mundo-lista-item">
             {c.campos.map(([k, pt, ing, area]) => {
               const id = `mundo-${c.chave}-${i}-${k}`;
+              // 'cidade' e 'item': a busca no catálogo; grava o nome em `k` e a chave ao lado.
+              const busca = area === 'cidade' || area === 'item';
               return (
-                <div key={k} className={'mundo-campo' + (area ? '' : ' mundo-campo--meia')}>
+                <div key={k} className={'mundo-campo' + (area && !busca ? '' : ' mundo-campo--meia')}>
                   <label className="diario-field-label" htmlFor={id}>{en ? ing : pt}</label>
-                  {area
+                  {busca ? (
+                    <BuscaNoCatalogo id={id} valor={it[k]} en={en} carregando={!opcoesCatalogo}
+                      opcoes={opcoesCatalogo ? (area === 'cidade' ? opcoesCatalogo.cidades : opcoesCatalogo.itens) : []}
+                      onDigitar={(val) => mudarItemVarios(i, { [k]: val, [area]: undefined })}
+                      onEscolher={(o) => mudarItemVarios(i, { [k]: o.nome, [area]: o.chave })} />
+                  ) : area
                     ? <textarea id={id} className="diario-textarea" rows={3} value={it[k] || ''} onChange={(e) => mudarItem(i, k, e.target.value)} />
                     : <input id={id} className="diario-input" value={it[k] || ''} onChange={(e) => mudarItem(i, k, e.target.value)} autoComplete="off" />}
                 </div>
@@ -286,7 +441,7 @@ function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
 
   return (
     <Modal title={titulo} lang={lang} size="lg" extraClass="modal-catalogo modal-mundo"
-      onClose={onClose} onCancel={onClose} onConfirm={salvar}
+      onClose={onClose} onConfirm={salvar}
       confirmLabel={salvando ? (en ? 'Saving…' : 'Salvando…') : undefined}
       confirmDisabled={salvando || !nomeOk} footerLeft={botaoExcluir}>
       {armado && (
@@ -305,4 +460,6 @@ function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
 Object.assign(window, {
   mundoVigente, carregarCatalogoMundo, definirCatalogoMundo, useCatalogoMundo, salvarNoMundo, removerDoMundo,
   EditorMundo, CAMPOS_MUNDO, limparEntradaMundo: _limparEntrada,
+  // O campo de imagem por upload também serve ao editor de Reinos (13-diario/diario.jsx).
+  CampoImagemMundo,
 });

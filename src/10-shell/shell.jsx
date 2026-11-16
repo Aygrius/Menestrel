@@ -5302,7 +5302,21 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           onMouseEnter={abrirNavLateral}
           aria-label={lang === 'en' ? 'Navigation' : 'Navegação'}>
           <div className="mc-marca">
-            <span className="mc-marca-nome"><SeloMenestrel size={28} /><span className="mc-marca-texto">Menestrel</span></span>
+            {/* O LOGO LEVA À TELA PRINCIPAL (15/11/2026, usuário: "Ao clicar no
+                ícone 'Menestrel' no menu da lateral esquerda, vai para a tela
+                principal"). A do Mestre são as Novidades, que só existem fora
+                de mesa — por isso o clique sai da mesa, como o "Sair" do menu
+                dela. O Jogador vai para a primeira página dele. */}
+            <button type="button" className="mc-marca-nome mc-marca-inicio"
+              aria-label={lang === 'en' ? 'Menestrel — home' : 'Menestrel — tela principal'}
+              onClick={() => {
+                setNavAberta(false);
+                if (profile === 'master') { setMesaAtivaId(null); ir('historias'); return; }
+                const primeiro = nav.mesa[0];
+                if (primeiro) irPara(primeiro);
+              }}>
+              <SeloMenestrel size={28} /><span className="mc-marca-texto">Menestrel</span>
+            </button>
             <button type="button" className="mc-navfechar" aria-label={lang === 'en' ? 'Close menu' : 'Fechar menu'}
               onClick={() => setNavAberta(false)}>
               <i className="ti ti-x" aria-hidden="true" />

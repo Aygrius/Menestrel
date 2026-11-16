@@ -1,3 +1,7 @@
+-- ⚠ CORRIGIDO EM 15/11/2026 (usuário: "Você criou cidades-estado como locais, mas é um
+--   reino"): o texto deste local foi para o REINO Cidades-Estado
+--   (novo-reino-h24-d82a4d49), e o local foi apagado (cópia em
+--   backup.local_cidades_estado_20261115). Não reaplicar o trecho de cidades-estado.
 -- 08/11/2026 — Os lugares citados pelas Entidades que faltavam no catálogo do mundo.
 --
 -- Usuário: "Crie as cidades que são citadas." Cada lugar entra no tipo que

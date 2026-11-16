@@ -1493,6 +1493,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
   const [confirmandoCancelar, setConfirmandoCancelar] = useState(null);
   // A lixeira da janela da entrada, em dois cliques (23/10/2026).
   const [lixeiraArmada,       setLixeiraArmada]       = useState(false);
+  const [excluirArmadoForm,   setExcluirArmadoForm]   = useState(false);
   const [tip, abrirTip, fecharTip, manterTip]         = usePortalTooltip(80);
 
   // ── Fetch ─────────────────────────────────────────────────────
@@ -1774,8 +1775,22 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
         : (en ? `New ${diarioTipoLabel(tipoReal || tipoAba, lang)}` : `${novoDoTipo(tipoReal || tipoAba)} ${diarioTipoLabel(tipoReal || tipoAba, lang)}`)}
       lang={lang}
       size="lg"
-      onClose={() => { setEditando(null); setTipoNovo(null); }}
-      onCancel={() => { setEditando(null); setTipoNovo(null); }}
+      onClose={() => { setEditando(null); setTipoNovo(null); setExcluirArmadoForm(false); }}
+      /* EXCLUIR NO LUGAR DO CANCELAR (15/11/2026, usuário: "Está faltando
+         alterar o botão 'cancelar' para 'excluir' dos itens de ambientação e
+         compêndio"). Dois cliques, como no editor do catálogo; só na entrada
+         que existe e que o banco deixa apagar (a do mundo, não). */
+      footerLeft={editando.id && !editando._global ? (
+        <button type="button" className={'btn-danger btn-md' + (excluirArmadoForm ? ' is-armado' : '')}
+          onClick={() => {
+            if (!excluirArmadoForm) { setExcluirArmadoForm(true); return; }
+            const id = editando.id;
+            setExcluirArmadoForm(false); setEditando(null); setTipoNovo(null);
+            excluirLore(id);
+          }}>
+          {excluirArmadoForm ? (en ? 'Confirm delete' : 'Confirmar exclusão') : (en ? 'Delete' : 'Excluir')}
+        </button>
+      ) : null}
       onConfirm={salvarLore}
     >
       <LoreEntradaForm
@@ -2460,7 +2475,12 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
            do lado de nome, inline, para selecionar a capital, do catálogo de
            cidades"). Grava o slug da cidade em reinos.capital, que as
            listagens devolvem como capital_cidade — ver reino-capital-2026-09-26.sql. */
-        <div className="diario-form-linha-nome diario-form-linha-nome--cidade">
+        /* A IMAGEM DO REINO VOLTOU, POR UPLOAD (15/11/2026, usuário: "O campo
+           'imagem' e os demais (alinhados inline), também deve estar em
+           entidades e reinos"). O mesmo campo das Entidades e dos Grupos
+           (CampoImagemMundo, 13-diario/catalogo-mundo.jsx); grava em
+           reinos.icone, que as listagens devolvem como imagem_url. */
+        <div className="diario-form-linha-nome diario-form-linha-nome--reino">
           <div>
             <label className="diario-field-label">{tl.nome}</label>
             <input className="diario-input" type="text" value={v.nome} onChange={(e) => set({ nome: e.target.value })} autoFocus />
@@ -2476,6 +2496,11 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
               ]}
             />
           </div>
+          {window.CampoImagemMundo && (
+            <window.CampoImagemMundo id="reino-imagem" rotulo={en ? 'Image' : 'Imagem'} en={en}
+              valor={v.imagem_url || ''} onMudar={(url) => set({ imagem_url: url })}
+              pasta={'reino-' + String(v.id || v.nome || 'novo').toLowerCase().replace(/[^a-z0-9]+/g, '-')} />
+          )}
         </div>
       ) : (
         <>
@@ -2819,6 +2844,7 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo, trilh
   const [tipoAba, setTipoAba] = useState(tipoFixo || 'npc'); // npc | lugar | criatura (disponibilizar)
   // A lixeira da ficha armada no primeiro clique (26/09/2026) — a chave da entrada.
   const [lixeiraArmada, setLixeiraArmada] = useState(null);
+  const [excluirArmadoForm, setExcluirArmadoForm] = useState(false);
   /* SEM MESA (26/09/2026: "quando não selecionei uma aventura, não consigo ver
      o menu diário"). Sem história a página mostra o catálogo do MUNDO só para
      leitura: salvar_lore_entrada exige uma história (até para o admin) e a
@@ -3007,8 +3033,22 @@ function GerenciarLoreView({ historia, lang, onClose, onChanged, tipoFixo, trilh
         : (en ? `New ${diarioTipoLabel(tipoNovo || tipoAba, lang)}` : `${novoDoTipo(tipoNovo || tipoAba)} ${diarioTipoLabel(tipoNovo || tipoAba, lang)}`)}
       lang={lang}
       size="lg"
-      onClose={() => { setEditando(null); setTipoNovo(null); }}
-      onCancel={() => { setEditando(null); setTipoNovo(null); }}
+      onClose={() => { setEditando(null); setTipoNovo(null); setExcluirArmadoForm(false); }}
+      /* EXCLUIR NO LUGAR DO CANCELAR (15/11/2026, usuário: "Está faltando
+         alterar o botão 'cancelar' para 'excluir' dos itens de ambientação e
+         compêndio"). Dois cliques, como no editor do catálogo; só na entrada
+         que existe e que o banco deixa apagar (a do mundo, não). */
+      footerLeft={editando.id && (!editando._global || ehAdmin) ? (
+        <button type="button" className={'btn-danger btn-md' + (excluirArmadoForm ? ' is-armado' : '')}
+          onClick={() => {
+            if (!excluirArmadoForm) { setExcluirArmadoForm(true); return; }
+            const id = editando.id;
+            setExcluirArmadoForm(false); setEditando(null); setTipoNovo(null);
+            excluirLore(id);
+          }}>
+          {excluirArmadoForm ? (en ? 'Confirm delete' : 'Confirmar exclusão') : (en ? 'Delete' : 'Excluir')}
+        </button>
+      ) : null}
       onConfirm={salvarLore}
     >
       {/* EDITANDO UM GLOBAL: salvar não altera o catálogo do mundo, cria uma

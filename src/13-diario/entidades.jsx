@@ -69,11 +69,18 @@ function EntidadeDetalhe({ entidade: e, lang, onClose, onEditar = null }) {
   return (
     <Janela title={e.nome} lang={lang} onClose={onClose} extraClass="modal-ambientacao"
       acoes={onEditar ? [{ chave: 'editar', icone: 'ti-pencil', rotulo: en ? 'Edit' : 'Editar', onClick: onEditar }] : []}>
-      {e.prefacio && secao(en ? 'Preface' : 'Prefácio', (
-        <>
-          {paragrafos(e.prefacio.texto)}
-          {e.prefacio.fonte && <p className="ent-fonte">{e.prefacio.fonte}</p>}
-        </>
+      {/* O PREFÁCIO COMO A EPÍGRAFE DOS GRUPOS (15/11/2026, usuário: "a imagem
+          das entidades não foi atualizada como em 'grupos'"): a imagem numa
+          coluna, o texto na outra, alinhados ao topo; sem imagem, o texto
+          ocupa a largura. A imagem saiu da História. */}
+      {((e.prefacio && e.prefacio.texto) || e.imagem) && secao(en ? 'Preface' : 'Prefácio', (
+        <div className={'grp-epigrafe' + (e.imagem ? ' grp-epigrafe--com-imagem' : '')}>
+          {e.imagem && <div className="grp-epigrafe-arte"><img src={e.imagem} alt={e.nome} /></div>}
+          <div className="grp-epigrafe-texto">
+            {e.prefacio && paragrafos(e.prefacio.texto)}
+            {e.prefacio && e.prefacio.fonte && <p className="ent-fonte">{e.prefacio.fonte}</p>}
+          </div>
+        </div>
       ), 'ent-prefacio')}
       {/* PREFÁCIO · HISTÓRIA · POLÍTICA (15/11/2026, usuário). Nada saiu ("só
           não exclua nenhuma informação"): a História é a descrição, e os
@@ -85,7 +92,6 @@ function EntidadeDetalhe({ entidade: e, lang, onClose, onEditar = null }) {
           {(classe || e.titulo) && (
             <p className="diario-det-resumo">{[classe, e.titulo].filter(Boolean).join(' · ')}</p>
           )}
-          {e.imagem && <div className="diario-det-art"><img src={e.imagem} alt={e.nome} /></div>}
           {paragrafos(e.descricao)}
           {tem(e.locais) && <><h5 className="mn-rotulo ent-sub">{en ? 'Places' : 'Locais'}</h5><EntidadeLista itens={e.locais} meta={(l) => l.onde} /></>}
           {tem(e.itens) && <><h5 className="mn-rotulo ent-sub">{en ? 'Items' : 'Itens'}</h5><EntidadeLista itens={e.itens} /></>}

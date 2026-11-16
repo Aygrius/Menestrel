@@ -1198,7 +1198,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
 
   return (
     <ModalShell title={titulo} lang={lang} size="lg" extraClass="modal-catalogo"
-      onClose={onCancel} onCancel={onCancel}
+      onClose={onCancel}
       onConfirm={salvar}
       confirmLabel={saving ? t.editorSalvando : undefined}
       confirmDisabled={saving || excluindo || !obrigatoriosOk}

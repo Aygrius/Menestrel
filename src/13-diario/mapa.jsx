@@ -37,6 +37,7 @@
    ============================================================ */
 
 const MAPA_L = 1200, MAPA_A = 2000;
+const MAPA_ZOOM_NOMES = 1;   // escala da câmera a partir da qual as etiquetas aparecem
 const MAPA_KM = 400 / 152.5;
 /* Suposição da tela, não regra do Tagmar: um dia de marcha a pé. */
 const MAPA_KM_DIA_A_PE = 30;
@@ -122,6 +123,22 @@ function criarMotorMapa(raiz, cfg) {
   let mesa = mapaNormalizar(cfg.mesa);
   let marcas = Array.isArray(cfg.marcas) ? cfg.marcas : [];
   const gente = cfg.gente || [];
+  /* A CAMADA DO MUNDO (15/11/2026, usuário: "Mas porque eu preciso entrar em
+     uma mesa, se o ambientação é global?"). As cidades e os locais que o
+     Imperador põe no mapa são do mundo (catalogo_mundo, tipo 'mapa') e
+     aparecem em toda mesa. Ao abrir, entram em mesa.lugares marcados `mundo`;
+     ao gravar, saem de novo — a mesa guarda só o que é dela (pontos, rotas,
+     caminhos, onde está cada um). Um lugar da mesa ligado à mesma ficha de um
+     do mundo dá lugar ao do mundo. */
+  const imperador = !!cfg.imperador;
+  let mundo = Array.isArray(cfg.mundo) ? cfg.mundo : [];
+  let ultimoMundo = JSON.stringify(mundo);
+  const juntarMundo = () => {
+    const doMundo = mundo.map((l) => ({ ...l, mundo: true }));
+    const jaNoMundo = new Set(doMundo.filter((l) => l.ficha).map((l) => l.tipo + ':' + l.ficha));
+    mesa.lugares = [...mesa.lugares.filter((l) => !l.mundo && !(l.ficha && jaNoMundo.has(l.tipo + ':' + l.ficha))), ...doMundo];
+  };
+  juntarMundo();
 
   const fmtKm = (n) => n.toLocaleString(en ? 'en-US' : 'pt-BR');
   const dias = (k) => { const d = k / MAPA_KM_DIA_A_PE, r = Math.round(d);
@@ -154,33 +171,52 @@ function criarMotorMapa(raiz, cfg) {
      caixa): a pintura não sabe de slug, e assim uma cidade que o Mestre cria
      no mapa com o nome de uma cadastrada já nasce ligada. */
   let fichas = new Map(), fichasId = new Map(), cadastradas = null, nomesLore = {};
+  /* OS LOCAIS NO MAPA (15/11/2026, usuário: "Quero uma opção de inserir locais
+     no mapa, além de cidades"). O mesmo trato das cidades: só os cadastrados
+     na aba Locais, ligados pelo id da ficha. */
+  let locaisCad = null, fichasLocalId = new Map();
   const chave = (nome) => semAcento(nome).trim();
   const porFichas = (c) => {
     cadastradas = c ? (c.cidades || []) : null;       // null = o catálogo ainda não chegou
     fichas = new Map((cadastradas || []).map((e) => [chave(e.nome), e]));
     fichasId = new Map((cadastradas || []).map((e) => [String(e.id), e]));
+    locaisCad = c ? (c.locais || []) : null;
+    fichasLocalId = new Map((locaisCad || []).map((e) => [String(e.id), e]));
     nomesLore = (c && c.nomes) || {};
   };
   porFichas(cfg.catalogo);
-  const fichaDe = (p) => { const l = p && (p.tipo === 'cidade' ? p : perto(p));
+  const fichaDe = (p) => { const l = p && (p.tipo === 'cidade' || p.tipo === 'local' ? p : perto(p));
+    if (l && l.tipo === 'local') return (l.ficha && fichasLocalId.get(String(l.ficha))) || null;
     return (l && l.tipo === 'cidade' && ((l.ficha && fichasId.get(String(l.ficha))) || fichas.get(chave(l.nome)))) || null; };
+  // O sinal de cada lugar no mapa e nas listas.
+  const ICONE_LUGAR = { cidade: 'ti-building-castle', local: 'ti-mountain', ponto: 'ti-star' };
   /* CIDADE NOVA NÃO NASCE NO MAPA (15/11/2026). Usuário: "não será criado uma
      'nova cidade' clicando no mapa, a cidade será criada na aba cidades da
      ambientação." A ferramenta Cidade só POSICIONA: o Mestre escolhe uma
      cadastrada que ainda não está no mapa e toca onde ela fica. O lugar guarda
      o id da ficha, e o nome passa a ser o dela (acertarNomes). */
-  const foraDoMapa = () => {
+  // As cadastradas (cidades ou locais) que ainda não estão no mapa.
+  const foraDoMapa = (tipo = 'cidade') => {
     const ids = new Set(), nomes = new Set();
-    mesa.lugares.forEach((l) => { if (l.tipo !== 'cidade') return; if (l.ficha) ids.add(String(l.ficha)); nomes.add(chave(l.nome)); });
-    return (cadastradas || []).filter((e) => !ids.has(String(e.id)) && !nomes.has(chave(e.nome)))
+    mesa.lugares.forEach((l) => { if (l.tipo !== tipo) return; if (l.ficha) ids.add(String(l.ficha)); nomes.add(chave(l.nome)); });
+    return ((tipo === 'local' ? locaisCad : cadastradas) || []).filter((e) => !ids.has(String(e.id)) && !nomes.has(chave(e.nome)))
       .sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
   };
+  const fichaPeloId = (tipo, id) => (tipo === 'local' ? fichasLocalId : fichasId).get(String(id));
   const acertarNomes = () => { let mudou = false;
-    mesa.lugares.forEach((l) => { const e = l.ficha && fichasId.get(String(l.ficha)); if (e && e.nome && e.nome !== l.nome) { l.nome = e.nome; mudou = true; } });
+    mesa.lugares.forEach((l) => { const e = l.ficha && fichaPeloId(l.tipo, l.ficha); if (e && e.nome && e.nome !== l.nome) { l.nome = e.nome; mudou = true; } });
     return mudou; };
 
   /* ── Gravação: o motor avisa, o React leva ao banco (com folga) ── */
-  const guardarMesa = () => cfg.aoMudarMesa && cfg.aoMudarMesa(JSON.parse(JSON.stringify(mesa)));
+  // A mesa leva o que é dela; o mundo (só o Imperador grava), o que é do mundo.
+  const guardarMesa = () => {
+    if (cfg.aoMudarMesa) cfg.aoMudarMesa(JSON.parse(JSON.stringify({ ...mesa, lugares: mesa.lugares.filter((l) => !l.mundo) })));
+    if (imperador && cfg.aoMudarMundo) {
+      const novos = mesa.lugares.filter((l) => l.mundo).map(({ mundo: _m, ...l }) => l);
+      const j = JSON.stringify(novos);
+      if (j !== ultimoMundo) { ultimoMundo = j; mundo = novos; cfg.aoMudarMundo(JSON.parse(j)); }
+    }
+  };
   const guardar = () => cfg.aoMudarMarcas && cfg.aoMudarMarcas(JSON.parse(JSON.stringify(marcas)));
 
   /* ── Câmera ── */
@@ -197,6 +233,11 @@ function criarMotorMapa(raiz, cfg) {
     prender();
     elMundo.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.s})`;
     elMundo.style.setProperty('--s', cam.s);
+    /* NOMES SÓ DE PERTO (15/11/2026, usuário: "Quando o zoom tiver longe, não
+       mostre o nome das cidades, etc. Quando ir se aproximando, mostre todos os
+       nomes"). Abaixo de 1:1 a pintura inteira cabe na tela e as etiquetas se
+       amontoam; ali fica só o marcador. */
+    elMapa.classList.toggle('longe', cam.s < MAPA_ZOOM_NOMES);
     escala(); pedirLadrilhos();
   }
   let voo = 0;
@@ -347,7 +388,7 @@ function criarMotorMapa(raiz, cfg) {
        pintura já o traz escrito ao lado — repeti-lo seria um segundo sinal
        para a mesma informação. */
     mesa.lugares.forEach((l) => {
-      h += mk(l, `<button type="button" class="mp-marca${l.tipo === 'cidade' ? ' vila' : ''}" data-alvo="lugar" data-id="${esc(l.id)}" aria-label="${esc(l.nome)}"><i class="ti ${l.tipo === 'cidade' ? 'ti-building-castle' : 'ti-star'}" aria-hidden="true"></i></button>` +
+      h += mk(l, `<button type="button" class="mp-marca${l.tipo === 'cidade' ? ' vila' : l.tipo === 'local' ? ' local' : ''}" data-alvo="lugar" data-id="${esc(l.id)}" aria-label="${esc(l.nome)}"><i class="ti ${ICONE_LUGAR[l.tipo] || 'ti-star'}" aria-hidden="true"></i></button>` +
         (l.p ? '' : `<span class="mp-etiqueta">${esc(l.nome)}</span>`));
     });
     if (J) h += mk(J.destino, `<button type="button" class="mp-marca destino" data-alvo="${mestre ? 'linha' : 'destino'}" data-id="${esc(J.rota.id)}" aria-label="${tr('Destino', 'Destination')}: ${esc(J.destino.nome)}"><i class="ti ti-flag" aria-hidden="true"></i></button>`);
@@ -381,7 +422,10 @@ function criarMotorMapa(raiz, cfg) {
     const cel = (rot, val) => `<div class="mp-celula"><span class="mp-rotulo">${rot}</span><span class="mp-valor assenta">${val}</span></div>`;
     const campo = (rot) => `<label class="mp-rotulo" for="mp-nome-foco">${rot}</label><input class="mp-passe-nome" id="mp-nome-foco" data-el="nome-foco" value="${esc(a.nome)}" maxlength="40" autocomplete="off">`;
     const fixo = (rot, vivoCls) => `<span class="mp-rotulo">${rot}</span><span class="mp-valor nome assenta${vivoCls ? ' vivo' : ''}">${esc(a.nome)}</span>`;
-    const bt = (acao, ico, txt, perigo) => `<button type="button" class="mp-acao${perigo ? ' perigo' : ''}" data-acao="${acao}"><i class="ti ${ico}" aria-hidden="true"></i>${txt}</button>`;
+    /* SÓ O ÍCONE (15/11/2026, usuário: "Nos itens do mapa 'abrir a ficha, medir
+       daqui, etc' deixe apenas o ícone"). O nome vai no aria-label e no balão
+       do hover (data-dica, desenhado no CSS como o .mn-tip). */
+    const bt = (acao, ico, txt, perigo) => `<button type="button" class="mp-acao so-ico${perigo ? ' perigo' : ''}" data-acao="${acao}" aria-label="${esc(txt)}" data-dica="${esc(txt)}"><i class="ti ${ico}" aria-hidden="true"></i></button>`;
     const doisNums = (rot, k) => cel(rot, `${fmtKm(k)} <small>km</small>`) + cel(tr('A pé', 'On foot'), dias(k));
     const faltaPelaRota = () => km(caminho(J.falta));
 
@@ -431,9 +475,9 @@ function criarMotorMapa(raiz, cfg) {
       const quem = postos().filter((g) => dist(g, a) < 4).map((g) => g.nome);
       if (EU) nums = doisNums(EU.eu ? tr('Em linha reta', 'Straight line') : tr('De ' + esc(EU.nome), 'From ' + esc(EU.nome)), km(dist(EU, a)));
       if (f.tipo === 'lugar') {
-        const rot = a.tipo === 'cidade' ? tr('Cidade', 'City') : tr('Ponto de interesse', 'Point of interest');
+        const rot = a.tipo === 'cidade' ? tr('Cidade', 'City') : a.tipo === 'local' ? tr('Local', 'Place') : tr('Ponto de interesse', 'Point of interest');
         // cidade ligada à ficha: o nome é o da aba Cidades, e é lá que se muda
-        id = mestre && !(a.tipo === 'cidade' && fichaDe(a)) ? campo(rot) : fixo(rot);
+        id = mestre && !((a.tipo === 'cidade' || a.tipo === 'local') && fichaDe(a)) ? campo(rot) : fixo(rot);
         if (!mestre) acoes = bt('marcar', 'ti-map-pin', tr('Marcar interesse', 'Mark interest'));
       } else {
         id = marcaSolta(a) ? campo(tr('Sua marca', 'Your mark')) : fixo(tr('Lugar marcado', 'Marked place'));
@@ -442,8 +486,12 @@ function criarMotorMapa(raiz, cfg) {
       acoes += bt('medir', 'ti-ruler-2', tr('Medir daqui', 'Measure from here'));
       if (mestre) {
         if (gente.length) acoes += bt('trazer', 'ti-users', tr('Trazer a comitiva', 'Bring the party'));
-        acoes += bt('remover', 'ti-trash', tr('Remover', 'Remove'), true);
-        nota = tr('Arraste no mapa para mudar de lugar.', 'Drag on the map to move it.');
+        // O lugar do mundo só o Imperador move ou tira; o Mestre usa como está.
+        const doMundo = f.tipo === 'lugar' && a.mundo;
+        if (!doMundo || imperador) {
+          acoes += bt('remover', 'ti-trash', tr('Remover', 'Remove'), true);
+          nota = tr('Arraste no mapa para mudar de lugar.', 'Drag on the map to move it.');
+        }
       } else if (quem.length) nota = tr(`${esc(quem.join(', '))} ${quem.length > 1 ? 'estão' : 'está'} aqui.`, `${esc(quem.join(', '))} ${quem.length > 1 ? 'are' : 'is'} here.`);
     }
     /* O que a aba Cidades sabe deste lugar: reino e população no passe, e a
@@ -478,7 +526,7 @@ function criarMotorMapa(raiz, cfg) {
     let h = '';
     if (mestre) {
       const pontos = mesa.lugares.filter((l) => l.tipo === 'ponto'), novas = mesa.lugares.filter((l) => l.tipo === 'cidade' && !l.p);
-      const doLugar = (l) => item(l.tipo === 'cidade' ? 'ti-building-castle' : 'ti-star', l.nome, '', longe(l), `data-alvo="lugar" data-id="${esc(l.id)}"`, emFoco('lugar', l.id));
+      const doLugar = (l) => item(ICONE_LUGAR[l.tipo] || 'ti-star', l.nome, '', longe(l), `data-alvo="lugar" data-id="${esc(l.id)}"`, emFoco('lugar', l.id));
       const colLonge = EU ? tr('De ' + esc(EU.nome), 'From ' + esc(EU.nome)) : '';
       /* CADA QUADRO COM A SUA FERRAMENTA (15/11/2026, usuário: "As informações
          de 'rotas', 'caminhos', 'pontos' e 'cidades novas' só aparecem no menu
@@ -489,8 +537,11 @@ function criarMotorMapa(raiz, cfg) {
       if (modo === 'caminho') h += quadro(tr('Caminhos', 'Paths'), mesa.linhas.filter((l) => l.tipo === 'caminho').length, tr('Comprimento', 'Length'), daLinha('caminho'),
         tr('Nenhum caminho ainda. Trace estradas, trilhas e travessias tocando no mapa.', 'No path yet. Draw roads, trails and crossings by tapping the map.'));
       if (modo === 'ponto') h += quadro(tr('Pontos', 'Points'), pontos.length, colLonge, pontos.map(doLugar).join(''), tr('Nenhum ponto ainda. Toque no mapa onde fica o ponto.', 'No point yet. Tap the map where the point is.'));
+      const locaisNoMapa = mesa.lugares.filter((l) => l.tipo === 'local');
       if (modo === 'cidade') h += quadro(tr('Cidades novas', 'New cities'), novas.length, colLonge, novas.map(doLugar).join(''),
-        tr(`As ${mesa.lugares.length - novas.length - pontos.length} cidades da pintura já respondem ao toque.`, `The ${mesa.lugares.length - novas.length - pontos.length} painted cities already respond to taps.`));
+        tr(`As ${mesa.lugares.length - novas.length - pontos.length - locaisNoMapa.length} cidades da pintura já respondem ao toque.`, `The ${mesa.lugares.length - novas.length - pontos.length - locaisNoMapa.length} painted cities already respond to taps.`));
+      if (modo === 'local') h += quadro(tr('Locais no mapa', 'Places on the map'), locaisNoMapa.length, colLonge, locaisNoMapa.map(doLugar).join(''),
+        tr('Nenhum local no mapa ainda. Escolha um cadastrado na lista acima e toque onde ele fica.', 'No place on the map yet. Pick a registered one in the list above and tap where it is.'));
     }
     if (!cfg.semMesa) h += quadro(tr('Comitiva', 'Party'), gente.length, tr('Onde está', 'Where'), gente.map((g) => {
       const p = mesa.gente[g.id];
@@ -511,15 +562,22 @@ function criarMotorMapa(raiz, cfg) {
 
   function achados() {
     const q = semAcento(busca.trim()), el = $('achados');
-    if (modo === 'cidade') {         // a ferramenta Cidade: as cadastradas que ainda não estão no mapa
-      const livres = foraDoMapa(), mostra = livres.filter((e) => !q || semAcento(e.nome).includes(q));
-      const vazio = !cadastradas ? tr('As cidades cadastradas ainda não chegaram. Tente de novo em instantes.', 'The registered cities have not loaded yet. Try again in a moment.')
-        : q && livres.length ? tr('Nenhuma cidade cadastrada com esse nome fora do mapa.', 'No registered city with that name off the map.')
-        : tr('Todas as cidades cadastradas já estão no mapa. Para pôr outra, crie-a antes na aba Cidades.', 'Every registered city is already on the map. To place another, create it first in the Cities tab.');
-      el.innerHTML = `<li class="mp-quadro-cab"><span class="mp-rotulo">${tr('Cidades cadastradas', 'Registered cities')}</span><span class="mp-conta">${livres.length}</span><span class="mp-rotulo col">${tr('Reino', 'Kingdom')}</span></li>` +
+    if (modo === 'cidade' || modo === 'local') {   // a ferramenta Cidade ou Local: os cadastrados que ainda não estão no mapa
+      const ehLocal = modo === 'local';
+      const livres = foraDoMapa(modo), mostra = livres.filter((e) => !q || semAcento(e.nome).includes(q));
+      const chegou = ehLocal ? locaisCad : cadastradas;
+      const vazio = !chegou
+        ? (ehLocal ? tr('Os locais cadastrados ainda não chegaram. Tente de novo em instantes.', 'The registered places have not loaded yet. Try again in a moment.')
+                   : tr('As cidades cadastradas ainda não chegaram. Tente de novo em instantes.', 'The registered cities have not loaded yet. Try again in a moment.'))
+        : q && livres.length
+          ? (ehLocal ? tr('Nenhum local cadastrado com esse nome fora do mapa.', 'No registered place with that name off the map.')
+                     : tr('Nenhuma cidade cadastrada com esse nome fora do mapa.', 'No registered city with that name off the map.'))
+          : (ehLocal ? tr('Todos os locais cadastrados já estão no mapa. Para pôr outro, crie-o antes na aba Locais.', 'Every registered place is already on the map. To place another, create it first in the Places tab.')
+                     : tr('Todas as cidades cadastradas já estão no mapa. Para pôr outra, crie-a antes na aba Cidades.', 'Every registered city is already on the map. To place another, create it first in the Cities tab.'));
+      el.innerHTML = `<li class="mp-quadro-cab"><span class="mp-rotulo">${ehLocal ? tr('Locais cadastrados', 'Registered places') : tr('Cidades cadastradas', 'Registered cities')}</span><span class="mp-conta">${livres.length}</span><span class="mp-rotulo col">${tr('Reino', 'Kingdom')}</span></li>` +
         (mostra.map((e) => { const reino = e.atributos && e.atributos.reino;
           return `<li><button type="button" class="mp-linha" data-ficha="${esc(e.id)}" aria-current="${!!pondoCidade && String(pondoCidade.id) === String(e.id)}">
-            <span class="mp-ln-ico"><i class="ti ti-building-castle" aria-hidden="true"></i></span>
+            <span class="mp-ln-ico"><i class="ti ${ICONE_LUGAR[modo]}" aria-hidden="true"></i></span>
             <span class="mp-ln-txt"><span class="mp-ln-nome">${esc(e.nome)}</span></span><span class="mp-ln-num">${reino ? esc(nomesLore[reino] || reino) : ''}</span></button></li>`; }).join('')
           || `<li><p class="mp-vazio">${vazio}</p></li>`);
       return;
@@ -534,12 +592,15 @@ function criarMotorMapa(raiz, cfg) {
 
   const FERR = {
     medir: ['ti-ruler-2', tr('Medir', 'Measure')], marcar: ['ti-map-pin-plus', tr('Marcar', 'Mark')],
-    cidade: ['ti-building-castle', tr('Cidade', 'City')], ponto: ['ti-star', tr('Ponto', 'Point')],
+    cidade: ['ti-building-castle', tr('Cidade', 'City')], local: ['ti-mountain', tr('Local', 'Place')], ponto: ['ti-star', tr('Ponto', 'Point')],
     caminho: ['ti-road', tr('Caminho', 'Path')], rota: ['ti-route', tr('Rota', 'Route')],
   };
   function aviso() {
     const el = $('aviso');
-    const quais = mestre ? ['medir', 'cidade', 'ponto', 'caminho', 'rota'] : (cfg.aoMudarMarcas ? ['medir', 'marcar'] : ['medir']);
+    /* Cidade e Local são do mundo: só o Imperador, dentro ou fora de mesa. Fora
+       de mesa não há ponto, caminho nem rota — esses são da história de cada mesa. */
+    const doMundo = imperador ? ['cidade', 'local'] : [];
+    const quais = mestre ? (cfg.semMesa ? ['medir', ...doMundo] : ['medir', ...doMundo, 'ponto', 'caminho', 'rota']) : (cfg.aoMudarMarcas ? ['medir', 'marcar'] : ['medir']);
     $('ferramentas').innerHTML = quais.map((k) =>
       `<button type="button" class="mp-ferr" data-modo="${k}" aria-pressed="${modo === k}" aria-label="${FERR[k][1]}"><i class="ti ${FERR[k][0]}" aria-hidden="true"></i><span>${FERR[k][1]}</span></button>`).join('');
     $('barra').classList.toggle('cheia', mestre);
@@ -549,6 +610,8 @@ function criarMotorMapa(raiz, cfg) {
     if (modo === 'marcar') h = tr('Toque no mapa onde quer deixar a marca.', 'Tap the map where you want to leave the mark.');
     else if (modo === 'cidade') h = pondoCidade ? tr(`Toque no mapa onde fica ${esc(pondoCidade.nome)}.`, `Tap the map where ${esc(pondoCidade.nome)} is.`)
       : tr('Escolha na lista a cidade cadastrada que vai para o mapa.', 'Pick from the list the registered city to place on the map.');
+    else if (modo === 'local') h = pondoCidade ? tr(`Toque no mapa onde fica ${esc(pondoCidade.nome)}.`, `Tap the map where ${esc(pondoCidade.nome)} is.`)
+      : tr('Escolha na lista o local cadastrado que vai para o mapa.', 'Pick from the list the registered place to put on the map.');
     else if (modo === 'ponto') h = tr('Toque no mapa onde fica o ponto.', 'Tap the map where the point is.');
     else if (modo === 'por') { const g = gente.find((x) => String(x.id) === String(pondo));
       h = pondo === 'todos' ? tr('Toque no mapa onde a comitiva está.', 'Tap the map where the party is.')
@@ -611,7 +674,7 @@ function criarMotorMapa(raiz, cfg) {
      trecho, o lugar ou o personagem (e quem estiver junto dele). */
   function pegar(p) {
     const a = alvo(), r = 14 / cam.s; if (!a) return null;
-    if (foco.tipo === 'lugar') return dist(a, p) < r ? { tipo: 'lugar' } : null;
+    if (foco.tipo === 'lugar') return (a.mundo && !imperador) ? null : dist(a, p) < r ? { tipo: 'lugar' } : null;
     if (foco.tipo === 'gente') return dist(a, p) < 26 / cam.s ? { tipo: 'gente', ids: postos().filter((g) => dist(g, a) < .06).map((g) => g.id) } : null;
     if (foco.tipo !== 'linha') return null;
     let m = null, md = r;
@@ -625,7 +688,13 @@ function criarMotorMapa(raiz, cfg) {
   ouvir(elMapa, 'pointerdown', (e) => {
     const { px, py } = local(e);
     const pega = mestre && !modo && !e.target.closest('.mp-barra, .mp-aviso') ? pegar(noMundo(px, py)) : null;
-    if (!pega && e.target.closest('button')) return;
+    /* COM FERRAMENTA, O MARCADOR É MAPA (15/11/2026, usuário: "No mapa, não
+       estou conseguindo colocar os personagens dentro das cidades"). Toda
+       cidade virou um botão (o sinal da casinha), e o toque que começava nele
+       era ignorado — Pôr no mapa, Medir, Rota e Caminho não pegavam a cidade.
+       Com uma ferramenta ligada, tocar no marcador é tocar no lugar dele. */
+    const noMarcador = !!modo && !!e.target.closest('.mp-marca, .mp-pino');
+    if (!pega && !noMarcador && e.target.closest('button')) return;
     try { elMapa.setPointerCapture(e.pointerId); } catch (err) { /* ponteiro sintético */ }
     dedos.set(e.pointerId, { px, py });
     cancelAnimationFrame(voo);
@@ -663,7 +732,7 @@ function criarMotorMapa(raiz, cfg) {
       return;
     }
     if (e.pointerType === 'mouse' && !e.target.closest('button')) {
-      const l = modo === 'marcar' || modo === 'cidade' || modo === 'ponto' ? null : maisPerto(noMundo(px, py));
+      const l = modo === 'marcar' || modo === 'cidade' || modo === 'local' || modo === 'ponto' ? null : maisPerto(noMundo(px, py));
       if (l !== passa) { passa = l; elMapa.classList.toggle('aponta', !!l && !modo); desenhar(); }
     }
   });
@@ -696,9 +765,9 @@ function criarMotorMapa(raiz, cfg) {
       if (!l) escreverNome();
       return;
     }
-    if (modo === 'cidade') {         // só posiciona uma cadastrada: sem ficha escolhida, o toque não cria nada
+    if (modo === 'cidade' || modo === 'local') {   // só posiciona um cadastrado: sem ficha escolhida, o toque não cria nada
       if (!pondoCidade) return;
-      const novo = { id: novoId(), tipo: 'cidade', nome: pondoCidade.nome, ficha: pondoCidade.id, ...p };
+      const novo = { id: novoId(), tipo: modo, nome: pondoCidade.nome, ficha: pondoCidade.id, ...p, ...(imperador ? { mundo: true } : {}) };
       mesa.lugares.push(novo); guardarMesa();
       modo = null; pondoCidade = null; recado = null; aviso(); focar({ tipo: 'lugar', id: novo.id }, false);
       if (cfg.aoEscolherAchado) cfg.aoEscolherAchado();
@@ -741,9 +810,11 @@ function criarMotorMapa(raiz, cfg) {
   /* ── Cliques ── */
   ouvir(raiz, 'click', (e) => {
     const b = e.target.closest('[data-alvo],[data-acao],[data-modo],[data-zoom],[data-ficha]'); if (!b || !raiz.contains(b)) return;
+    // Com ferramenta ligada, o toque no marcador já foi tratado como toque no mapa (soltar).
+    if (modo && b.closest('.mp-marca, .mp-pino') && !$('listas').contains(b)) return;
     const { alvo: qual, acao, id } = b.dataset, a = alvo();
     if (b.dataset.ficha) {           // a cidade cadastrada que o próximo toque no mapa vai posicionar
-      pondoCidade = (modo === 'cidade' && fichasId.get(b.dataset.ficha)) || null; aviso(); achados(); return;
+      pondoCidade = ((modo === 'cidade' || modo === 'local') && fichaPeloId(modo, b.dataset.ficha)) || null; aviso(); achados(); return;
     }
     /* Escolher na lista da ferramenta (uma rota, um ponto) sai da ferramenta e
        abre o escolhido; senão o próximo toque no mapa viraria um ponto novo. */
@@ -813,7 +884,13 @@ function criarMotorMapa(raiz, cfg) {
     receber(dados) {
       if (arrasto && arrasto.pega) return;            // não puxa o tapete de quem está arrastando
       if (modo === 'caminho' || modo === 'rota') return;
-      mesa = mapaNormalizar(dados); acertarNomes(); desenhar();
+      mesa = mapaNormalizar(dados); juntarMundo(); acertarNomes(); desenhar();
+    },
+    /* A camada do mundo chegou (ou mudou): entra no lugar da que havia. */
+    receberMundo(lugares) {
+      if (arrasto && arrasto.pega) return;
+      mundo = Array.isArray(lugares) ? lugares : []; ultimoMundo = JSON.stringify(mundo);
+      juntarMundo(); acertarNomes(); if (pronto) desenhar();
     },
     buscar(texto) { busca = texto || ''; achados(); },
     /* As cidades cadastradas chegaram (ou mudaram): religa e redesenha o passe. */
@@ -868,14 +945,17 @@ function mapaApiSupabase() {
     async catalogo({ mestre, pj }) {
       let entradas = [];
       if (mestre) {
-        const [c, rn] = await Promise.all([sb().rpc('listar_catalogo_global', { p_tipo: 'cidade' }), sb().rpc('listar_catalogo_global', { p_tipo: 'reino' })]);
-        entradas = [...((c.data && c.data.entradas) || []).map((e) => ({ ...e, tipo: 'cidade' })), ...((rn.data && rn.data.entradas) || []).map((e) => ({ ...e, tipo: 'reino' }))];
+        // Os locais também (15/11/2026): a ferramenta Local põe os cadastrados no mapa.
+        const [c, rn, lc] = await Promise.all([sb().rpc('listar_catalogo_global', { p_tipo: 'cidade' }), sb().rpc('listar_catalogo_global', { p_tipo: 'reino' }),
+          sb().rpc('listar_catalogo_global', { p_tipo: 'local' })]);
+        entradas = [...((c.data && c.data.entradas) || []).map((e) => ({ ...e, tipo: 'cidade' })), ...((rn.data && rn.data.entradas) || []).map((e) => ({ ...e, tipo: 'reino' })),
+          ...((lc.data && lc.data.entradas) || []).map((e) => ({ ...e, tipo: 'local' }))];
       } else if (pj) {
         const [d, l] = await Promise.all([sb().rpc('listar_diario_disponivel', { p_personagem_id: pj.id }), sb().rpc('listar_diario_lore', { p_personagem_id: pj.id })]);
         entradas = [...((l.data && l.data.entradas) || []), ...((d.data && d.data.lore) || [])];
       }
       const nomes = {}; entradas.forEach((e) => { if (e && e.id) nomes[e.id] = e.nome; });
-      return { cidades: entradas.filter((e) => e && e.tipo === 'cidade' && e.nome), nomes, lore: entradas };
+      return { cidades: entradas.filter((e) => e && e.tipo === 'cidade' && e.nome), locais: entradas.filter((e) => e && e.tipo === 'local' && e.nome), nomes, lore: entradas };
     },
     async salvarMesa(historiaId, dados) {
       const { error } = await sb().from('mapas_mesa').upsert({ historia_id: historiaId, dados, updated_at: new Date().toISOString() });
@@ -919,14 +999,36 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
      é do mundo antes de ser da mesa. Sem mesa (ou Jogador sem personagem), ele
      abre só para olhar e medir — a pintura e as cidades dela —, sem banco. */
   const semMesa = !historiaId || (!mestre && !pj);
+  /* O IMPERADOR PÕE CIDADES E LOCAIS FORA DE MESA (15/11/2026): a camada do
+     mundo (catalogo_mundo, tipo 'mapa') é dele; gravar passa pelo catálogo do
+     mundo, cujas policies pedem eh_admin(). */
+  const ehImperador = (typeof window !== 'undefined' && typeof window.useEhAdmin === 'function') ? window.useEhAdmin() : false;
+  const [mundo, setMundo] = React.useState(null);   // null = ainda não chegou
+  const relogioMundo = React.useRef(0);
+  const aoMudarMundo = React.useCallback((lugares) => {
+    clearTimeout(relogioMundo.current);
+    relogioMundo.current = setTimeout(() => {
+      const salvar = banco.salvarMundo || ((l) => window.salvarNoMundo('mapa', { slug: 'mundo', lugares: l }));
+      Promise.resolve(salvar(lugares)).catch(() => motor.current && motor.current.falhou());
+    }, 500);
+  }, [banco]);
+  React.useEffect(() => {
+    let vivo = true;
+    const ler = banco.carregarMundo || (() => (window.carregarCatalogoMundo ? window.carregarCatalogoMundo() : Promise.resolve(null))
+      .then(() => { const m = (window.mundoVigente ? window.mundoVigente('mapa') : []).find((e) => e.slug === 'mundo'); return (m && m.lugares) || []; }));
+    Promise.resolve(ler()).then((l) => { if (vivo) setMundo(Array.isArray(l) ? l : []); }).catch(() => { if (vivo) setMundo([]); });
+    return () => { vivo = false; };
+  }, [banco]);
+  React.useEffect(() => { if (motor.current && mundo) motor.current.receberMundo(mundo); }, [mundo, estado]);
 
   React.useEffect(() => {
     if (!semMesa || !raiz.current) return undefined;
-    motor.current = criarMotorMapa(raiz.current, { papel: 'jogador', semMesa: true, en, base: base || mapaBaseLadrilhos(),
+    motor.current = criarMotorMapa(raiz.current, { papel: ehImperador ? 'mestre' : 'jogador', semMesa: true, en, base: base || mapaBaseLadrilhos(),
+      imperador: ehImperador, mundo: mundo || [], aoMudarMundo: ehImperador ? aoMudarMundo : null,
       mesa: null, marcas: [], gente: [], aoEscolherAchado: () => setQuery(''), aoAbrirCidade: setFichaAberta });
     setEstado('pronto');
     return () => { if (motor.current) { motor.current.destruir(); motor.current = null; } };
-  }, [semMesa, en, base]);
+  }, [semMesa, en, base, ehImperador]);
 
   React.useEffect(() => {
     if (semMesa) return undefined;
@@ -937,6 +1039,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
       motor.current = criarMotorMapa(raiz.current, {
         papel: mestre ? 'mestre' : 'jogador', en, base: base || mapaBaseLadrilhos(),
         mesa: d.mesa, marcas: d.marcas, gente: d.gente,
+        imperador: ehImperador && mestre, mundo: mundo || [], aoMudarMundo: (ehImperador && mestre) ? aoMudarMundo : null,
         /* Grava com folga: arrastar um ponto dispara dezenas de mudanças. */
         aoMudarMesa: mestre ? (dados) => {
           ultimo = JSON.stringify(dados);
@@ -961,7 +1064,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
       if (desligar) desligar();
       if (motor.current) { motor.current.destruir(); motor.current = null; }
     };
-  }, [historiaId, pjId, mestre, en, banco, base, semMesa]);
+  }, [historiaId, pjId, mestre, en, banco, base, semMesa, ehImperador]);
 
   React.useEffect(() => { if (motor.current) motor.current.buscar(query); }, [query, estado]);
 
@@ -970,9 +1073,9 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
   React.useEffect(() => {
     let vivo = true;
     if (!banco.catalogo) return undefined;
-    banco.catalogo({ mestre, pj }).then((c) => { if (vivo) setCatalogo(c); }).catch(() => {});
+    banco.catalogo({ mestre: mestre || ehImperador, pj }).then((c) => { if (vivo) setCatalogo(c); }).catch(() => {});
     return () => { vivo = false; };
-  }, [banco, mestre, pjId]);
+  }, [banco, mestre, pjId, ehImperador]);
   React.useEffect(() => { if (motor.current && catalogo) motor.current.catalogar(catalogo); }, [catalogo, estado]);
 
   /* A tela ocupa o que sobra da janela abaixo do trilho: mapa não rola junto

@@ -273,7 +273,10 @@
 #root .menestrel-ui.ms-backdrop, #root .menestrel-ui .ms-backdrop {
   position: fixed; inset: 0; z-index: 120;
   display: flex; align-items: center; justify-content: center;
-  padding: 60px 20px 20px;
+  /* O MESMO ESPAÇO EM CIMA E EMBAIXO (15/11/2026, usuário: "o modal não ocupa de
+     forma igual o espaço na tela, o espaçamento para o topo é maior"). Eram
+     60px em cima e 20px embaixo; a janela alta ficava puxada para baixo. */
+  padding: 40px 20px;
   padding-left: calc(var(--sidebar-w, 0px) + 20px);
   transition: padding-left .32s cubic-bezier(.4,0,.2,1);
   background: rgba(var(--couro-rgb),0.72);
@@ -297,8 +300,8 @@
   position: relative;
   display: flex; flex-direction: column;
   width: 100%;
-  max-height: calc(100vh - 88px);
-  max-height: calc(100dvh - 88px);
+  max-height: calc(100vh - 80px);
+  max-height: calc(100dvh - 80px);
   background: rgba(var(--chao-rgb), 0.90);
   border: 1px solid var(--regua-forte);
   border-radius: 6px;
@@ -317,7 +320,7 @@
 #root .menestrel-ui.ms-modal.ms-sm, #root .menestrel-ui .ms-modal.ms-sm   { max-width: 400px; }
 #root .menestrel-ui.ms-modal.ms-md, #root .menestrel-ui .ms-modal.ms-md   { max-width: 500px; }
 #root .menestrel-ui.ms-modal.ms-lg, #root .menestrel-ui .ms-modal.ms-lg   { max-width: 800px; }
-#root .menestrel-ui.ms-modal.ms-full, #root .menestrel-ui .ms-modal.ms-full { max-width: 100%; width: min(960px, calc(100vw - 32px)); height: calc(100vh - 88px); height: calc(100dvh - 88px); }
+#root .menestrel-ui.ms-modal.ms-full, #root .menestrel-ui .ms-modal.ms-full { max-width: 100%; width: min(960px, calc(100vw - 32px)); height: calc(100vh - 80px); height: calc(100dvh - 80px); }
 #root .menestrel-ui.ms-modal .subhead, #root .menestrel-ui .ms-modal .subhead { font-size: var(--fs-sm); font-family: var(--font-body); color: var(--parchment-muted, var(--tinta-2)); line-height: 1.55; }
 .ms-modal.ms-confirm .ms-body {
   font-size: var(--fs-sm);
@@ -5639,12 +5642,12 @@
   font-size: var(--fs-xs); color: var(--tinta-2);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-/* O tipo da conta (15/11/2026): o rótulo de sempre; o Imperador em ouro. */
+/* O tipo da conta (15/11/2026): o rótulo de sempre; o Imperador na tinta forte (ouro é do que está vivo). */
 .menestrel-ui.mc-usermenu .mc-um-conta {
   margin-top: 4px; font-size: var(--fs-rotulo); font-weight: 700; letter-spacing: var(--rotulo-espaco);
   text-transform: uppercase; color: var(--tinta-3);
 }
-.menestrel-ui.mc-usermenu .mc-um-conta.is-imperador { color: var(--vivo); }
+.menestrel-ui.mc-usermenu .mc-um-conta.is-imperador { color: var(--tinta); }
 .menestrel-ui.mc-usermenu .mc-um-conta-ate { text-transform: none; letter-spacing: normal; font-weight: 500; color: var(--tinta-2); }
 
 /* Submenu expandido (Perfil / Idioma) */
@@ -6244,11 +6247,33 @@ body:has(.batalha-tabuleiro-wrap) #root .menestrel-ui .mc-topo { display: none; 
    régua, sem caixa dentro de caixa; o primeiro (o tópico) leva o título. */
 #root .menestrel-ui .forum-caminho .mc-acao-rotulo { max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #root .menestrel-ui .forum-quadro { margin-bottom: 4px; }
+/* AS LINHAS SÃO UMA LISTA, E O TÍTULO É O BOTÃO (revisão de 15/11/2026): a
+   área do título se estende pela linha inteira (::after), então clicar em
+   qualquer ponto ainda abre; o coração e o lápis sobem por cima dela. */
+#root .menestrel-ui .forum-linhas { list-style: none; margin: 0; padding: 0; }
+#root .menestrel-ui .forum-linha { position: relative; }
+#root .menestrel-ui .forum-linha:hover { background: rgba(var(--bronze-rgb), 0.10); }
+#root .menestrel-ui .forum-linha-abrir {
+  border: 0; background: none; padding: 0; margin: 0; color: inherit; font: inherit;
+  text-align: left; cursor: pointer; min-width: 0;
+}
+#root .menestrel-ui .forum-linha-abrir::after { content: ""; position: absolute; inset: 0; }
+#root .menestrel-ui .forum-linha-abrir:focus-visible { outline: none; }
+#root .menestrel-ui .forum-linha:has(.forum-linha-abrir:focus-visible) { outline: 2px solid var(--vivo); outline-offset: -2px; border-radius: 6px; }
+#root .menestrel-ui .forum-linha :is(.forum-curtir, .forum-acao) { position: relative; z-index: 1; }
+/* ALVOS DE TOQUE (revisão de 15/11/2026): no dedo, os ícones de 32px ganham
+   uma área de 44px em volta, sem mudar o desenho. */
+@media (pointer: coarse) {
+  #root .menestrel-ui :is(.forum-curtir, .forum-acao, .forum-post-acoes .btn-icon, .inicio-reacao) { position: relative; }
+  #root .menestrel-ui :is(.forum-curtir, .forum-acao, .forum-post-acoes .btn-icon, .inicio-reacao)::before {
+    content: ""; position: absolute; inset: -6px;
+  }
+}
 #root .menestrel-ui .forum-quadro + .forum-quadro { margin-top: 18px; }
 /* As colunas (15/11/2026): sala = nome · contagens · último tópico · lápis;
    tópico = estado · título · contagens · último post · coração. */
 #root .menestrel-ui .forum-linha--sala { grid-template-columns: minmax(0, 1fr) 112px minmax(0, 240px) 36px; }
-#root .menestrel-ui .forum-linha--topico { grid-template-columns: 28px minmax(0, 1fr) 148px minmax(0, 240px) 64px; }
+#root .menestrel-ui .forum-linha--topico { grid-template-columns: 28px minmax(0, 1fr) 148px minmax(0, 240px) 36px; }
 #root .menestrel-ui .forum-contas {
   display: flex; flex-direction: column; gap: 2px; color: var(--tinta-2); font-size: var(--fs-sm);
   font-variant-numeric: lining-nums tabular-nums; white-space: nowrap;
@@ -6264,7 +6289,7 @@ body:has(.batalha-tabuleiro-wrap) #root .menestrel-ui .mc-topo { display: none; 
 #root .menestrel-ui .forum-estado .ti { font-size: 20px; line-height: 1; }
 #root .menestrel-ui .forum-estado--novo .ti { color: var(--vivo); }
 #root .menestrel-ui .forum-estado--lido .ti, #root .menestrel-ui .forum-estado--fechado .ti { color: var(--tinta-3); }
-#root .menestrel-ui .forum-linha--topico:not(.is-novo) .forum-linha-titulo { font-weight: 500; }
+#root .menestrel-ui .forum-linha--topico:not(.is-novo) .forum-linha-titulo { font-weight: 400; }
 #root .menestrel-ui .forum-linha--topico.is-novo .forum-linha-titulo { font-weight: 700; }
 #root .menestrel-ui .forum-post-titulo .forum-estado { vertical-align: -3px; margin-right: 6px; }
 #root .menestrel-ui .forum-legenda {
@@ -6281,16 +6306,10 @@ body:has(.batalha-tabuleiro-wrap) #root .menestrel-ui .mc-topo { display: none; 
 #root .menestrel-ui .forum-num small { color: var(--tinta-2); font-size: var(--fs-sm); font-weight: 500; }
 #root .menestrel-ui .forum-quando { color: var(--tinta-2); font-size: var(--fs-sm); text-align: right; white-space: nowrap; }
 #root .menestrel-ui .forum-acao { justify-self: end; }
-#root .menestrel-ui .forum-curtir {
-  justify-self: end; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px;
-  border: 0; border-radius: 999px; background: none; color: var(--tinta-2); cursor: pointer;
-  font: 700 var(--fs-sm) var(--font-body); font-variant-numeric: lining-nums tabular-nums;
-  transition: background-color .15s ease, color .15s ease;
-}
-#root .menestrel-ui .forum-curtir:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
-#root .menestrel-ui .forum-curtir:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
-#root .menestrel-ui .forum-curtir .ti { font-size: 16px; }
-#root .menestrel-ui .forum-curtir.is-on, #root .menestrel-ui .forum-curtir.is-on .ti { color: var(--vivo); }
+/* O coração é o .btn-icon dos outros (15/11/2026); daqui só o lugar na linha
+   e o ouro de quem já curtiu. */
+#root .menestrel-ui .forum-curtir { justify-self: end; }
+#root .menestrel-ui .forum-curtir.is-on .ti { color: var(--vivo); }
 #root .menestrel-ui .forum-aviso {
   display: flex; align-items: center; gap: 8px; margin: 0 0 calc(var(--pg-vao) * var(--fp-z));
   color: var(--tinta-2); font-size: var(--fs-sm);
@@ -6316,7 +6335,8 @@ body:has(.batalha-tabuleiro-wrap) #root .menestrel-ui .mc-topo { display: none; 
 }
 #root .menestrel-ui .forum-autor-nome { color: var(--tinta); font-weight: 700; }
 #root .menestrel-ui .forum-autor-conta { font-size: var(--fs-rotulo); font-weight: 700; letter-spacing: var(--rotulo-espaco); text-transform: uppercase; color: var(--tinta-3); }
-#root .menestrel-ui .forum-autor-conta.is-imperador { color: var(--vivo); }
+/* O Imperador sem ouro (revisão de 15/11/2026): ouro é do que está vivo; o tipo dele sobe para a tinta forte. */
+#root .menestrel-ui .forum-autor-conta.is-imperador { color: var(--tinta); }
 #root .menestrel-ui .forum-autor-quando { color: var(--tinta-2); font-size: var(--fs-sm); }
 #root .menestrel-ui .forum-respostas-cab { margin: 22px 0 0; padding: 0 4px 8px; border-bottom: 1px solid var(--regua-forte); }
 #root .menestrel-ui .forum-responder { display: flex; flex-direction: column; gap: 8px; padding-top: 18px; }
@@ -6356,7 +6376,7 @@ body:has(.batalha-tabuleiro-wrap) #root .menestrel-ui .mc-topo { display: none; 
 #root .menestrel-ui .contas-nome { color: var(--tinta); font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #root .menestrel-ui .contas-email { color: var(--tinta-2); font-size: var(--fs-sm); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #root .menestrel-ui .contas-pilula { min-width: 0; height: 36px; }
-#root .menestrel-ui .contas-imperador { color: var(--vivo); font-weight: 700; padding: 0 16px; }
+#root .menestrel-ui .contas-imperador { color: var(--tinta); font-weight: 700; padding: 0 16px; }
 #root .menestrel-ui .contas-dia { display: flex; flex-direction: column; gap: 2px; }
 #root .menestrel-ui .contas-dia input {
   height: 36px; padding: 0 12px; border: 1px solid var(--regua-forte); border-radius: 999px;
@@ -10782,8 +10802,12 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .diario-form-linha-nome {
   display: grid; grid-template-columns: minmax(0, 1fr) 170px 90px; gap: 14px; align-items: end;
 }
+/* O reino (15/11/2026): Nome, Capital e Imagem numa linha; a imagem mede o que precisa. */
+#root .menestrel-ui .diario-form-linha-nome.diario-form-linha-nome--reino { grid-template-columns: minmax(0, 1fr) 220px auto; }
+#root .menestrel-ui .diario-form-linha-nome--reino .mundo-imagem .diario-field-label { margin-bottom: 0; }
 @media (max-width: 640px) {
-  #root .menestrel-ui .diario-form-linha-nome { grid-template-columns: minmax(0, 1fr); }
+  #root .menestrel-ui .diario-form-linha-nome,
+  #root .menestrel-ui .diario-form-linha-nome.diario-form-linha-nome--reino { grid-template-columns: minmax(0, 1fr); }
 }
 
 /* Visibilidade como ícone na tabela de Conhecidos (26/09/2026). As cores
@@ -11689,6 +11713,9 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   display: inline-flex; align-items: center; gap: 10px;
   font-family: var(--font-title); font-weight: 600; font-size: var(--fs-titulo); letter-spacing: 0.04em; color: var(--tinta);
 }
+/* O logo é botão desde 15/11/2026 (leva à tela principal): sem a pele de botão. */
+#root .menestrel-ui .mc-marca-inicio { padding: 0; border: 0; background: none; cursor: pointer; border-radius: 8px; }
+#root .menestrel-ui .mc-marca-inicio:focus-visible { outline: 2px solid var(--vivo); outline-offset: 4px; }
 #root .menestrel-ui .mc-navfechar { display: none; }
 
 /* Identidade: a mesa ativa ou o personagem ativo — o "brasão" do contexto. */
@@ -18880,6 +18907,25 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
    texto corrido (História, Símbolos, Ética…) espaçam os parágrafos como a
    Descrição. */
 #root .menestrel-ui .grp-texto .diario-det-desc + .diario-det-desc { margin-top: 10px; }
+/* A EPÍGRAFE EM DUAS COLUNAS (15/11/2026): a imagem à esquerda, o texto à
+   direita, os dois alinhados ao topo (15/11: "a imagem deve ficar alinhada ao topo"). No celular, uma embaixo da outra. */
+#root .menestrel-ui .grp-epigrafe--com-imagem {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 28px; align-items: start;
+}
+/* A imagem ocupa toda a largura da coluna (15/11/2026, usuário: "A imagem na
+   epígrafe deve ocupar toda a largura disponível") — sem teto de altura, que
+   a encolhia e deixava sobra dos lados. */
+#root .menestrel-ui .grp-epigrafe-arte { width: 100%; }
+#root .menestrel-ui .grp-epigrafe-arte img {
+  /* A largura inteira da coluna; a pintura em pé não passa da janela — o
+     excesso de cima e de baixo é recortado (cover), sem rolagem. */
+  display: block; width: 100%; height: auto; max-height: calc(100dvh - 300px); object-fit: cover; object-position: center 20%;
+  border-radius: 10px; border: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .grp-epigrafe-texto .diario-det-desc + .diario-det-desc { margin-top: 10px; }
+@media (max-width: 720px) {
+  #root .menestrel-ui .grp-epigrafe--com-imagem { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
 
 /* ══ A CENA, UM CAPÍTULO POR PÁGINA (10/11/2026) ═════════════════════════════
    Usuário: "Na página de Cena, eu quero um capítulo por página, um botão para
@@ -19114,7 +19160,18 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
   min-height: var(--pg-altura, 0px);
   padding: calc(20px * var(--fp-z)) calc(24px * var(--fp-z));
   border: 1px solid var(--regua-forte); border-radius: 12px; background: var(--pg-fundo);
+  /* Sem rolagem (15/11/2026): quatro notícias e a paginação no pé do cartão. */
+  display: flex; flex-direction: column;
 }
+#root .menestrel-ui .inicio > .best-pag {
+  margin: auto calc(-24px * var(--fp-z)) 0; padding: calc(var(--pg-vao) * var(--fp-z)) calc(24px * var(--fp-z)) 0;
+  border-top: var(--pg-regua);
+}
+/* Gostei / Não gostei: os .btn-icon do sistema; o marcado acende — o coração
+   em ouro, o dedo na tinta forte. */
+#root .menestrel-ui .inicio-reacoes { display: flex; align-items: flex-start; gap: 2px; padding-top: 1px; }
+#root .menestrel-ui .inicio-reacao--gostei.is-on .ti { color: var(--vivo); }
+#root .menestrel-ui .inicio-reacao--nao_gostei.is-on .ti { color: var(--tinta); }
 #root .menestrel-ui .inicio-cabeca {
   padding-bottom: 18px; margin: 0 calc(-24px * var(--fp-z));
   padding-inline: calc(24px * var(--fp-z)); border-bottom: 1px solid var(--regua-forte);
@@ -19126,7 +19183,7 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 #root .menestrel-ui .inicio-sub { margin-top: 6px; font-size: var(--fs-base); line-height: 1.5; color: var(--tinta-2); }
 #root .menestrel-ui .inicio-lista { display: flex; flex-direction: column; }
 #root .menestrel-ui .inicio-noticia {
-  display: grid; grid-template-columns: minmax(150px, 200px) minmax(0, 1fr); gap: 6px 28px;
+  display: grid; grid-template-columns: minmax(150px, 200px) minmax(0, 1fr) auto; gap: 6px 28px;
   padding: 18px 0; border-bottom: 1px solid var(--regua);
 }
 #root .menestrel-ui .inicio-noticia:last-child { border-bottom: 0; }
@@ -19146,7 +19203,9 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 }
 #root .menestrel-ui .inicio-noticia-texto { margin-top: 6px; font-size: var(--fs-base); line-height: 1.6; color: var(--tinta-2); text-wrap: pretty; }
 @media (max-width: 640px) {
-  #root .menestrel-ui .inicio-noticia { grid-template-columns: 1fr; }
+  #root .menestrel-ui .inicio-noticia { grid-template-columns: minmax(0, 1fr) auto; }
+  #root .menestrel-ui .inicio-meta, #root .menestrel-ui .inicio-corpo { grid-column: 1; }
+  #root .menestrel-ui .inicio-reacoes { grid-column: 2; grid-row: 1; }
   #root .menestrel-ui .inicio-meta { flex-direction: row; align-items: baseline; gap: 12px; padding-top: 0; }
 }
 
@@ -19175,10 +19234,44 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
    lado a lado; os textos longos e as listas de ponta a ponta. Cada item de
    lista (uma relação, um feriado) é separado do próximo por régua, não por
    caixa — nada de cartão dentro de cartão. */
-#root .menestrel-ui .mundo-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
+/* Quatro colunas desde 15/11/2026: a meia ocupa duas; o quarto, uma — Nome,
+   Tipo, Título e Imagem do grupo numa linha só. */
+#root .menestrel-ui .mundo-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 14px; }
 #root .menestrel-ui .mundo-form > .mundo-campo,
 #root .menestrel-ui .mundo-form > .mundo-lista { grid-column: 1 / -1; min-width: 0; }
-#root .menestrel-ui .mundo-form > .mundo-campo--meia { grid-column: span 1; }
+#root .menestrel-ui .mundo-form > .mundo-campo--meia { grid-column: span 2; }
+#root .menestrel-ui .mundo-form > .mundo-campo--quarto { grid-column: span 1; }
+/* O MESMO PASSO ENTRE RÓTULO E CAMPO (15/11/2026, usuário: "Os campos 'nome,
+   tipo, título e imagem' estão desalinhados, e o botão de enviar está muito
+   grande"). O rótulo de texto somava a margem dele ao vão do campo; o do
+   seletor, só o vão. Agora todos usam só o vão, de 6px, e tudo tem a altura
+   de campo (--campo-h). */
+#root .menestrel-ui .mundo-form .diario-field-label { margin-bottom: 0; }
+#root .menestrel-ui .mundo-form .motor-field { gap: 6px; }
+/* A imagem por upload: miniatura, o botão, o X — na altura de um campo. */
+#root .menestrel-ui .mundo-imagem { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+#root .menestrel-ui .mundo-imagem-linha { display: flex; align-items: center; gap: 6px; height: var(--campo-h); }
+#root .menestrel-ui .mundo-imagem-mini { width: var(--campo-h); height: var(--campo-h); flex: none; border-radius: 6px; object-fit: cover; border: 1px solid var(--regua-forte); }
+#root .menestrel-ui .mundo-imagem-enviar {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  height: var(--campo-h); min-height: 0; padding: 0 12px; font-size: var(--fs-sm);
+}
+#root .menestrel-ui .mundo-imagem-enviar .ti { font-size: 15px; }
+#root .menestrel-ui .mundo-imagem-erro { margin: 0; color: var(--alerta); font-size: var(--fs-sm); }
+/* A busca no catálogo: a lista cai sob o campo, por cima do formulário. */
+#root .menestrel-ui .mundo-busca { position: relative; }
+#root .menestrel-ui .mundo-busca-lista {
+  position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; right: 0; margin: 0; padding: 4px; list-style: none;
+  max-height: 280px; overflow: auto; border: 1px solid var(--regua-forte); border-radius: 10px;
+  background: var(--p-fundo); box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+}
+#root .menestrel-ui .mundo-busca-lista li {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+  min-height: 36px; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: var(--tinta);
+}
+#root .menestrel-ui .mundo-busca-lista li:hover { background: rgba(var(--bronze-rgb), 0.16); }
+#root .menestrel-ui .mundo-busca-nome { font-weight: 600; }
+#root .menestrel-ui .mundo-busca-meta { color: var(--tinta-2); font-size: var(--fs-sm); }
 #root .menestrel-ui .mundo-campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 #root .menestrel-ui .mundo-campo .diario-textarea { resize: vertical; }
 #root .menestrel-ui .mundo-lista { display: flex; flex-direction: column; gap: 0; margin-top: 6px; }
@@ -19202,5 +19295,9 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 #root .menestrel-ui .mundo-lista-por { align-self: flex-start; margin-top: 12px; display: inline-flex; align-items: center; gap: 6px; }
 @media (max-width: 640px) {
   #root .menestrel-ui .mundo-form, #root .menestrel-ui .mundo-lista-item { grid-template-columns: 1fr; }
-  #root .menestrel-ui .mundo-form > .mundo-campo--meia, #root .menestrel-ui .mundo-lista-item > .mundo-campo--meia { grid-column: 1 / -1; }
+  #root .menestrel-ui .mundo-form > .mundo-campo--meia, #root .menestrel-ui .mundo-lista-item > .mundo-campo--meia,
+  #root .menestrel-ui .mundo-form > .mundo-campo--quarto { grid-column: 1 / -1; }
+}
+@media (min-width: 641px) and (max-width: 900px) {
+  #root .menestrel-ui .mundo-form > .mundo-campo--quarto { grid-column: span 2; }
 }

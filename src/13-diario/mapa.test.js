@@ -110,9 +110,70 @@ describe('cidade nova não nasce no mapa', () => {
   it('a ferramenta Cidade só posiciona uma cadastrada, e o lugar guarda o id da ficha', () => {
     expect(fonte).not.toMatch(/Cidade nova/);
     expect(fonte).toMatch(/if \(!pondoCidade\) return;/);
-    expect(fonte).toMatch(/tipo: 'cidade', nome: pondoCidade\.nome, ficha: pondoCidade\.id/);
+    // Desde 15/11/2026 o mesmo vale para a ferramenta Local: o tipo do lugar é o da ferramenta.
+    expect(fonte).toMatch(/if \(modo === 'cidade' \|\| modo === 'local'\) \{   \/\/ só posiciona um cadastrado/);
+    expect(fonte).toMatch(/tipo: modo, nome: pondoCidade\.nome, ficha: pondoCidade\.id/);
   });
-  it('cidade ligada à ficha não tem o nome editado no mapa', () => {
-    expect(fonte).toMatch(/mestre && !\(a\.tipo === 'cidade' && fichaDe\(a\)\) \? campo\(rot\) : fixo\(rot\)/);
+  it('cidade (e local) ligado à ficha não tem o nome editado no mapa', () => {
+    expect(fonte).toMatch(/mestre && !\(\(a\.tipo === 'cidade' \|\| a\.tipo === 'local'\) && fichaDe\(a\)\) \? campo\(rot\) : fixo\(rot\)/);
+  });
+});
+
+/* 15/11/2026, usuário: "Quero uma opção de inserir locais no mapa, além de
+   cidades." A ferramenta Local, irmã da Cidade, com os cadastrados na aba Locais. */
+describe('os locais no mapa', () => {
+  const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+  it('Cidade e Local são do Imperador, dentro ou fora de mesa; o catálogo traz os locais', () => {
+    expect(fonte).toMatch(/const doMundo = imperador \? \['cidade', 'local'\] : \[\];/);
+    expect(fonte).toMatch(/cfg\.semMesa \? \['medir', \.\.\.doMundo\] : \['medir', \.\.\.doMundo, 'ponto', 'caminho', 'rota'\]/);
+    expect(fonte).toMatch(/sb\(\)\.rpc\('listar_catalogo_global', \{ p_tipo: 'local' \}\)/);
+    expect(fonte).toMatch(/locais: entradas\.filter\(\(e\) => e && e\.tipo === 'local' && e\.nome\)/);
+  });
+  it('o local tem o seu sinal e abre a ficha dele', () => {
+    expect(fonte).toMatch(/const ICONE_LUGAR = \{ cidade: 'ti-building-castle', local: 'ti-mountain', ponto: 'ti-star' \};/);
+    expect(fonte).toMatch(/if \(l && l\.tipo === 'local'\) return \(l\.ficha && fichasLocalId\.get\(String\(l\.ficha\)\)\) \|\| null;/);
+  });
+  // "Nos itens do mapa 'abrir a ficha, medir daqui, etc' deixe apenas o ícone."
+  it('as ações do lugar em foco são só o ícone, com o nome no aria-label', () => {
+    expect(fonte).toMatch(/class="mp-acao so-ico\$\{perigo \? ' perigo' : ''\}" data-acao="\$\{acao\}" aria-label="\$\{esc\(txt\)\}" data-dica="\$\{esc\(txt\)\}"><i class="ti \$\{ico\}" aria-hidden="true"><\/i><\/button>/);
+  });
+});
+
+/* 15/11/2026, usuário: "No mapa, não estou conseguindo colocar os personagens
+   dentro das cidades". Toda cidade virou botão (o sinal da casinha), e o toque
+   que começava num botão era ignorado pelo gesto. Com ferramenta ligada, o
+   marcador conta como toque no mapa — e o clique dele não reabre a ficha. */
+describe('com ferramenta ligada, tocar na cidade é tocar no mapa', () => {
+  const f = require('node:fs').readFileSync(require('node:path').resolve(__dirname, 'mapa.jsx'), 'utf8');
+  it('o gesto não descarta o toque que começa num marcador', () => {
+    expect(f).toMatch(/const noMarcador = !!modo && !!e\.target\.closest\('\.mp-marca, \.mp-pino'\);/);
+    expect(f).toMatch(/if \(!pega && !noMarcador && e\.target\.closest\('button'\)\) return;/);
+  });
+  it('o clique no marcador não abre a ficha enquanto a ferramenta está ligada', () => {
+    expect(f).toMatch(/if \(modo && b\.closest\('\.mp-marca, \.mp-pino'\) && !\$\('listas'\)\.contains\(b\)\) return;/);
+  });
+});
+
+/* 15/11/2026, usuário: "Mas porque eu preciso entrar em uma mesa, se o
+   ambientação é global?" As cidades e os locais do Imperador são do mundo
+   (catalogo_mundo, tipo 'mapa'); a mesa guarda só o que é dela. */
+describe('a camada do mundo', () => {
+  const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+  it('ao abrir, os lugares do mundo entram marcados; ao gravar, saem da mesa', () => {
+    expect(fonte).toMatch(/const doMundo = mundo\.map\(\(l\) => \(\{ \.\.\.l, mundo: true \}\)\);/);
+    expect(fonte).toMatch(/cfg\.aoMudarMesa\(JSON\.parse\(JSON\.stringify\(\{ \.\.\.mesa, lugares: mesa\.lugares\.filter\(\(l\) => !l\.mundo\) \}\)\)\)/);
+    expect(fonte).toMatch(/if \(imperador && cfg\.aoMudarMundo\)/);
+  });
+  it('o lugar posto pelo Imperador é do mundo; o do mundo, os outros não movem', () => {
+    expect(fonte).toMatch(/\.\.\.p, \.\.\.\(imperador \? \{ mundo: true \} : \{\}\) \};/);
+    expect(fonte).toMatch(/if \(foco\.tipo === 'lugar'\) return \(a\.mundo && !imperador\) \? null/);
+  });
+  it('fora de mesa, o Imperador abre o mapa com as ferramentas, e grava no catálogo do mundo', () => {
+    expect(fonte).toMatch(/papel: ehImperador \? 'mestre' : 'jogador', semMesa: true/);
+    expect(fonte).toMatch(/window\.salvarNoMundo\('mapa', \{ slug: 'mundo', lugares: l \}\)/);
+  });
+  it('o banco aceita o tipo mapa no catálogo do mundo', () => {
+    const sql = readFileSync(join(aqui, '../../scripts/sql/mapa-do-mundo-2026-11-15.sql'), 'utf8');
+    expect(sql).toMatch(/ARRAY\['entidade'::text, 'grupo'::text, 'mapa'::text\]/);
   });
 });

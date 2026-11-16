@@ -37,10 +37,16 @@ const campoDe = (rotulo) => [...document.querySelectorAll('.diario-field-label')
   .find((l) => l.textContent.trim() === rotulo).parentElement;
 
 describe('Reino', () => {
-  it('tem Resumo, e não tem Imagem nem Ícone', () => {
+  /* A imagem voltou em 15/11/2026, por UPLOAD (CampoImagemMundo, que este
+     teste não carrega): o endereço digitado e o Ícone continuam fora. */
+  it('tem Resumo, e não tem endereço de imagem nem Ícone para digitar', () => {
     montar('reino');
     expect(rotulos()).toContain('Resumo');
-    expect(rotulos().some((r) => /Imagem|Ícone/.test(r))).toBe(false);
+    expect(rotulos().some((r) => /endereço|URL|Ícone/.test(r))).toBe(false);
+  });
+  it('a imagem do reino é o campo de upload, na linha do Nome e da Capital', () => {
+    const f = require('node:fs').readFileSync(require('node:path').resolve(__dirname, 'diario.jsx'), 'utf8');
+    expect(f).toMatch(/diario-form-linha-nome--reino[\s\S]{0,1400}<window\.CampoImagemMundo id="reino-imagem"/);
   });
 
   it('o Resumo grava em atributos.resumo', () => {

@@ -37,18 +37,24 @@ function GrupoDetalhe({ grupo: g, lang, onClose, onEditar = null }) {
       {/* OS SETE TÓPICOS (15/11/2026, usuário): Epígrafe, História,
           Localização, Admissão, Organização, Relíquias e Rumores. O tipo, o
           título e a pintura abrem a História, que é por onde se começa. */}
-      {g.epigrafe && g.epigrafe.texto && secao(en ? 'Epigraph' : 'Epígrafe', (
-        <>
-          {paragrafos(g.epigrafe.texto)}
-          {g.epigrafe.autor && <p className="ent-fonte">{g.epigrafe.autor}</p>}
-        </>
+      {/* A EPÍGRAFE EM DUAS COLUNAS (15/11/2026, usuário: "na aba 'Epígrafe' a
+          tela estará dividida em duas colunas, em uma teremos a imagem e na
+          outra, o texto"). Sem imagem, o texto ocupa a largura. A imagem saiu
+          da História. */}
+      {((g.epigrafe && g.epigrafe.texto) || g.imagem) && secao(en ? 'Epigraph' : 'Epígrafe', (
+        <div className={'grp-epigrafe' + (g.imagem ? ' grp-epigrafe--com-imagem' : '')}>
+          {g.imagem && <div className="grp-epigrafe-arte"><img src={g.imagem} alt={g.nome} /></div>}
+          <div className="grp-epigrafe-texto">
+            {g.epigrafe && paragrafos(g.epigrafe.texto)}
+            {g.epigrafe && g.epigrafe.autor && <p className="ent-fonte">{g.epigrafe.autor}</p>}
+          </div>
+        </div>
       ), 'ent-prefacio')}
       {secao(en ? 'History' : 'História', (
         <>
           {(tipo || g.titulo) && (
             <p className="diario-det-resumo">{[tipo, g.titulo].filter(Boolean).join(' · ')}</p>
           )}
-          {g.imagem && <div className="diario-det-art"><img src={g.imagem} alt={g.nome} /></div>}
           {paragrafos(g.historia)}
         </>
       ), 'best-secao--descricao grp-texto')}
