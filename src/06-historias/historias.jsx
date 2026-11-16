@@ -466,6 +466,18 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
     const w = Math.floor(v.clientWidth);
     setGeo((g) => (g.w === w && g.h === h ? g : { w, h }));
   }, []);
+  /* SEM BARRA, CONFERIDO (16/11/2026, usuário: "Impeça uso de barra de rolagem
+     vertical nas páginas, estou vendo a barra na página 'Cena'"). A conta acima
+     estima a reserva de baixo (40px); quando o cabeçalho ou o pé crescem, a
+     página passava uns pixels da janela. Depois de assentar, mede o que a área
+     de rolagem (.mc-main) ainda excede e tira isso da folha. */
+  React.useLayoutEffect(() => {
+    if (!umPorPagina || !folha || !geo.h || !vistaRef.current) return;
+    const main = vistaRef.current.closest('.mc-main');
+    if (!main) return;
+    const sobra = main.scrollHeight - main.clientHeight;
+    if (sobra > 0 && geo.h > 240) setGeo((g) => ({ ...g, h: Math.max(240, g.h - sobra) }));
+  }, [geo.h, umPorPagina, folhaChave]);
   React.useLayoutEffect(() => {
     if (!umPorPagina || !folha) return undefined;
     medirVista();
@@ -687,10 +699,10 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
                     : imagemDe(folha.c) ? (en ? 'Change image' : 'Trocar imagem') : (en ? 'Insert image' : 'Inserir imagem')}</span>
                 </button>
                 {imagemDe(folha.c) && (
-                  <button type="button" className="mc-acao so-ico" disabled={imgEnviando}
-                    aria-label={en ? 'Remove image' : 'Tirar imagem'} {...propsTip(abrirTip, fecharTip, en ? 'Remove image' : 'Tirar imagem')}
-                    onClick={tirarImagem}>
-                    <i className="ti ti-trash" aria-hidden="true" />
+                  /* Com o nome no trilho (16/11/2026, usuário: 'no trilho "trocar
+                     imagem, etc" mostra o nome do botão "Tirar imagem"'). */
+                  <button type="button" className="mc-acao" disabled={imgEnviando} onClick={tirarImagem}>
+                    <i className="ti ti-trash" aria-hidden="true" /><span className="mc-acao-rotulo">{en ? 'Remove image' : 'Tirar imagem'}</span>
                   </button>
                 )}
                 <button type="button" className="mc-acao" onClick={onEscrever}>

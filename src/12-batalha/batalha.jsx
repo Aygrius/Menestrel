@@ -107,9 +107,8 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
   // → aqui) — trava a seta de voltar enquanto durar, fechando a brecha de
   // sair da tela de combate pra escapar de gastar PA numa rolagem já feita.
   const [rolagemPendenteConducao, setRolagemPendenteConducao] = useState(false);
-  // Busca e lixeira armada da lista em cartões (23/10/2026).
+  // Busca da lista em cartões (23/10/2026); a lixeira saiu em 16/11/2026.
   const [buscaBat, setBuscaBat] = useState('');
-  const [lixeiraBat, setLixeiraBat] = useState(null);
   // 15 cartões por página (07/11/2026), o padrão pedido para a lista.
   const [paginaBat, setPaginaBat] = useState(1);
   /* CRIAR BATALHA EM JANELA (07/11/2026, usuário: "A página de criar batalha,
@@ -213,7 +212,6 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
                 ? new Date(b.created_at).toLocaleDateString(tb.ptBr, { day: '2-digit', month: 'short', year: 'numeric' })
                 : '';
               const nomes = nomesDe(b);
-              const armada = lixeiraBat === b.id;
               const abrir = () => { fecharTip(); setAbrindo(b); };
               return (
                 <div key={b.id} className="pj-card-wrap">
@@ -228,19 +226,7 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
                         <header className="pj-card-head">
                           <div className="pj-name-linha">
                             <div className="pj-name">{tituloDe(b)}</div>
-                            {/* Excluir em dois cliques, como no Diário: o
-                                primeiro arma (lixeira com X), o segundo apaga. */}
-                            <button type="button"
-                              className={'batalha-cartao-lixeira' + (armada ? ' is-armada' : '')}
-                              aria-label={armada ? (isEn ? 'Click again to delete' : 'Clique de novo para excluir') : tb.excluir}
-                              onClick={(ev) => {
-                                ev.stopPropagation();
-                                if (armada) { setLixeiraBat(null); excluirBatalha(b.id); }
-                                else setLixeiraBat(b.id);
-                              }}
-                              onMouseLeave={() => { if (armada) setLixeiraBat(null); }}>
-                              <i className={'ti ' + (armada ? 'ti-trash-x' : 'ti-trash')} aria-hidden="true" />
-                            </button>
+                            {/* A lixeira do cartão saiu (16/11/2026, a pedido do usuário). */}
                           </div>
                         </header>
                         <div className="pj-meta-linhas">

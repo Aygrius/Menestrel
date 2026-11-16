@@ -25,6 +25,19 @@
 const { useState: useStateF, useEffect: useEffectF, useMemo: useMemoF, useCallback: useCallbackF } = React;
 const _f = (nome) => (typeof window !== 'undefined' ? window[nome] : undefined);
 
+/* OS ÍCONES DAS SALAS (16/11/2026, usuário escolheu 'Um ícone para cada sala').
+   Todos com versão preenchida (src/tabler-filled.css). Sem escolha, o balão. */
+const FORUM_ICONE_PADRAO = 'ti-messages';
+const FORUM_ICONES = ['ti-messages', 'ti-book', 'ti-crown', 'ti-flame', 'ti-dice-5', 'ti-shield', 'ti-compass', 'ti-feather',
+  'ti-flag', 'ti-star', 'ti-sun', 'ti-moon', 'ti-bulb', 'ti-help-circle', 'ti-bell', 'ti-heart'];
+
+/* O retrato pequeno de quem postou por último (16/11/2026). Sem foto, a inicial. */
+function ForumRetrato({ nome, avatar }) {
+  return avatar
+    ? <img className="forum-retrato" src={avatar} alt="" referrerPolicy="no-referrer" />
+    : <span className="forum-retrato forum-retrato--vazio" aria-hidden="true">{String(nome || '?').trim().charAt(0).toUpperCase()}</span>;
+}
+
 const forumSemAcento = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
 /* O + DENTRO DA SALA (15/11/2026, usuário: "O botão 'nova sala aqui' não vai
@@ -197,7 +210,23 @@ function ForumEditor({ en, titulo, campos, inicial, rotuloConfirmar, onSalvar, o
     <Janela title={titulo} lang={en ? 'en' : 'pt'} size="lg" extraClass="forum-editor" onClose={onClose}
       onCancel={onClose} onConfirm={salvar} confirmLabel={rotuloConfirmar}
       confirmDisabled={!completo || gravando} footerLeft={extraRodape}>
-      {campos.map((c, i) => (
+      {campos.map((c, i) => c.icones ? (
+        /* O ÍCONE DA SALA (16/11/2026): uma fileira de ícones, o escolhido aceso. */
+        <React.Fragment key={c.chave}>
+          <span className={'diario-field-label' + (i ? ' diario-field-label--mt' : '')} id={'forum-' + c.chave}>{c.rotulo}</span>
+          <div className="forum-icones" role="radiogroup" aria-labelledby={'forum-' + c.chave}>
+            {c.icones.map((ic) => {
+              const marcado = (v[c.chave] || c.icones[0]) === ic;
+              return (
+                <button key={ic} type="button" role="radio" aria-checked={marcado} aria-label={ic.replace('ti-', '')}
+                  className={'forum-icone-op' + (marcado ? ' is-on' : '')} onClick={() => setV({ ...v, [c.chave]: ic })}>
+                  <i className={'ti ' + ic} aria-hidden="true" />
+                </button>
+              );
+            })}
+          </div>
+        </React.Fragment>
+      ) : (
         <React.Fragment key={c.chave}>
           <label className={'diario-field-label' + (i ? ' diario-field-label--mt' : '')} htmlFor={'forum-' + c.chave}>{c.rotulo}</label>
           {c.linhas
@@ -378,35 +407,46 @@ function ForumView({ lang = 'pt' }) {
      tópico postado, e o nome do usuário"): o nome e a descrição; quantos
      tópicos e quantas salas há dentro; o último tópico (dela ou das de
      dentro), com quem postou e quando. */
-  const plural = (n, um, varios) => `${n} ${n === 1 ? um : varios}`;
   /* A LINHA NÃO É UM BOTÃO COM BOTÕES DENTRO (revisão de 15/11/2026): o título
      é o botão que abre, e a área dele se estende pela linha inteira
      (.forum-linha-abrir::after) — o coração e o lápis ficam por cima, como
      botões irmãos. Antes a linha era role="button" com botões dentro, o que
      confunde leitor de tela e teclado. */
+  /* AS LISTAS MAIS ELEGANTES (16/11/2026, usuário aprovou as cinco sugestões):
+     o ícone da sala num círculo; os números em colunas, grandes, alinhados sob
+     o cabeçalho (o rótulo de cada número fica para o leitor de tela e para o
+     celular, onde não há cabeçalho); o retrato de quem postou por último; o
+     ponto de ouro e o título forte no que tem novidade. */
+  const numero = (n, um, varios) => (
+    <span className="forum-num"><b>{n}</b>{' '}<small>{n === 1 ? um : varios}</small></span>
+  );
+  const ultimo = (titulo, autor, avatar, quando, vazio) => (
+    <div className="forum-ultimo">
+      {titulo ? (
+        <>
+          <ForumRetrato nome={autor} avatar={avatar} />
+          <span className="forum-ultimo-txt">
+            <span className="forum-ultimo-titulo">{titulo}</span>
+            <span className="forum-ultimo-meta">{(autor || (en ? 'Someone' : 'Alguém')) + ' · ' + forumQuando(quando, en)}</span>
+          </span>
+        </>
+      ) : <span className="forum-ultimo-meta">{vazio}</span>}
+    </div>
+  );
   const linhaSala = (s) => (
-    <li key={s.id} className="mn-quadro-linha forum-linha forum-linha--sala">
+    <li key={s.id} className={'mn-quadro-linha forum-linha forum-linha--sala' + (s.novas ? ' is-novo' : '')}>
+      <span className="forum-sala-ic" aria-hidden="true"><i className={'ti ' + (s.icone || FORUM_ICONE_PADRAO)} /></span>
       <button type="button" className="forum-linha-txt forum-linha-abrir" onClick={() => irSala(s.id)}>
         <span className="forum-linha-titulo">
+          {s.novas && <span className="forum-novo-ponto" aria-label={en ? 'New' : 'Novidade'} />}
           {s.fechada && <i className="ti ti-lock forum-fechada" aria-label={en ? 'Closed' : 'Fechada'} />}
           {s.nome}
         </span>
         {s.descricao && <span className="forum-linha-meta">{s.descricao}</span>}
       </button>
-      <div className="forum-contas">
-        <span>{plural(s.topicos, en ? 'topic' : 'tópico', en ? 'topics' : 'tópicos')}</span>
-        <span>{plural(s.salas, en ? 'room' : 'sala', en ? 'rooms' : 'salas')}</span>
-      </div>
-      <div className="forum-ultimo">
-        {s.ultimo_topico_titulo ? (
-          <>
-            <span className="forum-ultimo-titulo">{s.ultimo_topico_titulo}</span>
-            <span className="forum-ultimo-meta">
-              {(s.ultimo_topico_autor || (en ? 'Someone' : 'Alguém')) + ' · ' + forumQuando(s.ultimo_topico_em, en)}
-            </span>
-          </>
-        ) : <span className="forum-ultimo-meta">{en ? 'No topics yet' : 'Nenhum tópico ainda'}</span>}
-      </div>
+      {numero(s.topicos, en ? 'topic' : 'tópico', en ? 'topics' : 'tópicos')}
+      {numero(s.salas, en ? 'room' : 'sala', en ? 'rooms' : 'salas')}
+      {ultimo(s.ultimo_topico_titulo, s.ultimo_topico_autor, s.ultimo_topico_avatar, s.ultimo_topico_em, en ? 'No topics yet' : 'Nenhum tópico ainda')}
       {papel.ehImperador ? (
         <button type="button" className="btn-icon btn-sm forum-acao" aria-label={en ? 'Edit room' : 'Editar sala'}
           onClick={(e) => { e.stopPropagation(); setJanela({ tipo: 'sala', sala: s }); }}>
@@ -415,10 +455,6 @@ function ForumView({ lang = 'pt' }) {
       ) : <span aria-hidden="true" />}
     </li>
   );
-  /* A LINHA DO TÓPICO (15/11/2026, usuário: "Na página de tópicos, mostre a
-     quantidade de visualizações e quantidade de comentários. Mostre o título
-     do último post, horário e nome do usuário"). Resposta não tem título: o
-     último post é o começo do texto dela; sem resposta, o próprio tópico. */
   const linhaTopico = (t) => (
     <li key={t.id} className={'mn-quadro-linha forum-linha forum-linha--topico' + (t.novas && !t.fechado ? ' is-novo' : '')}>
       <ForumEstado estado={estadoDoTopico(t)} en={en} />
@@ -426,29 +462,35 @@ function ForumView({ lang = 'pt' }) {
         <span className="forum-linha-titulo">{t.titulo}</span>
         <span className="forum-linha-meta">{(t.autor_nome || (en ? 'Someone' : 'Alguém')) + ' · ' + forumQuando(t.criado_em, en)}</span>
       </button>
-      <div className="forum-contas">
-        <span>{plural(t.visualizacoes || 0, en ? 'view' : 'visualização', en ? 'views' : 'visualizações')}</span>
-        <span>{plural(t.respostas, en ? 'comment' : 'comentário', en ? 'comments' : 'comentários')}</span>
-      </div>
-      <div className="forum-ultimo">
-        {t.ultima_resposta_em ? (
-          <>
-            <span className="forum-ultimo-titulo">{t.ultima_resposta_trecho}</span>
-            <span className="forum-ultimo-meta">{(t.ultima_resposta_autor || (en ? 'Someone' : 'Alguém')) + ' · ' + forumQuando(t.ultima_resposta_em, en)}</span>
-          </>
-        ) : (
-          /* Sem resposta, o último post é o próprio tópico — e o título já está
-             ao lado. A coluna diz só que ainda não há conversa. */
-          <span className="forum-ultimo-meta">{en ? 'No comments yet' : 'Sem comentários ainda'}</span>
-        )}
-      </div>
+      {numero(t.visualizacoes || 0, en ? 'view' : 'visualização', en ? 'views' : 'visualizações')}
+      {numero(t.respostas, en ? 'comment' : 'comentário', en ? 'comments' : 'comentários')}
+      {/* Sem resposta, o último post é o próprio tópico, e o título já está ao lado. */}
+      {ultimo(t.ultima_resposta_em ? t.ultima_resposta_trecho : null, t.ultima_resposta_autor, t.ultima_resposta_avatar, t.ultima_resposta_em, en ? 'No comments yet' : 'Sem comentários ainda')}
       <ForumCurtir curtidas={t.curtidas} curtido={t.eu_curti} en={en} onAlternar={() => curtirTopico(t)} />
     </li>
   );
-  const cabeca = (rotulo, acao = null) => (
-    <div className="mn-quadro-cabeca forum-cabeca">
-      <span className="mn-rotulo">{rotulo}</span>
-      {acao}
+  /* O cabeçalho das colunas, alinhado à grade das linhas (16/11/2026). */
+  const colunas = (tipo) => (
+    <div className={'forum-colunas forum-linha--' + tipo} aria-hidden="true">
+      {tipo === 'sala' ? (
+        <>
+          <span />
+          <span className="mn-rotulo">{en ? 'Room' : 'Sala'}</span>
+          <span className="mn-rotulo forum-col-num">{en ? 'Topics' : 'Tópicos'}</span>
+          <span className="mn-rotulo forum-col-num">{en ? 'Rooms' : 'Salas'}</span>
+          <span className="mn-rotulo">{en ? 'Last topic' : 'Último tópico'}</span>
+          <span />
+        </>
+      ) : (
+        <>
+          <span />
+          <span className="mn-rotulo">{en ? 'Topic' : 'Tópico'}</span>
+          <span className="mn-rotulo forum-col-num">{en ? 'Views' : 'Vistas'}</span>
+          <span className="mn-rotulo forum-col-num">{en ? 'Comments' : 'Comentários'}</span>
+          <span className="mn-rotulo">{en ? 'Last post' : 'Último post'}</span>
+          <span />
+        </>
+      )}
     </div>
   );
 
@@ -465,6 +507,7 @@ function ForumView({ lang = 'pt' }) {
           : (en ? 'No rooms yet.' : 'Nenhuma sala ainda.')}</p>
       ) : (
         <div className="mn-quadro-grupo forum-quadro">
+          {colunas('sala')}
           <ul className="forum-linhas" aria-label={en ? 'Rooms' : 'Salas'}>{lista.map(linhaSala)}</ul>
         </div>
       );
@@ -480,7 +523,7 @@ function ForumView({ lang = 'pt' }) {
         {/* Nova sala dentro desta: pelo + do trilho, que oferece tópico ou sala (ForumMenuNovo). */}
         {subsalas.length > 0 && (
           <div className="mn-quadro-grupo forum-quadro">
-            {cabeca(en ? 'Rooms' : 'Salas')}
+            {colunas('sala')}
             <ul className="forum-linhas" aria-label={en ? 'Rooms' : 'Salas'}>{subsalas.map(linhaSala)}</ul>
           </div>
         )}
@@ -491,7 +534,7 @@ function ForumView({ lang = 'pt' }) {
             <p className="forum-vazio">{en ? `No topic with “${query.trim()}”.` : `Nenhum tópico com “${query.trim()}”.`}</p>
           ) : null) : (
             <div className="mn-quadro-grupo forum-quadro">
-              {cabeca(en ? 'Topics' : 'Tópicos')}
+              {colunas('topico')}
               <ul className="forum-linhas" aria-label={en ? 'Topics' : 'Tópicos'}>{lista.map(linhaTopico)}</ul>
               <ForumLegenda en={en} />
             </div>
@@ -630,10 +673,11 @@ function ForumView({ lang = 'pt' }) {
         <ForumEditor en={en}
           titulo={janela.sala ? (en ? 'Edit room' : 'Editar sala') : (en ? 'New room' : 'Nova sala')}
           rotuloConfirmar={janela.sala ? (en ? 'Save' : 'Salvar') : (en ? 'Open room' : 'Abrir sala')}
-          inicial={janela.sala ? { nome: janela.sala.nome, descricao: janela.sala.descricao || '', fechada: janela.sala.fechada } : {}}
+          inicial={janela.sala ? { nome: janela.sala.nome, descricao: janela.sala.descricao || '', fechada: janela.sala.fechada, icone: janela.sala.icone || FORUM_ICONE_PADRAO } : { icone: FORUM_ICONE_PADRAO }}
           campos={[
             { chave: 'nome', rotulo: en ? 'Name' : 'Nome', obrigatorio: true, max: 80 },
             { chave: 'descricao', rotulo: en ? 'What is talked about here' : 'O que se conversa aqui', linhas: 3, max: 400 },
+            { chave: 'icone', rotulo: en ? 'Icon' : 'Ícone', icones: FORUM_ICONES },
           ]}
           extraRodape={janela.sala ? (
             <span className="forum-editor-extra">
@@ -650,7 +694,7 @@ function ForumView({ lang = 'pt' }) {
             </span>
           ) : null}
           onSalvar={(v) => {
-            const linha = { nome: String(v.nome || '').trim(), descricao: String(v.descricao || '').trim() || null };
+            const linha = { nome: String(v.nome || '').trim(), descricao: String(v.descricao || '').trim() || null, icone: v.icone && v.icone !== FORUM_ICONE_PADRAO ? v.icone : null };
             return janela.sala
               ? supabaseClient.from('forum_salas').update(linha).eq('id', janela.sala.id).then((r) => { carregarSalas(); return r; })
               : supabaseClient.from('forum_salas').insert({ ...linha, pai_id: janela.pai != null ? janela.pai : null, ordem: filhas(janela.pai != null ? janela.pai : null).length }).then((r) => { carregarSalas(); return r; });

@@ -6296,9 +6296,9 @@ Object.assign(window, {
    e botão ao mesmo tempo (15/11/2026, usuário: "Use o mesmo estilo de botão
    com brilho no seletor de aventura, no botão da conta inferior esquerdo"). */
 // A paginação também (.best-pag, 16/11/2026: "Aplique o efeito de brilho nos botões de navegação das páginas").
-const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .estoque-sim-nao, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu, .trilho-solto';
+const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu, .trilho-solto, .batalha-zoom';
 // O "+" também (15/11/2026, usuário: "O botão de '+' nos trilhos também precisam entrar no padrão com brilho, cor, etc.").
-const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.estoque-sim-nao-op', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho', '.mc-navitem', '.mc-navbusca', '.wiz-fase', '.mc-ident', '.mc-user', '.best-page-btn', '.mc-menu-item', '.mc-usermenu [role="menuitem"]'];
+const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho', '.mc-navitem', '.mc-navbusca', '.wiz-fase', '.mc-ident', '.mc-user', '.best-page-btn', '.mc-menu-item', '.mc-usermenu [role="menuitem"]', '.batalha-zoom-btn'];
 const TRILHO_BOTAO = TRILHO_BOTOES.join(', ');
 // O marcado de cada família: .is-ativo nos trilhos, .is-on nas pílulas de escolha, .is-active no menu, .is-ativa nas fases.
 // .is-atual: a mesa escolhida no menu da mesa (16/11/2026: 'Os botões internos de selecionar aventura também terão brilho, assim como os botões no menu da conta').
@@ -6383,6 +6383,10 @@ function instalarLaminaDosTrilhos() {
     new MutationObserver(agendar).observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class'] });
   }
   window.addEventListener('resize', agendar);
+  /* Janela que abre animando (ms-rise: sobe e cresce) mede o trilho no meio
+     do caminho, e a lâmina pousava torta ou sumia (16/11/2026). Ao fim de cada
+     animação ou transição, repousa de novo. */
+  document.addEventListener('animationend', agendar, true);
   agendar();
 }
 instalarLaminaDosTrilhos();

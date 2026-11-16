@@ -19732,3 +19732,158 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 #root .menestrel-ui .batalha-token { transition: opacity .2s ease, filter .2s ease; }
 #root .menestrel-ui .batalha-tabuleiro-quadro.tem-selecionado .batalha-token:not(.is-selecionado) { opacity: .4; filter: saturate(.5); }
 #root .menestrel-ui .batalha-tabuleiro-quadro.tem-selecionado .batalha-token:not(.is-selecionado):hover { opacity: .75; }
+
+/* ── O × E OS ÍCONES DO CABEÇALHO DAS JANELAS (16/11/2026) ──────────────────────
+   Usuário: "O x do modal não tem efeito brilhante, isso para todo o sistema."
+   Ele já estava na brasa dos botões avulsos, mas era um quadrado de 22px sem
+   fundo: a luz não tinha onde aparecer. Agora o × e os ícones do cabeçalho
+   (.ms-acao: olho, lápis) são o botão de ícone do trilho — círculo de 34px,
+   ícone de 17px em ouro — e acendem como ele. */
+#root .menestrel-ui :is(.ms-close, .ms-header .ms-acao) {
+  width: 34px; height: 34px; min-width: 34px; padding: 0; border-radius: 50%; border: 0;
+  display: inline-grid; place-items: center; font-size: 17px; color: var(--tinta-2); background: transparent;
+}
+#root .menestrel-ui :is(.ms-close, .ms-header .ms-acao) :is(i, .ti) { font-size: 17px; color: var(--vivo); }
+#root .menestrel-ui .ms-header .ms-acao:not(:disabled):hover {
+  color: var(--tinta); background: var(--vivo-fundo);
+  box-shadow: inset 0 -12px 16px -10px rgba(var(--ouro-rgb), 0.7), 0 6px 16px -10px rgba(var(--ouro-rgb), 0.75);
+}
+#root .menestrel-ui .ms-header .ms-acao + .ms-close:not(.ms-acao),
+#root .menestrel-ui .ms-header-extra:has(.ms-acao) + .ms-close { margin-left: 2px; }
+
+/* ── O ZOOM DA BATALHA É UM TRILHO (16/11/2026, "O botão de zoom da batalha não
+   está com o brilho") ── A casca e as peças do trilho: 5px por dentro, sem
+   borda, botões de 34px, ícone de 17px em ouro, o fator em 700/15px; a luz é
+   a lâmina (10-shell, TRILHO_SELETOR). */
+#root .menestrel-ui .batalha-zoom { padding: 5px; border: 0; background: var(--chao-celula-opaco); }
+#root .menestrel-ui .batalha-zoom-btn { position: relative; z-index: 1; height: 34px; min-width: 34px; padding: 0 10px; font-size: 15px; font-weight: 700; color: var(--tinta-2); }
+#root .menestrel-ui .batalha-zoom-btn .ti { font-size: 17px; color: var(--vivo); }
+#root .menestrel-ui [data-lamina] .batalha-zoom-btn:not(:disabled):hover { background: transparent; color: var(--tinta); }
+
+/* ── A COLUNA DA INICIATIVA SEM CHÃO NA PASSAGEM (16/11/2026) ───────────────────
+   Usuário: "Remova o fundo ao passar o mouse no nome, ef, eh, etc no campo de
+   batalha, menu da esquerda." A linha não acende o fundo: o nome clareia. O
+   escolhido também perde o filete (régua só no contorno das janelas e nas
+   linhas que dividem); quem está na vez segue no véu de ouro. */
+#root .menestrel-ui .batalha-ini-linha:hover { background: none; }
+#root .menestrel-ui .batalha-ini-linha.is-atual:hover { background: var(--vivo-fundo); }
+#root .menestrel-ui .batalha-ini-linha:is(.is-escolhido, .is-atual) { border-color: transparent; }
+#root .menestrel-ui .batalha-ini-linha :is(.batalha-pool-linha, .batalha-pool-linha.editavel):hover { background: transparent; }
+#root .menestrel-ui .batalha-ini-linha:hover :is(.batalha-ini-nome, .batalha-fighter-nome):not(.is-inimigo) { color: var(--tinta); }
+
+/* ── AS PÁGINAS SEM BARRA DE ROLAGEM VERTICAL (16/11/2026) ──────────────────────
+   Usuário: "Impeça uso de barra de rolagem vertical nas páginas." As páginas
+   são desenhadas para caber na janela (a Cena mede e corrige o que sobra, a
+   lista de novidades conta quantas cabem); a barra da área das páginas
+   (.mc-main) não aparece em caso nenhum. A roda e o toque continuam rolando o
+   que porventura passar — numa tela pequena demais, nada fica inalcançável. */
+#root .menestrel-ui .mc-main { scrollbar-width: none; }
+#root .menestrel-ui .mc-main::-webkit-scrollbar { display: none; width: 0; height: 0; }
+
+/* ── AS PÍLULAS DE ESCOLHA COM A BRASA PRÓPRIA (16/11/2026) ─────────────────────
+   Usuário: "Na página de configurações, o botão de paleta, fonte, etc não
+   estão selecionados, eles estão sem fundo. Use nosso padrão." A opção
+   escolhida dependia da lâmina, que mede o trilho — e a janela abre animando,
+   então a medida saía errada e a escolhida ficava sem luz. A pílula de
+   escolha (.estoque-sim-nao) sai da lâmina e acende sozinha: a escolhida com
+   a brasa do trilho (véu de ouro e a luz que nasce da base), a de passagem
+   com um véu leve. Vale nas Configurações, nas Contas e no Aberta da loja. */
+#root .menestrel-ui .estoque-sim-nao-op { transition: background-color .2s ease, color .15s ease, box-shadow .22s ease; }
+#root .menestrel-ui .estoque-sim-nao-op.is-on {
+  color: var(--tinta); background: var(--vivo-fundo);
+  box-shadow: inset 0 -12px 16px -10px rgba(var(--ouro-rgb), 0.7), 0 6px 16px -10px rgba(var(--ouro-rgb), 0.75);
+}
+#root .menestrel-ui .estoque-sim-nao-op:not(.is-on):not(:disabled):hover { background: rgba(var(--bronze-rgb), 0.16); color: var(--tinta); }
+
+/* ── O SELETOR DE MESA COM UM CÍRCULO SÓ (16/11/2026) ───────────────────────────
+   Usuário: "No seletor de aventura, remova o segundo círculo, deixe
+   padronizado como é nos outros menus." Era um círculo de 52px com chão,
+   e dentro dele o brasão, outro círculo. Agora o botão é como os itens do
+   menu — 44px, sem chão — e o brasão o preenche; a luz é a lâmina. */
+@media (min-width: 769px) {
+  #root .menestrel-ui .mc-sidebar .mc-ident { width: 44px; height: 44px; min-height: 44px; background: transparent; }
+  #root .menestrel-ui .mc-sidebar .mc-ident:hover,
+  #root .menestrel-ui .mc-ident[data-lamina]:hover { background: transparent; }
+  #root .menestrel-ui .mc-sidebar .mc-ident .mc-ident-retrato,
+  #root .menestrel-ui .mc-sidebar .mc-ident .mc-ident-retrato .mc-ident-brasao { width: 36px; height: 36px; }
+}
+
+/* ── O FÓRUM: LISTAS MAIS ELEGANTES (16/11/2026) ────────────────────────────────
+   Usuário, das cinco sugestões: "Pode fazer os 5 itens." (1) o ícone da sala
+   num círculo de 40px, em ouro, como os retratos dos cartões; (2) os números
+   em colunas, grandes (17px/700), alinhados à direita sob o cabeçalho — o
+   rótulo de cada um é para o leitor de tela, e volta à vista no celular, onde
+   o cabeçalho sai; (3) o retrato de 24px de quem postou por último; (4) o
+   ponto de ouro antes do nome da sala com novidade, que também sobe a tinta
+   do nome; (5) a linha de rótulos no topo, na mesma grade das linhas. */
+#root .menestrel-ui .forum-linha--sala { grid-template-columns: 40px minmax(0, 1fr) 72px 72px minmax(0, 260px) 36px; }
+#root .menestrel-ui .forum-linha--topico { grid-template-columns: 28px minmax(0, 1fr) 72px 96px minmax(0, 260px) 36px; }
+#root .menestrel-ui .forum-colunas {
+  display: grid; align-items: end; gap: 2px 16px; padding: 0 12px 8px; border-bottom: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .forum-col-num { text-align: right; }
+#root .menestrel-ui .forum-sala-ic {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; flex: none;
+  background: var(--chao-celula); color: var(--vivo); font-size: 20px;
+}
+#root .menestrel-ui .forum-linha--sala.is-novo .forum-sala-ic { background: var(--vivo-fundo); }
+#root .menestrel-ui .forum-num { display: block; text-align: right; font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
+#root .menestrel-ui .forum-num b { font-size: 17px; font-weight: 700; color: var(--tinta); }
+#root .menestrel-ui .forum-num small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+#root .menestrel-ui .forum-ultimo { flex-direction: row; align-items: center; gap: 10px; }
+#root .menestrel-ui .forum-ultimo-txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#root .menestrel-ui .forum-retrato { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex: none; }
+#root .menestrel-ui .forum-retrato--vazio {
+  display: inline-grid; place-items: center; background: var(--chao-celula); color: var(--vivo); font: 700 12px/1 var(--font-body);
+}
+#root .menestrel-ui .forum-novo-ponto { width: 8px; height: 8px; border-radius: 50%; background: var(--vivo); flex: none; }
+#root .menestrel-ui .forum-linha--sala.is-novo .forum-linha-titulo { color: var(--tinta); }
+@media (max-width: 640px) {
+  #root .menestrel-ui .forum-colunas { display: none; }
+  #root .menestrel-ui .forum-linha--sala { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  #root .menestrel-ui .forum-linha--topico { grid-template-columns: 28px minmax(0, 1fr) auto; }
+  #root .menestrel-ui .forum-linha .forum-num { grid-row: 2; text-align: left; }
+  #root .menestrel-ui .forum-linha .forum-num small { position: static; width: auto; height: auto; clip: auto; color: var(--tinta-2); font-size: var(--fs-sm); }
+  #root .menestrel-ui .forum-linha .forum-num b { font-size: var(--fs-sm); }
+  #root .menestrel-ui .forum-linha .forum-ultimo { grid-column: 2 / -1; grid-row: 3; }
+}
+
+/* A escolha do ícone da sala, no editor: os ícones em círculos de 34px, o
+   escolhido com a brasa — o mesmo das pílulas de escolha. */
+#root .menestrel-ui .forum-icones { display: flex; flex-wrap: wrap; gap: 4px; }
+#root .menestrel-ui .forum-icone-op {
+  width: 34px; height: 34px; border-radius: 50%; border: 0; display: grid; place-items: center; cursor: pointer;
+  background: transparent; color: var(--vivo); font-size: 17px; transition: background-color .2s ease, box-shadow .22s ease;
+}
+#root .menestrel-ui .forum-icone-op:hover { background: rgba(var(--bronze-rgb), 0.16); }
+#root .menestrel-ui .forum-icone-op.is-on,
+#root .menestrel-ui :is(.forum-curtir, .inicio-reacao).is-on {
+  background: var(--vivo-fundo);
+  box-shadow: inset 0 -12px 16px -10px rgba(var(--ouro-rgb), 0.7), 0 6px 16px -10px rgba(var(--ouro-rgb), 0.75);
+}
+#root .menestrel-ui .forum-icone-op:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+
+/* ── A CURTIDA DAS NOVIDADES NO PADRÃO DO FÓRUM (16/11/2026) ────────────────────
+   Usuário: "Na página principal, ao clicar sob o botão de coração ele fica
+   ativo e o dedo para baixo desativa, e vice versa. Aplique o mesmo estilo
+   criado no fórum aqui." O marcado acende com a brasa (acima, junto do
+   coração do Fórum), o ícone em ouro nos dois — o dedo para baixo também,
+   como o coração; o desmarcado fica no botão de ícone de sempre. */
+#root .menestrel-ui .inicio-reacao.is-on .ti,
+#root .menestrel-ui .inicio-reacao--nao_gostei.is-on .ti { color: var(--vivo); }
+
+/* O seletor de mesa no eixo da coluna (16/11/2026, "O ícone de selecionar mesa
+   não está centralizado como os demais"): o invólucro dele não é flex, e o
+   botão de 44px encostava à esquerda. */
+@media (min-width: 769px) {
+  #root .menestrel-ui .mc-sidebar .mc-ident-wrap { display: flex; justify-content: center; }
+}
+/* (16/11/2026, "e está com um círculo mais claro ainda") O brasão sem o véu de
+   ouro: só a inicial ou o ícone em ouro, como os ícones dos outros itens do
+   menu; com foto de personagem, a foto preenche o círculo. Centrado no botão. */
+@media (min-width: 769px) {
+  #root .menestrel-ui .mc-sidebar .mc-ident { justify-content: center; align-items: center; gap: 0; }
+  #root .menestrel-ui .mc-sidebar .mc-ident .mc-ident-brasao { background: transparent; }
+  #root .menestrel-ui .mc-sidebar .mc-ident .mc-ident-brasao .ti { font-size: 19px; }
+  #root .menestrel-ui .mc-sidebar .mc-ident .mc-ident-retrato { margin: 0 auto; }
+}
