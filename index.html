@@ -51,6 +51,8 @@
   <script>
     // A paleta da última visita, antes do app montar (23/10/2026) — sem piscar.
     try { const v = localStorage.getItem('menestrel.paleta'); document.documentElement.dataset.paleta = (v === 'ferro' || v === 'couro') ? v : 'couro'; } catch (e) { document.documentElement.dataset.paleta = 'couro'; }
+    // A fonte dos títulos, do mesmo jeito (15/11/2026).
+    try { document.documentElement.dataset.fonte = localStorage.getItem('menestrel.fonte') === 'goudy' ? 'goudy' : 'spectral'; } catch (e) { document.documentElement.dataset.fonte = 'spectral'; }
   </script>
 
   <div id="__loading">

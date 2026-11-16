@@ -27,6 +27,37 @@ const _f = (nome) => (typeof window !== 'undefined' ? window[nome] : undefined);
 
 const forumSemAcento = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
 
+/* O + DENTRO DA SALA (15/11/2026, usuário: "O botão 'nova sala aqui' não vai
+   existir. Ao clicar em mais, terei a opção de criar um novo tópico ou nova
+   sala"). Só para quem pode abrir sala (o Imperador); para os outros o +
+   continua abrindo direto o tópico. Abre sob o +, alinhado pela direita, e
+   fecha no clique fora, no Esc ou ao escolher. Vai para dentro do #root
+   (portal), onde valem os tokens da .menestrel-ui. */
+function ForumMenuNovo({ pos, en, onTopico, onSala, onClose }) {
+  const ref = React.useRef(null);
+  useEffectF(() => {
+    const fora = (e) => { if (ref.current && !ref.current.contains(e.target) && !(e.target.closest && e.target.closest('.best-botao-novo'))) onClose(); };
+    const tecla = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('pointerdown', fora, true);
+    document.addEventListener('keydown', tecla, true);
+    const primeiro = ref.current && ref.current.querySelector('button');
+    if (primeiro) primeiro.focus({ preventScroll: true });
+    return () => { document.removeEventListener('pointerdown', fora, true); document.removeEventListener('keydown', tecla, true); };
+  }, [onClose]);
+  const item = (icone, rotulo, onClick) => (
+    <button type="button" role="menuitem" className="forum-menu-novo-item" onClick={() => { onClose(); onClick(); }}>
+      <i className={'ti ' + icone} aria-hidden="true" />{rotulo}
+    </button>
+  );
+  const alvo = document.getElementById('root') || document.body;
+  return ReactDOM.createPortal(
+    <div className="menestrel-ui forum-menu-novo" role="menu" ref={ref} aria-label={en ? 'Create' : 'Criar'}
+      style={{ position: 'fixed', top: pos.top, right: pos.right }}>
+      {item('ti-message', en ? 'New topic' : 'Novo tópico', onTopico)}
+      {item('ti-door', en ? 'New room' : 'Nova sala', onSala)}
+    </div>, alvo);
+}
+
 /* "há 5 min", "há 2 h", "ontem", "12/11/2026" — a hora de uma conversa. */
 function forumQuando(iso, en) {
   const dt = new Date(iso);
@@ -293,7 +324,18 @@ function ForumView({ lang = 'pt' }) {
   const naSala = salaId != null && topicoId == null;
   const naRaiz = salaId == null;
   const podeCriar = naRaiz ? papel.ehImperador : (naSala ? podeEscreverAqui : false);
-  const onNovo = () => setJanela(naRaiz ? { tipo: 'sala' } : { tipo: 'topico' });
+  const [menuNovo, setMenuNovo] = useStateF(null);   // { top, right } do + que abriu
+  const onNovo = () => {
+    if (naRaiz) { setJanela({ tipo: 'sala' }); return; }
+    if (naSala && papel.ehImperador) {
+      if (menuNovo) { setMenuNovo(null); return; }
+      const b = document.querySelector('.forum .best-botao-novo');
+      const r = b ? b.getBoundingClientRect() : null;
+      setMenuNovo(r ? { top: r.bottom + 6, right: Math.max(8, window.innerWidth - r.right) } : { top: 80, right: 24 });
+      return;
+    }
+    setJanela({ tipo: 'topico' });
+  };
 
   const curtirTopico = async (t) => {
     await forumCurtir({ topicoId: t.id, curtido: t.eu_curti, eu: papel.eu });
@@ -435,8 +477,7 @@ function ForumView({ lang = 'pt' }) {
         {salaFechada && <p className="forum-aviso is-alerta"><i className="ti ti-lock" aria-hidden="true" />{en ? 'This room is closed: it can be read, not written in.' : 'Esta sala está fechada: dá para ler, não para escrever.'}</p>}
         {/* As salas de dentro (15/11/2026): primeiro elas, depois os tópicos.
             O Imperador abre uma nova aqui mesmo. */}
-        {/* "Nova sala aqui" saiu daqui para o trilho (15/11/2026, usuário: "O
-            botão de '+ nova sala aqui' deve ficar no trilho também"). */}
+        {/* Nova sala dentro desta: pelo + do trilho, que oferece tópico ou sala (ForumMenuNovo). */}
         {subsalas.length > 0 && (
           <div className="mn-quadro-grupo forum-quadro">
             {cabeca(en ? 'Rooms' : 'Salas')}
@@ -571,16 +612,15 @@ function ForumView({ lang = 'pt' }) {
         {Busca ? (
           <Busca ac={ac} placeholder={en ? 'Search' : 'Buscar'} query={query} setQuery={setQuery}
             podeCriar={podeCriar} onNovo={onNovo}
-            dicaNovo={naRaiz ? (en ? 'New room' : 'Nova sala') : (en ? 'New topic' : 'Novo tópico')}
-            ferramentas={naSala && papel.ehImperador ? (
-              <button type="button" className="mc-acao" onClick={() => setJanela({ tipo: 'sala', pai: salaId })}>
-                <i className="ti ti-door" aria-hidden="true" />
-                <span className="mc-acao-rotulo">{en ? 'New room here' : 'Nova sala aqui'}</span>
-              </button>
-            ) : null}
+            dicaNovo={naRaiz ? (en ? 'New room' : 'Nova sala') : (naSala && papel.ehImperador) ? (en ? 'New topic or room' : 'Novo tópico ou sala') : (en ? 'New topic' : 'Novo tópico')}
             antes={trilho} />
         ) : trilho}
       </div>
+      {menuNovo && (
+        <ForumMenuNovo pos={menuNovo} en={en} onClose={() => setMenuNovo(null)}
+          onTopico={() => setJanela({ tipo: 'topico' })}
+          onSala={() => setJanela({ tipo: 'sala', pai: salaId })} />
+      )}
 
       {avisoLeitura}
       {erro && salas && <p className="forum-erro" role="alert">{erro}</p>}

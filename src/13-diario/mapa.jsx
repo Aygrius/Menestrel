@@ -473,8 +473,11 @@ function criarMotorMapa(raiz, cfg) {
       if (EU) nums = doisNums(EU.eu ? tr('Em linha reta', 'Straight line') : tr('De ' + esc(EU.nome), 'From ' + esc(EU.nome)), km(dist(EU, a)));
       if (f.tipo === 'lugar') {
         const rot = a.tipo === 'cidade' ? tr('Cidade', 'City') : a.tipo === 'local' ? tr('Local', 'Place') : tr('Ponto de interesse', 'Point of interest');
-        // cidade ligada à ficha: o nome é o da aba Cidades, e é lá que se muda
-        id = mestre && !((a.tipo === 'cidade' || a.tipo === 'local') && fichaDe(a)) ? campo(rot) : fixo(rot);
+        /* CIDADE E LOCAL NÃO SE RENOMEIAM NO MAPA (15/11/2026, usuário: "Ao clicar
+           em algumas cidades, como Quizes, a forma como mostra o nome está
+           diferente, como se pudesse editar no mapa. A edição é apenas na página
+           de cidade, etc."). Só o ponto de interesse, que é do mapa, tem campo. */
+        id = mestre && a.tipo === 'ponto' ? campo(rot) : fixo(rot);
         if (!mestre) acoes = bt('marcar', 'ti-map-pin', tr('Marcar interesse', 'Mark interest'));
       } else {
         id = marcaSolta(a) ? campo(tr('Sua marca', 'Your mark')) : fixo(tr('Lugar marcado', 'Marked place'));
@@ -485,10 +488,8 @@ function criarMotorMapa(raiz, cfg) {
         if (gente.length) acoes += bt('trazer', 'ti-users', tr('Trazer a comitiva', 'Bring the party'));
         // O lugar do mundo só o Imperador move ou tira; o Mestre usa como está.
         const doMundo = f.tipo === 'lugar' && a.mundo;
-        if (!doMundo || imperador) {
-          acoes += bt('remover', 'ti-trash', tr('Remover', 'Remove'), true);
-          nota = tr('Arraste no mapa para mudar de lugar.', 'Drag on the map to move it.');
-        }
+        // O "Arraste no mapa para mudar de lugar" saiu (15/11/2026, a pedido do usuário).
+        if (!doMundo || imperador) acoes += bt('remover', 'ti-trash', tr('Remover', 'Remove'), true);
       } else if (quem.length) nota = tr(`${esc(quem.join(', '))} ${quem.length > 1 ? 'estão' : 'está'} aqui.`, `${esc(quem.join(', '))} ${quem.length > 1 ? 'are' : 'is'} here.`);
     }
     /* O que a aba Cidades sabe deste lugar: reino e população no passe, e a
@@ -872,6 +873,35 @@ function criarMotorMapa(raiz, cfg) {
     desenhar();
   });
 
+  /* ── OS BALÕES (15/11/2026, usuário: "Os tooltips estão sendo escondidos no
+     mapa") ── O balão era um ::after do botão, e o painel, que rola, cortava o
+     que passava da borda dele (o do primeiro botão, metade para fora). Agora é
+     o balão do sistema (.mn-tip), posto na TELA (position: fixed) a partir do
+     botão — nada o recorta. Mora num invólucro .menestrel-ui pendurado no
+     #root, fora da árvore do React, e sai junto com o motor. */
+  const casaBalao = document.createElement('div');
+  casaBalao.className = 'menestrel-ui mp-balao-casa';
+  const balao = document.createElement('div');
+  balao.className = 'mn-tip'; balao.setAttribute('role', 'tooltip'); balao.style.display = 'none';
+  casaBalao.appendChild(balao);
+  (document.getElementById('root') || document.body).appendChild(casaBalao);
+  limpezas.push(() => casaBalao.remove());
+  const esconderBalao = () => { balao.style.display = 'none'; };
+  const mostrarBalao = (el) => {
+    const r = el.getBoundingClientRect();
+    balao.textContent = el.getAttribute('data-dica');
+    balao.style.left = (r.left + r.width / 2) + 'px';
+    balao.style.top = r.top + 'px';
+    balao.style.display = '';
+  };
+  const dicaDe = (alvo) => { const el = alvo && alvo.closest ? alvo.closest('[data-dica]') : null; return el && raiz.contains(el) ? el : null; };
+  ouvir(raiz, 'pointerover', (e) => { const el = dicaDe(e.target); if (el) mostrarBalao(el); else esconderBalao(); });
+  ouvir(raiz, 'pointerleave', esconderBalao);
+  ouvir(raiz, 'focusin', (e) => { const el = dicaDe(e.target); let teclado = false; try { teclado = !!el && el.matches(':focus-visible'); } catch (_) {} if (teclado) mostrarBalao(el); });
+  ouvir(raiz, 'focusout', esconderBalao);
+  ouvir(raiz, 'pointerdown', esconderBalao);
+  ouvir(window, 'scroll', esconderBalao, true);
+
   /* ── Partida ── */
   let pronto = false;
   const olho = new ResizeObserver(() => {
@@ -1102,7 +1132,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
   const ac = (typeof ADMIN_COPY !== 'undefined' && (ADMIN_COPY[lang] || ADMIN_COPY.pt)) || {};
   const Ficha = (typeof DetalheEntradaModal !== 'undefined' && DetalheEntradaModal) || window.DetalheEntradaModal;
   const zoom = (qual, ico, rot) => (
-    <button type="button" className="mc-acao mp-ferr so-ico" data-zoom={qual} aria-label={rot}><i className={'ti ' + ico} aria-hidden="true" /></button>
+    <button type="button" className="mc-acao mp-ferr so-ico" data-zoom={qual} aria-label={rot} data-dica={rot}><i className={'ti ' + ico} aria-hidden="true" /></button>
   );
   return (
     <div className="pjs diario-pagina mp-pagina">

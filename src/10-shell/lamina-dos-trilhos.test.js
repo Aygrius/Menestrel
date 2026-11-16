@@ -40,11 +40,16 @@ describe('a lâmina dos trilhos', () => {
   });
 
   it('o trilho de ações do shell segue sticky; o da ficha vira referência', () => {
-    expect(css).toMatch(/\[data-lamina\]:not\(#mc-acoes-ficha\) \{ position: relative; \}/);
+    // 16/11/2026: os menus soltos (mesa, conta) ficam fora — eles se posicionam sozinhos.
+    expect(css).toMatch(/\[data-lamina\]:not\(#mc-acoes-ficha\):not\(\.mc-ident-menu\):not\(\.mc-usermenu\) \{ position: relative; \}/);
   });
 
   it('o selo de pontos não recebe a lâmina', () => {
-    expect(shell).toMatch(/b\.classList\.contains\('pc-pontos'\)\) return null;/);
+    expect(shell).toMatch(/b\.classList\.contains\('pc-pontos'\)/);
+  });
+  // 15/11/2026: o item esmaecido (menu sem mesa, Loja vazia) também não acende.
+  it('o item inativo não recebe a lâmina', () => {
+    expect(shell).toMatch(/b\.classList\.contains\('is-inativo'\)\) return null;/);
   });
 });
 

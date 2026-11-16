@@ -114,8 +114,10 @@ describe('cidade nova não nasce no mapa', () => {
     expect(fonte).toMatch(/if \(modo === 'cidade' \|\| modo === 'local'\) \{   \/\/ só posiciona um cadastrado/);
     expect(fonte).toMatch(/tipo: modo, nome: pondoCidade\.nome, ficha: pondoCidade\.id/);
   });
-  it('cidade (e local) ligado à ficha não tem o nome editado no mapa', () => {
-    expect(fonte).toMatch(/mestre && !\(\(a\.tipo === 'cidade' \|\| a\.tipo === 'local'\) && fichaDe\(a\)\) \? campo\(rot\) : fixo\(rot\)/);
+  /* 15/11/2026, usuário: "A edição é apenas na página de cidade, etc." —
+     cidade e local nunca têm campo no mapa, com ficha ou sem; só o ponto. */
+  it('cidade e local não têm o nome editado no mapa; só o ponto', () => {
+    expect(fonte).toMatch(/id = mestre && a\.tipo === 'ponto' \? campo\(rot\) : fixo\(rot\);/);
   });
 });
 

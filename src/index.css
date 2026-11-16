@@ -17617,7 +17617,9 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
    referência do ::before; o `relative` o desgrudaria do topo. O da FICHA
    (#fp-acoes-ficha, mesma classe) é estático: sem o `relative`, a lâmina
    dele se ancorava no cartão e aparecia solta no canto (visto na prévia). */
-#root .menestrel-ui [data-lamina]:not(#mc-acoes-ficha) { position: relative; }
+/* Os menus soltos (mesa, conta) se posicionam sozinhos (fixed/absolute): a
+   lâmina não os desloca (16/11/2026). */
+#root .menestrel-ui [data-lamina]:not(#mc-acoes-ficha):not(.mc-ident-menu):not(.mc-usermenu) { position: relative; }
 #root .menestrel-ui [data-lamina]::before {
   content: ""; position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none;
   width: var(--lamina-w, 0px); height: var(--lamina-h, 0px);
@@ -19381,3 +19383,323 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 #root .menestrel-ui [data-lamina] .fp-aba-trilho.is-ativo { background: transparent; }
 #root .menestrel-ui [data-lamina] .estoque-sim-nao-op.is-on { background: transparent; box-shadow: none; }
 #root .menestrel-ui [data-lamina] .estoque-sim-nao-op:not(:disabled):hover { color: var(--tinta); }
+
+/* O + da sala do Fórum oferece tópico ou sala (15/11/2026): a pílula do
+   trilho (chão opaco, borda padrão) virada em lista; cada linha tem as peças
+   do botão do trilho — ícone de 17px em ouro, rótulo 700/15px na tinta-2 que
+   clareia na passagem. */
+#root .menestrel-ui.forum-menu-novo {
+  z-index: 1000; min-width: 190px; padding: 5px; display: flex; flex-direction: column; gap: 2px;
+  background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte); border-radius: 14px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.5);
+}
+#root .menestrel-ui .forum-menu-novo-item {
+  height: 34px; padding: 0 14px 0 10px; display: flex; align-items: center; gap: 7px;
+  border: 0; border-radius: 999px; background: none; cursor: pointer; text-align: left;
+  font: 700 15px var(--font-body); color: var(--tinta-2); transition: background-color .15s ease, color .15s ease;
+}
+#root .menestrel-ui .forum-menu-novo-item i { font-size: 17px; color: var(--vivo); }
+#root .menestrel-ui .forum-menu-novo-item:is(:hover, :focus-visible) { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); outline: none; }
+
+/* ── A LÂMINA NO MENU LATERAL, NO BUSCAR E NO ASSISTENTE (15/11/2026) ─────────
+   Usuário: "Eu quero o estilo de brilho no botão, no menu lateral esquerdo.
+   Vamos começar a padronizar o sistema [...] Inclusive o botão de buscar ctrl
+   + k. Os botões de navegação em 'editar personagem'." A luz é a mesma dos
+   trilhos (10-shell, TRILHO_SELETOR); aqui, cada peça fica acima dela, o véu
+   próprio sai, e a lâmina toma a forma do item (8px no menu, não pílula). */
+/* O ITEM DO MENU É O BOTÃO DO TRILHO (15/11/2026, usuário: "Remova a borda
+   ativa do menu lateral esquerdo, e torne o botão com as bordas redondas, use
+   o mesmo estilo do botão do trilho, com o ícone de cor diferente"): pílula,
+   rótulo 700/15px na tinta-2 que clareia, ícone em ouro; sem o filete de 2px
+   do ativo — quem marca a página aberta é a lâmina pousada. */
+#root .menestrel-ui .mc-navitem { border-radius: 999px; font-weight: 700; font-size: 15px; color: var(--tinta-2); }
+#root .menestrel-ui .mc-navitem--filho { font-weight: 700; font-size: 14px; }
+#root .menestrel-ui .mc-navitem > .ti { color: var(--vivo); }
+#root .menestrel-ui .mc-navitem.is-active { box-shadow: none; color: var(--tinta); }
+#root .menestrel-ui .mc-navitem.is-inativo > .ti { color: var(--tinta-3); }
+#root .menestrel-ui .mc-nav[data-lamina]::before { border-radius: 999px; }
+#root .menestrel-ui .mc-navbusca[data-lamina]::before { border-radius: 9px; }
+#root .menestrel-ui [data-lamina] :is(.mc-navitem, .wiz-fase) { position: relative; z-index: 1; }
+#root .menestrel-ui .mc-navbusca[data-lamina] > * { position: relative; z-index: 1; }
+#root .menestrel-ui [data-lamina] .mc-navitem:not(.is-inativo):hover,
+#root .menestrel-ui [data-lamina] .mc-navitem.is-active { background: transparent; }
+#root .menestrel-ui [data-lamina] .mc-navitem:not(.is-inativo):hover > .ti { color: var(--vivo); }
+#root .menestrel-ui .mc-navbusca[data-lamina]:hover { background: var(--chao-celula-opaco); color: var(--tinta); }
+#root .menestrel-ui .mc-navbusca[data-lamina]:hover .ti { color: var(--vivo); }
+#root .menestrel-ui [data-lamina] .wiz-fase:hover:not(:disabled):not(.is-ativa),
+#root .menestrel-ui [data-lamina] .wiz-fase.is-ativa { background: transparent; border-color: transparent; }
+
+/* A Loja sem nada à venda (15/11/2026, "o menu loja não abre, fica
+   esmaecido"): no lugar, apagada, sem acender; o balão diz por quê. */
+#root .menestrel-ui .mc-acao.is-inativo { opacity: .45; cursor: not-allowed; }
+#root .menestrel-ui .mc-acao.is-inativo:hover { background: transparent; color: var(--tinta-2); }
+#root .menestrel-ui .mc-acao.is-inativo:hover > i { transform: none; }
+
+/* ── AVANÇAR, CANCELAR, EXCLUIR COM A BRASA (15/11/2026) ───────────────────────
+   Usuário: "Os botões de avançar, cancelar, excluir." Botão sozinho não tem
+   trilho para a lâmina deslizar; a brasa acende NELE, na passagem: a luz que
+   nasce da base, a mesma do trilho. Cancelar acende em ouro; Avançar/Salvar
+   (o ouro cheio, a ação) ganha a luz por baixo e o halo; Excluir acende em
+   brasa de alerta. */
+/* (16/11/2026) A brasa daqui era um degradê, sem transição — trocada pela de
+   sombra, igual à dos botões avulsos ("OS BOTÕES AVULSOS COM A BRASA", no fim
+   do arquivo), que já cobre o rodapé. */
+
+/* ── A FONTE DOS TÍTULOS (15/11/2026) ───────────────────────────────────────────
+   Usuário: "Vamos continuar usando Spectral SC mesmo, mas deixe a fonte salva.
+   E coloque uma opção de mudar a fonte no menu configurações." A Goudy
+   Mediaeval mora em public/fonts/goudy-mediaeval (só a DemiBold tem "ç" e "õ";
+   a Regular fica guardada). Escolhida nas Configurações, :root[data-fonte]
+   troca o --font-title de todo o app. Cada opção da pílula se escreve na
+   própria fonte. */
+@font-face {
+  font-family: "Goudy Mediaeval"; font-weight: 400 700; font-display: swap;
+  src: url("/fonts/goudy-mediaeval/goudy-mediaeval-demibold.ttf") format("truetype");
+}
+:root[data-fonte="goudy"] { --font-title: "Goudy Mediaeval", "Spectral SC", Georgia, serif; }
+:root[data-fonte="goudy"] .menestrel-ui { --font-title: "Goudy Mediaeval", "Spectral SC", Georgia, serif; }
+#root .menestrel-ui .estoque-sim-nao-op.cfg-fonte-spectral { font-family: "Spectral SC", Georgia, serif; font-size: 15px; }
+#root .menestrel-ui .estoque-sim-nao-op.cfg-fonte-goudy { font-family: "Goudy Mediaeval", Georgia, serif; font-size: 17px; }
+
+/* ── O MENU LATERAL SEMPRE RECOLHIDO (15/11/2026) ─────────────────────────────
+   Usuário: "O menu lateral esquerdo não vai expandir mais, ele ficará sempre
+   retraído." No computador, a coluna dos ícones (72px) em qualquer estado —
+   nem o hover (o AdminConsole não abre mais), nem o foco, nem um menu aberto a
+   alargam. Os nomes seguem como nome dos botões (leitor de tela) e no balão.
+   O menu da mesa abre ao lado da coluna (.mc-ident-menu--solto, portal). */
+@media (min-width: 769px) {
+  #root .menestrel-ui .mc-sidebar:is(.is-expandida, :focus-within, .is-menu-aberto) {
+    flex-basis: 72px; margin-right: 0; padding-left: 10px; padding-right: 10px;
+    background: var(--pg-fundo); backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: none;   /* o fundo sólido de 08/11 — o véu deixava o menu transparente */
+  }
+  #root .menestrel-ui .mc-sidebar :is(.mc-marca-texto, .mc-navitem > span, .mc-navbusca > span, .mc-ident-txt, .mc-user-txt) {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  }
+  #root .menestrel-ui .mc-sidebar :is(.mc-nav-secao, .mc-navseta, .mc-navmais, .mc-navbusca kbd, .mc-ident-seta, .mc-user .ti-dots-vertical, .mc-navfilhos) { display: none; }
+  #root .menestrel-ui .mc-sidebar :is(.mc-navitem, .mc-navbusca) { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+  #root .menestrel-ui .mc-sidebar .mc-ident { justify-content: center; padding: 6px; }
+  #root .menestrel-ui .mc-sidebar .mc-user { justify-content: center; padding-left: 0; padding-right: 0; }
+  #root .menestrel-ui .mc-sidebar .mc-marca { justify-content: center; padding-left: 0; padding-right: 0; }
+}
+#root .menestrel-ui.mc-ident-menu--solto {
+  z-index: 90; width: 260px; display: flex; flex-direction: column; gap: 2px; padding: 6px;
+  background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte); border-radius: 10px;
+  box-shadow: 0 14px 36px rgba(0,0,0,0.55);
+}
+#root .menestrel-ui.mc-ident-menu--solto .mc-menu-item { display: flex; align-items: center; gap: 10px; justify-content: flex-start; }
+#root .menestrel-ui.mc-ident-menu--solto .mc-menu-item > span { flex: 1 1 auto; text-align: left; }
+
+/* O seletor de mesa e a conta com a lâmina (15/11/2026, usuário: "Use o
+   mesmo estilo de botão com brilho no seletor de aventura, no botão da conta
+   inferior esquerdo"): redondos como os itens do menu, a luz acende neles na
+   passagem e o véu próprio sai. */
+#root .menestrel-ui .mc-sidebar :is(.mc-ident, .mc-user) { border-radius: 999px; }
+#root .menestrel-ui :is(.mc-ident, .mc-user)[data-lamina]::before { border-radius: 999px; }
+#root .menestrel-ui :is(.mc-ident, .mc-user)[data-lamina] > * { position: relative; z-index: 1; }
+#root .menestrel-ui .mc-ident[data-lamina]:hover { background: var(--chao-celula); }
+#root .menestrel-ui .mc-user[data-lamina]:hover { background: transparent; }
+
+/* ── SEM BORDA NOS CARTÕES, NOS CAMPOS E NOS TRILHOS (16/11/2026) ─────────────
+   Usuário: "Remova a borda dos cards de reinos, cidades, etc. E ao abrir o
+   modal de edição, remova a borda dos campos. A borda será apenas externa do
+   modal, e das linhas separadoras. Remova a borda dos trilhos." Quem separa é
+   o chão (o tom de cada peça); a régua fica no contorno das janelas e nas
+   linhas que dividem. O campo continua acendendo em ouro no foco — sem borda
+   em repouso, o foco precisa do seu sinal. */
+#root .menestrel-ui .diario-cartao.pj-card,
+#root .menestrel-ui .diario-cartao .pj-card-portrait { border-color: transparent; }
+#root .menestrel-ui .ms-body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea, .diario-input, .diario-textarea, .select-pill-btn) { border-color: transparent; }
+/* NEM NO FOCO (16/11/2026, usuário: "Os campos para edição não devem ter borda,
+   lembra? Ao editar um novo tópico aparece uma borda ao selecionar o campo"):
+   o campo em foco se acende pelo chão (o tom do hover), sem filete. Vale nas
+   janelas e nos campos de texto das páginas (.diario-input/.diario-textarea,
+   a resposta do Fórum). */
+#root .menestrel-ui :is(.diario-input, .diario-textarea) { border-color: transparent; }
+#root .menestrel-ui :is(.ms-body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea, .select-pill-btn), .diario-input, .diario-textarea):focus {
+  border-color: transparent; outline: none; box-shadow: none; background-color: var(--campo-bg-hover);
+}
+#root .menestrel-ui :is(.cartoes-barra .best-header-acoes, .mc-acoes-ficha, .fp-abas-trilho, .cdj-trilho, .mp-grupo, .wiz-fases, .estoque-sim-nao, .fp3-rodape-trilho) { border-color: transparent; }
+
+/* ── O MENU LATERAL EM CÍRCULOS (16/11/2026) ──────────────────────────────────
+   Usuário: "Os botões do menu esquerdo devem ser círculos perfeitos." Na
+   coluna sempre recolhida, cada botão é um quadrado de lado fixo com raio de
+   metade: 44px os destinos, o Buscar e a conta; 52px o seletor de mesa, que
+   leva o retrato. Centrados na coluna. */
+@media (min-width: 769px) {
+  #root .menestrel-ui .mc-sidebar :is(.mc-navitem, .mc-navbusca, .mc-user) {
+    width: 44px; height: 44px; min-height: 44px; padding: 0; gap: 0; flex: none; align-self: center;
+    justify-content: center; border-radius: 50%;
+  }
+  #root .menestrel-ui .mc-sidebar .mc-ident { width: 52px; height: 52px; min-height: 52px; padding: 0; align-self: center; justify-content: center; border-radius: 50%; }
+  #root .menestrel-ui .mc-sidebar .mc-nav { align-items: center; }
+  #root .menestrel-ui .mc-sidebar :is(.mc-nav, .mc-navbusca, .mc-ident, .mc-user)[data-lamina]::before { border-radius: 50%; }
+}
+
+/* A paginação com a lâmina (16/11/2026, usuário: "Aplique o efeito de brilho
+   nos botões de navegação das páginas"): a luz desliza entre ‹ 1 2 3 › e
+   pousa na página aberta; o gomo próprio da página atual sai. */
+#root .menestrel-ui .best-pag[data-lamina]::before { border-radius: 50%; }
+#root .menestrel-ui [data-lamina] .best-page-btn { position: relative; z-index: 1; }
+#root .menestrel-ui [data-lamina] .best-page-btn:not(:disabled):hover,
+#root .menestrel-ui [data-lamina] .best-page-btn.is-active { background: transparent; color: var(--tinta); box-shadow: none; border-color: transparent; }
+
+/* ── O MENU LATERAL, ACERTOS (16/11/2026) ──────────────────────────────────────
+   Usuário: "O botão de selecionar aventura não está redondo e está com borda,
+   o botão de ctrl + k também está com borda, e ele se mexe quando eu clico no
+   botão de selecionar aventuras." Sem borda nos dois; o brasão da mesa e a
+   foto da conta, redondos e sem aro. E o Buscar não anda: com o menu da mesa
+   aberto (:focus-within), uma regra antiga devolvia o recuo de 16px à
+   esquerda — aqui o recuo é zero em qualquer estado. */
+@media (min-width: 769px) {
+  #root .menestrel-ui .mc-sidebar.mc-sidebar :is(.mc-navitem, .mc-navbusca.mc-navbusca--topo, .mc-user, .mc-ident) { padding: 0; }
+}
+#root .menestrel-ui .mc-sidebar :is(.mc-ident, .mc-navbusca) { border-color: transparent; }
+#root .menestrel-ui .mc-sidebar .mc-ident-brasao { border-radius: 50%; }
+#root .menestrel-ui .mc-sidebar .mc-user :is(img, .mc-user-avatar, .mc-user-foto) { border-color: transparent; }
+
+/* Os itens do menu da mesa e da conta com a lâmina (16/11/2026, usuário: "Os
+   botões internos de selecionar aventura também terão brilho, assim como os
+   botões no menu da conta"): pílulas acima da luz, sem o véu e sem o filete
+   da mesa escolhida — quem a marca é a lâmina pousada. */
+#root .menestrel-ui [data-lamina] .mc-menu-item,
+#root .menestrel-ui.mc-usermenu[data-lamina] [role="menuitem"] { position: relative; z-index: 1; border-radius: 999px; }
+#root .menestrel-ui.mc-ident-menu[data-lamina]::before,
+#root .menestrel-ui .mc-ident-menu[data-lamina]::before,
+#root .menestrel-ui.mc-usermenu[data-lamina]::before { border-radius: 999px; }
+#root .menestrel-ui [data-lamina] .mc-menu-item:is(:hover, :focus-visible, .is-open, .is-atual) { background: transparent; box-shadow: none; color: var(--tinta); }
+#root .menestrel-ui [data-lamina] .mc-menu-item.is-atual::before { content: none; }
+#root .menestrel-ui [data-lamina] .mc-menu-item:is(:hover, .is-atual) i { color: var(--vivo); }
+
+/* ── OS BOTÕES AVULSOS COM A BRASA (16/11/2026) ────────────────────────────────
+   Usuário: "Identifique os botões que vão mudar, como o botão de editar tópico
+   no fórum" e, logo depois, "Em alguns botões, há um efeito de brilho bugado,
+   como por exemplo nos botões 'trocar imagem, escrever, etc' em 'cena'.
+   Percebi também que esses botões estão menores, padronize os botões."
+
+   Botão que não mora num trilho não tem lâmina para deslizar: a brasa acende
+   nele, na passagem. A primeira versão pintava a brasa com um degradê — que
+   não tem transição (troca de uma vez) e, num botão largo, vira uma elipse
+   torta: era o "bugado". Agora a luz que nasce da base é uma SOMBRA DE DENTRO
+   (inset, de baixo para cima) sobre o véu de ouro, mais o halo de fora —
+   tudo anima. Entram as peles do sistema (.btn-ghost, .btn-icon, .btn-primary,
+   .btn-danger) em qualquer lugar, as ações do lugar no mapa (.mp-acao) e o ×
+   das janelas (.ms-close). Quem já está num trilho com lâmina fica de fora.
+
+   E o MESMO TAMANHO do botão do trilho: 34px, rótulo 700/15px, ícone de 17px
+   em ouro, 7px entre eles; o de ícone só, um círculo de 34px. O rodapé das
+   janelas (46px) segue o seu. */
+#root .menestrel-ui :is(.btn-ghost, .btn-primary, .btn-danger):is(.btn-sm, .btn-md, :not(.btn-lg)):not(.btn-icon):not(:is(.ms-footer, .wiz-actions, .det-act-row, .det-act-confirm-btns) *) {
+  height: 34px; padding: 0 14px 0 12px; gap: 7px; font-size: 15px; font-weight: 700;
+}
+#root .menestrel-ui .btn-icon:not(:is(.ms-footer, .wiz-actions, .det-act-row, .det-act-confirm-btns) *) { width: 34px; height: 34px; min-width: 34px; padding: 0; }
+#root .menestrel-ui :is(.btn-ghost, .btn-icon):not(.btn-danger) > :is(i, .ti) { font-size: 17px; color: var(--vivo); }
+#root .menestrel-ui .btn-icon.btn-danger > :is(i, .ti) { font-size: 17px; }
+#root .menestrel-ui :is(.btn-ghost, .btn-icon, .btn-primary, .btn-danger, .mp-acao, .ms-close) {
+  transition: background-color .2s ease, color .15s ease, box-shadow .22s ease, filter .2s ease, transform .12s ease;
+}
+#root .menestrel-ui :is(.btn-ghost, .btn-icon:not(.btn-danger), .mp-acao:not(.perigo), .ms-close):not([data-lamina] *):hover:not(:disabled) {
+  color: var(--tinta); background: var(--vivo-fundo);
+  box-shadow: inset 0 -12px 16px -10px rgba(var(--ouro-rgb), 0.7), 0 6px 16px -10px rgba(var(--ouro-rgb), 0.75);
+}
+#root .menestrel-ui :is(.btn-icon:not(.btn-danger), .mp-acao:not(.perigo), .ms-close):not([data-lamina] *):hover:not(:disabled) :is(i, .ti) { color: var(--vivo); }
+#root .menestrel-ui .btn-primary:not([data-lamina] *):hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--vivo) 0%, var(--ouro-2) 100%);
+  box-shadow: inset 0 -12px 16px -10px rgba(255, 244, 214, 0.75), 0 8px 20px -10px rgba(var(--ouro-rgb), 0.95);
+  filter: none;
+}
+#root .menestrel-ui :is(.btn-danger, .mp-acao.perigo):not([data-lamina] *):hover:not(:disabled) {
+  color: #F6C2BC; background: rgba(200, 33, 44, 0.16);
+  box-shadow: inset 0 -12px 16px -10px rgba(214, 64, 52, 0.8), 0 6px 16px -10px rgba(214, 64, 52, 0.8);
+}
+#root .menestrel-ui :is(.btn-danger, .mp-acao.perigo):not([data-lamina] *):hover:not(:disabled) :is(i, .ti) { color: #F6C2BC; }
+
+/* ── SEM BORDA NOS CARTÕES DE PERSONAGEM E DE CONVITE (16/11/2026) ─────────────
+   Usuário: "Os cards de personagem estão com borda, assim como card de
+   convites." Como os da Ambientação: o chão separa, a régua não. */
+#root .menestrel-ui :is(.pj-card, .cv-card, .cv-pj-card),
+#root .menestrel-ui :is(.pj-card, .cv-card, .cv-pj-card):hover { border-color: transparent; }
+
+/* ── O MENU DA CONTA E O MENU DA MESA NO PADRÃO NOVO (16/11/2026) ──────────────
+   Usuário: "Os botões 'configurações, ajuda, sair, etc' não estão com nosso
+   padrão novo, e a linha separadora não está indo de um canto ao outro."
+   Os dois menus moram FORA do app (portal: o da conta no <body>, o da mesa no
+   #root), então as regras da lâmina — que pedem um .menestrel-ui por fora —
+   não os alcançavam. Aqui, a lâmina inteira para eles; a casca é a pílula do
+   trilho virada em lista (chão opaco, régua padrão, 5px por dentro); as
+   réguas (o cabeçalho e os <hr>) vão de borda a borda, comendo o respiro. */
+.menestrel-ui.mc-usermenu {
+  width: 260px; padding: 5px; border-radius: 16px;
+  background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte);
+  box-shadow: 0 14px 36px rgba(0,0,0,0.55);
+}
+.menestrel-ui.mc-usermenu .mc-um-header { margin: 0 -5px 5px; padding: 10px 15px 12px; border-bottom: 1px solid var(--regua-forte); }
+.menestrel-ui.mc-usermenu hr { margin: 5px -5px; border: none; border-top: 1px solid var(--regua-forte); }
+.menestrel-ui.mc-usermenu .mc-um-avatar-img,
+.menestrel-ui.mc-usermenu .mc-um-avatar-initials { border-color: transparent; }
+.menestrel-ui.mc-usermenu [role="menuitem"] { position: relative; z-index: 1; }
+.menestrel-ui.mc-usermenu [role="menuitem"] > :is(i, svg, .ti) { font-size: 17px !important; color: var(--vivo); }
+.menestrel-ui.mc-usermenu [role="menuitem"]:last-child > :is(i, svg, .ti) { color: var(--alerta); }   /* o Sair */
+.menestrel-ui.mc-usermenu [role="menuitem"]:focus-visible { outline: 2px solid var(--vivo); outline-offset: -2px; }
+#root .menestrel-ui.mc-ident-menu--solto { padding: 5px; border-radius: 16px; }
+#root .menestrel-ui.mc-ident-menu--solto .mc-menu-regua { margin: 5px -5px; }
+#root .menestrel-ui.mc-ident-menu--solto .mc-menu-item {
+  position: relative; z-index: 1; height: 34px; min-height: 34px; padding: 0 12px 0 10px; gap: 7px;
+  border-radius: 999px; font: 700 15px var(--font-body); color: var(--tinta-2);
+}
+#root .menestrel-ui.mc-ident-menu--solto .mc-menu-item i { font-size: 17px; color: var(--vivo); }
+#root .menestrel-ui.mc-ident-menu--solto .mc-menu-item:is(:hover, :focus-visible, .is-open, .is-atual) { background: transparent; box-shadow: none; color: var(--tinta); }
+#root .menestrel-ui.mc-ident-menu--solto .mc-menu-item.is-atual::before { content: none; }
+
+/* A lâmina dos dois menus soltos — a mesma de "A LÂMINA DOS TRILHOS". */
+:is(.menestrel-ui.mc-usermenu, .menestrel-ui.mc-ident-menu--solto)[data-lamina]::before {
+  content: ""; position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none;
+  width: var(--lamina-w, 0px); height: var(--lamina-h, 0px);
+  transform: translate(var(--lamina-x, 0px), var(--lamina-y, 0px));
+  opacity: var(--lamina-o, 0); border-radius: 999px;
+  background: rgba(var(--bronze-rgb), 0.16);
+  transition: transform .26s cubic-bezier(.16, 1, .3, 1), width .26s cubic-bezier(.16, 1, .3, 1),
+    height .26s cubic-bezier(.16, 1, .3, 1), opacity .18s ease, box-shadow .2s ease;
+}
+:is(.menestrel-ui.mc-usermenu, .menestrel-ui.mc-ident-menu--solto)[data-lamina]:is([data-lamina-modo="passagem"], [data-lamina-modo="ativo"])::before {
+  background: radial-gradient(70% 120% at 50% 135%, rgba(var(--ouro-rgb), 0.55), transparent 70%), var(--vivo-fundo);
+  box-shadow: 0 6px 16px -10px rgba(var(--ouro-rgb), 0.75);
+}
+:is(.menestrel-ui.mc-usermenu, .menestrel-ui.mc-ident-menu--solto)[data-lamina][data-lamina-parada]::before { transition: none; }
+@media (prefers-reduced-motion: reduce) {
+  :is(.menestrel-ui.mc-usermenu, .menestrel-ui.mc-ident-menu--solto)[data-lamina]::before { transition: opacity .12s linear; }
+}
+
+/* O Ctrl+K sem borda também na passagem e no foco (16/11/2026, "ainda está
+   com borda ao passar o mouse"). */
+#root .menestrel-ui .mc-sidebar .mc-navbusca.mc-navbusca:is(:hover, :focus-visible, :focus) { border-color: transparent; }
+
+/* ── A CENA: TÍTULO E AÇÕES NUMA LINHA, A DATA ABRINDO O TEXTO (16/11/2026) ────
+   Usuário: "na página cena, o texto 'Em andamento · 29 de Mês da Justiça, ano
+   1497' pode ficar acima do texto 'Nihil e Eco [...]', o título e os botões
+   ficam alinhados e separados com uma linha para a imagem abaixo." O
+   cabeçalho é uma faixa: título à esquerda, ações à direita, centrados no
+   mesmo eixo, e a régua da página de ponta a ponta embaixo — a mesma da
+   navegação dos capítulos no pé. A data vira a primeira linha do texto, em
+   rótulo, acima do corpo. */
+#root .menestrel-ui .cena-folha-cab {
+  align-items: center;
+  margin: 0 calc(-16px * var(--fp-z, 1));
+  padding: 0 calc(16px * var(--fp-z, 1)) calc(var(--pg-vao, 9px) * 1.5 * var(--fp-z, 1));
+  border-bottom: var(--pg-regua, 1px solid var(--regua-forte));
+}
+#root .menestrel-ui .cena-paginas-fluxo > .cena-folha-meta {
+  margin: 0 0 10px; font: 700 var(--fs-rotulo, 12px)/1.3 var(--font-body);
+  letter-spacing: var(--rotulo-espaco, .08em); text-transform: uppercase; color: var(--tinta-3);
+}
+
+/* ── REVISÃO DE ESTILO: AS BORDAS QUE SOBRAVAM (16/11/2026) ────────────────────
+   Usuário: "Faça uma revisão completa de estilo [...] e padronize." A direção
+   é a dos pedidos de 16/11: régua só no contorno das janelas e nas linhas que
+   dividem; botão e cartão sem filete. Ficavam com borda os botões de pele
+   antiga (.btn, .hist-card-btn, .diario-card-arte-btn, a ação nomeada da
+   batalha, as fichas de status), o passe do mapa e a moldura da imagem da
+   Cena. O foco de teclado continua com o seu contorno (outline). */
+#root .menestrel-ui :is(.btn, .btn-ghost, .btn-icon, .btn-primary, .btn-danger, .hist-card-btn, .diario-card-arte-btn, .batalha-acao-nomeada, .batalha-status-chip, .cv-chip),
+#root .menestrel-ui :is(.btn, .btn-ghost, .btn-icon, .btn-primary, .btn-danger, .hist-card-btn, .diario-card-arte-btn, .batalha-acao-nomeada, .batalha-status-chip, .cv-chip):is(:hover, :focus) { border-color: transparent; }
+#root .menestrel-ui .mp-passe { border-color: transparent; }
+#root .menestrel-ui :is(.cena-cap-figura, .cena-palco-arte) { border-color: transparent; }

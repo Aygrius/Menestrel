@@ -3935,6 +3935,22 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      clique, para o mesmo destino reabrir a aba; `onAba` devolve a aba atual,
      para o menu marcar o item certo quando a troca é feita aqui dentro. */
   useEffect(() => { if (abaPedida) setFpTab(abaPedida); }, [abaPedida, abaToken]);
+  /* A LOJA VAZIA NÃO ABRE (15/11/2026, usuário: "Quando não houver itens à
+     venda, o menu loja não abre, fica esmaecido"). A mesma leitura da página
+     Loja (get_loja_pj): com algum item com estoque, abre; sem nada — ou sem
+     mesa —, o botão fica inativo. `null` enquanto não se sabe: abre, como antes. */
+  const [lojaTemItens, setLojaTemItens] = useState(null);
+  const pjIdLoja = pj && pj.id;
+  useEffect(() => {
+    if (!pjIdLoja || typeof supabaseClient === 'undefined') return undefined;
+    let vivo = true;
+    Promise.resolve(supabaseClient.rpc('get_loja_pj', { p_pj_id: pjIdLoja })).then(({ data, error }) => {
+      if (!vivo || error) return;
+      const est = data && data.ok && Array.isArray(data.estoque) ? data.estoque : [];
+      setLojaTemItens(est.some((e) => e && (e.estoque == null || Number(e.estoque) >= 1)));
+    }).catch(() => {});
+    return () => { vivo = false; };
+  }, [pjIdLoja, fpTab]);
   /* A gaveta da Ficha no menu só mostra Animais quando há animal (23/10/2026):
      a ficha conta junto com a aba. O temAnimais é acertado no render, logo
      depois de animaisPj (não pode ser hook: há retornos antes dali). */
@@ -6422,15 +6438,19 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      (31/10/2026: "Adicione no trilho superior, companheiros (quando houver),
      e a tela de criar itens"). Fabricar só com receitas; Companheiros só com
      bicho. */
-  const botaoPagina = (aba, icone, pt, enRot) => (
-    <button type="button" className={'mc-acao' + (fpTab === aba ? ' is-ativo' : '')} data-acao-ficha={aba}
-      aria-label={en ? enRot : pt} {...propsTip(abrirTabTip, fecharTabTip, en ? enRot : pt)}
-      aria-current={fpTab === aba ? 'page' : undefined}
-      onClick={() => { setFpTab(aba); if (aba === 'animais') setCompAberto(false); }}>
+  const botaoPagina = (aba, icone, pt, enRot) => {
+    const vazia = aba === 'loja' && lojaTemItens === false && fpTab !== 'loja';
+    const dica = vazia ? (en ? 'No items for sale' : 'Nenhum item à venda') : (en ? enRot : pt);
+    return (
+    <button type="button" className={'mc-acao' + (fpTab === aba ? ' is-ativo' : '') + (vazia ? ' is-inativo' : '')} data-acao-ficha={aba}
+      aria-label={en ? enRot : pt} {...propsTip(abrirTabTip, fecharTabTip, dica)}
+      aria-current={fpTab === aba ? 'page' : undefined} aria-disabled={vazia || undefined}
+      onClick={() => { if (vazia) return; setFpTab(aba); if (aba === 'animais') setCompAberto(false); }}>
       <i className={'ti ' + icone} aria-hidden="true" />
       <span className="mc-acao-rotulo">{en ? enRot : pt}</span>
     </button>
-  );
+    );
+  };
   /* STATUS E ATIVIDADES VIRARAM PÁGINAS (02/11/2026): o botão do trilho
      abre a página de casas, como o Inventário. Atividades leva o ícone da
      que está ligada, como o círculo de antes. */
@@ -6680,7 +6700,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
         {/* A aba FABRICAR saiu em 02/11/2026: escolher a receita é parte da
             atividade Fabricar (PaginaAtividades, paginas-ficha.jsx). */}
         <button type="button" className={'fp-tab-ic ' + (fpTab === 'loja' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm')} role="tab" aria-selected={fpTab === 'loja'}
-          data-aba-ficha="loja"
+          data-aba-ficha="loja" disabled={lojaTemItens === false && fpTab !== 'loja'}
           onClick={() => setFpTab('loja')}>
           <span className="fp-tab-rotulo">{en ? 'Shop' : 'Loja'}</span>
         </button>

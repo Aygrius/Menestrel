@@ -671,11 +671,6 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
             <header className="cena-folha-cab">
               <div className="cena-folha-id">
                 <h2 id="cena-folha-tit" className="cena-folha-tit">{tituloDe(folha.c)}</h2>
-                {(folha.atual || dataDe(folha.c)) && (
-                  <p className="cena-folha-meta">
-                    {[folha.atual ? (en ? 'In progress' : 'Em andamento') : '', dataDe(folha.c)].filter(Boolean).join(' · ')}
-                  </p>
-                )}
               </div>
               <div className="cena-folha-acoes">
                 <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={inserirImagem}
@@ -723,6 +718,14 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
                       columnWidth: geo.w + 'px', columnGap: CENA_PAG_VAO + 'px',
                       transform: `translateX(${-pag * (geo.w + CENA_PAG_VAO)}px)`,
                     } : undefined}>
+                    {/* A DATA ABRE O TEXTO (16/11/2026, usuário: 'o texto "Em andamento · 29
+                        de Mês da Justiça" pode ficar acima do texto'): sai do cabeçalho,
+                        que fica só com o título e as ações, e encabeça a primeira página. */}
+                    {(folha.atual || dataDe(folha.c)) && (
+                      <p className="cena-folha-meta">
+                        {[folha.atual ? (en ? 'In progress' : 'Em andamento') : '', dataDe(folha.c)].filter(Boolean).join(' · ')}
+                      </p>
+                    )}
                     {corpoDoCapitulo(folha, 'cena-folha-corpo', true)}
                   </div>
                 </div>

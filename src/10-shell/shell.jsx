@@ -751,11 +751,14 @@ function ModalShell({
 */
 
 // Estilo-base das linhas do menu de usuário.
+/* As linhas do menu da conta são botões do trilho (16/11/2026, usuário: "Os
+   botões 'configurações, ajuda, sair, etc' não estão com nosso padrão novo"):
+   34px, rótulo 700/15px na tinta-2, 7px até o ícone (ouro, ver index.css). */
 const MENU_ITEM_STYLE = {
-  display: 'flex', alignItems: 'center', gap: 10, width: '100%',
-  padding: '7px 6px', borderRadius: 6, border: 'none', background: 'transparent',
-  color: 'var(--tinta)', fontFamily: "var(--font-body)", fontSize: 'var(--fs-sm)',
-  cursor: 'pointer', textAlign: 'left', transition: 'background .14s ease',
+  display: 'flex', alignItems: 'center', gap: 7, width: '100%', height: 34,
+  padding: '0 12px 0 10px', borderRadius: 999, border: 'none', background: 'transparent',
+  color: 'var(--tinta-2)', fontFamily: "var(--font-body)", fontSize: 15, fontWeight: 700,
+  cursor: 'pointer', textAlign: 'left', transition: 'color .15s ease',
 };
 
 // Linha de menu com hover via ESTADO (não via CSS :hover). O reset global do projeto,
@@ -767,9 +770,10 @@ const MENU_ITEM_STYLE = {
 function MenuRow({ children, onClick, disabled, danger, extraStyle, title }) {
   const [tip, abrirTip, fecharTip, manterTip] = useNavTooltip(60);
   const [hover, setHover] = useState(false);
-  const bg = disabled ? 'transparent'
-    : hover ? (danger ? 'rgba(200,33,44,0.14)' : 'rgba(232,221,198,0.07)')
-    : 'transparent';
+  // Sem véu próprio (16/11/2026): quem acende a linha é a lâmina do menu
+  // (.mc-usermenu); o Sair só ganha a tinta de alerta na passagem. Pílula,
+  // como os botões do trilho.
+  const corPassagem = hover && !disabled ? (danger ? 'var(--alerta)' : 'var(--tinta)') : undefined;
   return (
     <button
       role="menuitem"
@@ -778,7 +782,7 @@ function MenuRow({ children, onClick, disabled, danger, extraStyle, title }) {
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      style={{ ...MENU_ITEM_STYLE, background: bg, cursor: disabled ? 'not-allowed' : 'pointer', ...extraStyle }}>
+      style={{ ...MENU_ITEM_STYLE, background: 'transparent', borderRadius: 999, cursor: disabled ? 'not-allowed' : 'pointer', ...(corPassagem ? { color: corPassagem } : {}), ...extraStyle }}>
       {children}
       <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </button>
@@ -803,6 +807,22 @@ function aplicarPaleta(id) {
   const v = PALETAS.some((p) => p.id === id) ? id : PALETA_PADRAO;
   document.documentElement.dataset.paleta = v;
   try { localStorage.setItem('menestrel.paleta', v); } catch (e) {}
+  return v;
+}
+/* A FONTE DOS TÍTULOS (15/11/2026, usuário: "Vamos continuar usando Spectral SC
+   mesmo, mas deixe a fonte salva. E coloque uma opção de mudar a fonte no menu
+   configurações"). Como a paleta: :root[data-fonte="…"] troca --font-title
+   (index.css); o perfil guarda (profiles.fonte), o navegador lembra. A Goudy
+   entra na DemiBold — a Regular e a Alternate não têm "ç" nem "õ". */
+const FONTES = [
+  { id: 'spectral', pt: 'Spectral', en: 'Spectral' },
+  { id: 'goudy', pt: 'Goudy', en: 'Goudy' },
+];
+const FONTE_PADRAO = 'spectral';
+function aplicarFonte(id) {
+  const v = FONTES.some((f) => f.id === id) ? id : FONTE_PADRAO;
+  document.documentElement.dataset.fonte = v;
+  try { localStorage.setItem('menestrel.fonte', v); } catch (e) {}
   return v;
 }
 
@@ -929,8 +949,8 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, prof
 
       <hr />
 
-      <MenuRow danger onClick={() => { onClose(); onLogout(); }} extraStyle={{ color: '#E08A7C' }}>
-        <Icon.Logout style={{ fontSize: 16, lineHeight: 1, color: '#D08271' }} />
+      <MenuRow danger onClick={() => { onClose(); onLogout(); }}>
+        <Icon.Logout style={{ fontSize: 16, lineHeight: 1 }} />
         {t.logout}
       </MenuRow>
     </div>,
@@ -966,7 +986,7 @@ function modoNotificacaoValido(v) {
    desta janela; fechá-la devolve a Configurações. */
 // A Reforma do Grimório (página do claude.ai, privada do dono da conta).
 const URL_CONFERENCIA_MAGIAS = 'https://claude.ai/artifact/Ksg62jNXu9aB3WBQQLy5u4';
-function ConfiguracoesModal({ lang, setLang, paleta, onSetPaleta, modoNotificacao, onSetModoNotificacao,
+function ConfiguracoesModal({ lang, setLang, paleta, onSetPaleta, fonte = FONTE_PADRAO, onSetFonte = null, modoNotificacao, onSetModoNotificacao,
   profile = 'player', podeTrocarPerfil = false, onSetProfile = null, onTestesCombate = null, onImagens = null, onContas = null, ehImperador = false, onClose }) {
   const en = lang === 'en';
   const Janela = (typeof ModalShell === 'function' ? ModalShell : window.ModalShell);
@@ -976,7 +996,7 @@ function ConfiguracoesModal({ lang, setLang, paleta, onSetPaleta, modoNotificaca
         const marcada = o.id === valor;
         return (
           <button key={o.id} type="button" role="radio" aria-checked={marcada}
-            className={'estoque-sim-nao-op' + (marcada ? ' is-on' : '')}
+            className={'estoque-sim-nao-op' + (marcada ? ' is-on' : '') + (o.classe ? ' ' + o.classe : '')}
             onClick={() => { if (!marcada) escolher(o.id); }}>
             {o.amostra && (
               <span className="mc-um-paleta-amostra" aria-hidden="true">
@@ -1015,6 +1035,11 @@ function ConfiguracoesModal({ lang, setLang, paleta, onSetPaleta, modoNotificaca
         {onSetPaleta && linha(en ? 'Palette' : 'Paleta',
           en ? 'The colors of the whole Menestrel.' : 'As cores de todo o Menestrel.',
           pilula(en ? 'Palette' : 'Paleta', PALETAS, paleta, onSetPaleta))}
+        {/* A fonte dos títulos (15/11/2026): Spectral, a de sempre, ou Goudy. Cada
+            opção escrita na própria fonte, para a escolha se ver. */}
+        {onSetFonte && linha(en ? 'Font' : 'Fonte',
+          en ? 'The lettering of titles and of the Menestrel name.' : 'A letra dos títulos e do nome Menestrel.',
+          pilula(en ? 'Font' : 'Fonte', FONTES.map((f) => ({ ...f, classe: 'cfg-fonte-' + f.id })), fonte, onSetFonte))}
         {linha(en ? 'Language' : 'Idioma',
           en ? 'The language of menus and messages.' : 'A língua dos menus e das mensagens.',
           pilula(en ? 'Language' : 'Idioma', [
@@ -4388,6 +4413,19 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     const { error } = await supabaseClient.from('profiles').update({ paleta: id }).eq('id', user.id);
     if (error) console.error('[paleta] não gravou:', error);
   };
+  // A fonte dos títulos, do mesmo jeito (15/11/2026).
+  const [fonte, setFonte] = useState(() => {
+    try { const v = localStorage.getItem('menestrel.fonte'); return FONTES.some((f) => f.id === v) ? v : FONTE_PADRAO; } catch (e) { return FONTE_PADRAO; }
+  });
+  useEffect(() => { aplicarFonte(fonte); }, [fonte]);
+  useEffect(() => {
+    if (userProfile && FONTES.some((f) => f.id === userProfile.fonte)) setFonte(userProfile.fonte);
+  }, [userProfile && userProfile.fonte]);
+  const escolherFonte = async (id) => {
+    setFonte(id);
+    const { error } = await supabaseClient.from('profiles').update({ fonte: id }).eq('id', user.id);
+    if (error) console.error('[fonte] não gravou:', error);
+  };
 
   /* O MODO DE NOTIFICAÇÃO (11/11/2026), como a paleta: o do perfil no
      servidor manda quando existe (profiles.notificacoes); antes dele, e no
@@ -4909,7 +4947,11 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   const identRef = React.useRef(null);
   useEffect(() => {
     if (!identAberto) return undefined;
-    const fora = (e) => { if (identRef.current && !identRef.current.contains(e.target)) setIdentAberto(false); };
+    // O menu da mesa pode estar fora da faixa (portal, menu sempre recolhido — 15/11/2026).
+    const fora = (e) => {
+      if (e.target && e.target.closest && e.target.closest('.mc-ident-menu')) return;
+      if (identRef.current && !identRef.current.contains(e.target)) setIdentAberto(false);
+    };
     const esc = (e) => { if (e.key === 'Escape') setIdentAberto(false); };
     document.addEventListener('mousedown', fora);
     window.addEventListener('keydown', esc);
@@ -5299,7 +5341,6 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           className={'mc-sidebar' + (navAberta ? ' is-aberta' : '')
             + (navExpandida ? ' is-expandida' : '')
             + (identAberto || userMenuOpen || painelMenu ? ' is-menu-aberto' : '')}
-          onMouseEnter={abrirNavLateral}
           aria-label={lang === 'en' ? 'Navigation' : 'Navegação'}>
           <div className="mc-marca">
             {/* O LOGO LEVA À TELA PRINCIPAL (15/11/2026, usuário: "Ao clicar no
@@ -5355,8 +5396,18 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
               </span>
               <i className="ti ti-selector mc-ident-seta" aria-hidden="true" />
             </button>
-            {identAberto && (
-              <div className="mc-ident-menu" role="menu">
+            {/* O MENU SEMPRE RECOLHIDO (15/11/2026, usuário: "O menu lateral esquerdo não
+                vai expandir mais, ele ficará sempre retraído"): no computador o menu da
+                mesa abre AO LADO da coluna dos ícones (portal no #root, posição da
+                faixa), porque dentro dela não cabe e o overflow da faixa o cortaria.
+                No celular a faixa é uma folha larga: fica dentro, como antes. */}
+            {identAberto && (() => {
+              const solto = typeof window !== 'undefined' && window.innerWidth > 768 && identRef.current;
+              const r = solto ? identRef.current.getBoundingClientRect() : null;
+              const fx = solto && sidebarRef.current ? sidebarRef.current.getBoundingClientRect().right : (r ? r.right : 0);
+              const menu = (
+              <div className={'mc-ident-menu' + (solto ? ' mc-ident-menu--solto menestrel-ui' : '')} role="menu"
+                style={solto ? { position: 'fixed', top: r.top, left: fx + 8 } : undefined}>
                 {profile === 'master' ? (
                   <>
                     {(minhasHistorias || []).map((h) => (
@@ -5425,7 +5476,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                   </>
                 )}
               </div>
-            )}
+              );
+              return solto ? ReactDOM.createPortal(menu, document.getElementById('root') || document.body) : menu;
+            })()}
           </div>
 
           {/* MENU LATERAL REDESENHADO (23/10/2026, aprovado na prévia): a busca
@@ -5847,7 +5900,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
             que abrem por cima desta janela. */}
         {configAberto && (
           <ConfiguracoesModal lang={lang} setLang={setLang}
-            paleta={paleta} onSetPaleta={escolherPaleta}
+            paleta={paleta} onSetPaleta={escolherPaleta} fonte={fonte} onSetFonte={escolherFonte}
             modoNotificacao={modoNotificacao} onSetModoNotificacao={escolherModoNotificacao}
             profile={profile} podeTrocarPerfil={podeMestrar} onSetProfile={escolherPerfil} ehImperador={ehAdmin}
             onTestesCombate={() => setTestesCombateAberto(true)}
@@ -5967,7 +6020,7 @@ function App() {
     if (!userId) { setProfile(null); return; }
     const { data, error } = await supabaseClient
       .from('profiles')
-      .select('plano, plano_escolhido_em, pj_ativo_id, perfil_tipo, paleta, notificacoes, tipo_conta, conta_valida_ate')
+      .select('plano, plano_escolhido_em, pj_ativo_id, perfil_tipo, paleta, notificacoes, tipo_conta, conta_valida_ate, fonte')
       .eq('id', userId)
       .maybeSingle();
     if (error) {
@@ -6232,13 +6285,26 @@ Object.assign(window, {
    rodapé da data (.cdj-trilho) e as pílulas de escolha (.estoque-sim-nao —
    Configurações, Contas, a loja Aberta Sim/Não). Os botões redondos do
    trilho da ficha (.at-fab, .amg-fab, .rl-fab) e as abas dela também. */
-const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .estoque-sim-nao';
+/* O MENU LATERAL E O ASSISTENTE (15/11/2026, usuário: "Eu quero o estilo de
+   brilho no botão, no menu lateral esquerdo. Vamos começar a padronizar o
+   sistema [...] Inclusive o botão de buscar ctrl + k. Os botões de navegação
+   em 'editar personagem'"). O menu (.mc-nav) é um trilho em pé: a lâmina
+   desce de um item a outro e pousa na página aberta (.is-active). O Buscar
+   (.mc-navbusca) é trilho e botão ao mesmo tempo — acende sob o ponteiro.
+   As fases do assistente (.wiz-fases) pousam na fase atual (.is-ativa).
+   O seletor de mesa (.mc-ident) e a conta (.mc-user), como o Buscar: trilho
+   e botão ao mesmo tempo (15/11/2026, usuário: "Use o mesmo estilo de botão
+   com brilho no seletor de aventura, no botão da conta inferior esquerdo"). */
+// A paginação também (.best-pag, 16/11/2026: "Aplique o efeito de brilho nos botões de navegação das páginas").
+const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .estoque-sim-nao, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu';
 // O "+" também (15/11/2026, usuário: "O botão de '+' nos trilhos também precisam entrar no padrão com brilho, cor, etc.").
-const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.estoque-sim-nao-op', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho'];
+const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.estoque-sim-nao-op', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho', '.mc-navitem', '.mc-navbusca', '.wiz-fase', '.mc-ident', '.mc-user', '.best-page-btn', '.mc-menu-item', '.mc-usermenu [role="menuitem"]'];
 const TRILHO_BOTAO = TRILHO_BOTOES.join(', ');
-// O marcado de cada família: .is-ativo nos trilhos, .is-on nas pílulas de escolha.
-const TRILHO_ATIVO = TRILHO_BOTOES.flatMap((b) => [b + '.is-ativo', b + '.is-on']).join(', ');
-const _laminaEhAtivo = (b) => b.classList.contains('is-ativo') || b.classList.contains('is-on');
+// O marcado de cada família: .is-ativo nos trilhos, .is-on nas pílulas de escolha, .is-active no menu, .is-ativa nas fases.
+// .is-atual: a mesa escolhida no menu da mesa (16/11/2026: 'Os botões internos de selecionar aventura também terão brilho, assim como os botões no menu da conta').
+const TRILHO_MARCAS = ['is-ativo', 'is-on', 'is-active', 'is-ativa', 'is-atual'];
+const TRILHO_ATIVO = TRILHO_BOTOES.flatMap((b) => TRILHO_MARCAS.map((m) => b + '.' + m)).join(', ');
+const _laminaEhAtivo = (b) => TRILHO_MARCAS.some((m) => b.classList.contains(m));
 function _laminaPousar(trilho, alvo, modo) {
   if (!trilho) return;
   const st = trilho.style;
@@ -6253,8 +6319,10 @@ function _laminaPousar(trilho, alvo, modo) {
   trilho.setAttribute('data-lamina', '');
   // A primeira vez pousa sem deslizar: a lâmina não "chega voando" do canto.
   if (primeira) trilho.setAttribute('data-lamina-parada', '');
-  st.setProperty('--lamina-x', (r.left - tr.left - trilho.clientLeft) + 'px');
-  st.setProperty('--lamina-y', (r.top - tr.top - trilho.clientTop) + 'px');
+  // + a rolagem do próprio trilho: o ::before mora no conteúdo que rola (o menu
+  // lateral rola em pé; o trilho do Estoque, de lado).
+  st.setProperty('--lamina-x', (r.left - tr.left - trilho.clientLeft + trilho.scrollLeft) + 'px');
+  st.setProperty('--lamina-y', (r.top - tr.top - trilho.clientTop + trilho.scrollTop) + 'px');
   st.setProperty('--lamina-w', r.width + 'px');
   st.setProperty('--lamina-h', r.height + 'px');
   st.setProperty('--lamina-o', '1');
@@ -6276,7 +6344,8 @@ function instalarLaminaDosTrilhos() {
   const botaoNoTrilho = (alvo) => {
     const b = alvo && alvo.closest ? alvo.closest(TRILHO_BOTAO) : null;
     // O selo de pontos (Técnicas, Magias) tem a pele de botão, mas é só leitura.
-    if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('pc-pontos')) return null;
+    // .is-inativo: o item do menu sem mesa e a Loja vazia — esmaecidos, não acendem.
+    if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('pc-pontos') || b.classList.contains('is-inativo')) return null;
     const trilho = b.closest(TRILHO_SELETOR);
     return trilho ? { b, trilho } : null;
   };

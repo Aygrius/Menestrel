@@ -208,16 +208,26 @@ describe('salas dentro de salas e os números', () => {
     expect(caminho).toEqual(['Salas', 'Regras', 'Magias']);
   });
 
-  it('só o Imperador abre sala dentro da sala', async () => {
+  /* 15/11/2026, usuário: "O botão 'nova sala aqui' não vai existir. Ao clicar
+     em mais, terei a opção de criar um novo tópico ou nova sala." */
+  it('só o Imperador abre sala dentro da sala: o + oferece tópico ou sala', async () => {
+    papel = { escreve: true, imperador: false };
     await abrir();
     fireEvent.click(screen.getByText('Regras'));
     await waitFor(() => expect(screen.getByText('Como funciona a cascata?')).toBeTruthy());
     expect(screen.queryByText('Nova sala aqui')).toBeNull();
+    fireEvent.click(document.querySelector('.best-botao-novo'));
+    expect(document.querySelector('.forum-menu-novo')).toBeNull();   // quem não é Imperador vai direto ao tópico
     cleanup();
     papel = { escreve: true, imperador: true };
     await abrir();
     fireEvent.click(screen.getByText('Regras'));
-    await waitFor(() => expect(screen.getByText('Nova sala aqui')).toBeTruthy());
+    await waitFor(() => expect(screen.getByText('Como funciona a cascata?')).toBeTruthy());
+    expect(screen.queryByText('Nova sala aqui')).toBeNull();
+    fireEvent.click(document.querySelector('.best-botao-novo'));
+    const menu = document.querySelector('.forum-menu-novo');
+    expect(menu).toBeTruthy();
+    expect([...menu.querySelectorAll('[role="menuitem"]')].map((b) => b.textContent)).toEqual(['Novo tópico', 'Nova sala']);
   });
 
   it('o tópico diz visualizações, comentários e o último post', async () => {
