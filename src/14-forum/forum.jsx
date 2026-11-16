@@ -435,22 +435,20 @@ function ForumView({ lang = 'pt' }) {
         {salaFechada && <p className="forum-aviso is-alerta"><i className="ti ti-lock" aria-hidden="true" />{en ? 'This room is closed: it can be read, not written in.' : 'Esta sala está fechada: dá para ler, não para escrever.'}</p>}
         {/* As salas de dentro (15/11/2026): primeiro elas, depois os tópicos.
             O Imperador abre uma nova aqui mesmo. */}
-        {(subsalas.length > 0 || papel.ehImperador) && (
+        {/* "Nova sala aqui" saiu daqui para o trilho (15/11/2026, usuário: "O
+            botão de '+ nova sala aqui' deve ficar no trilho também"). */}
+        {subsalas.length > 0 && (
           <div className="mn-quadro-grupo forum-quadro">
-            {cabeca(en ? 'Rooms' : 'Salas', papel.ehImperador && (
-              <button type="button" className="btn-ghost btn-sm forum-cabeca-acao" onClick={() => setJanela({ tipo: 'sala', pai: salaId })}>
-                <i className="ti ti-plus" aria-hidden="true" />{en ? 'New room here' : 'Nova sala aqui'}
-              </button>
-            ))}
+            {cabeca(en ? 'Rooms' : 'Salas')}
             <ul className="forum-linhas" aria-label={en ? 'Rooms' : 'Salas'}>{subsalas.map(linhaSala)}</ul>
           </div>
         )}
+        {/* Sem tópicos e sem busca, nada (15/11/2026, usuário: "Remova esse
+            texto 'Nenhum tópico ainda. Comece um no +.'"): o + está no trilho. */}
         {topicos === null ? <p className="forum-vazio">{en ? 'Loading topics…' : 'Carregando os tópicos…'}</p>
-          : lista.length === 0 ? (
-            <p className="forum-vazio">{q ? (en ? `No topic with “${query.trim()}”.` : `Nenhum tópico com “${query.trim()}”.`)
-              : podeEscreverAqui ? (en ? 'No topics yet. Start one with +.' : 'Nenhum tópico ainda. Comece um no +.')
-              : (en ? 'No topics yet.' : 'Nenhum tópico ainda.')}</p>
-          ) : (
+          : lista.length === 0 ? (q ? (
+            <p className="forum-vazio">{en ? `No topic with “${query.trim()}”.` : `Nenhum tópico com “${query.trim()}”.`}</p>
+          ) : null) : (
             <div className="mn-quadro-grupo forum-quadro">
               {cabeca(en ? 'Topics' : 'Tópicos')}
               <ul className="forum-linhas" aria-label={en ? 'Topics' : 'Tópicos'}>{lista.map(linhaTopico)}</ul>
@@ -574,6 +572,12 @@ function ForumView({ lang = 'pt' }) {
           <Busca ac={ac} placeholder={en ? 'Search' : 'Buscar'} query={query} setQuery={setQuery}
             podeCriar={podeCriar} onNovo={onNovo}
             dicaNovo={naRaiz ? (en ? 'New room' : 'Nova sala') : (en ? 'New topic' : 'Novo tópico')}
+            ferramentas={naSala && papel.ehImperador ? (
+              <button type="button" className="mc-acao" onClick={() => setJanela({ tipo: 'sala', pai: salaId })}>
+                <i className="ti ti-door" aria-hidden="true" />
+                <span className="mc-acao-rotulo">{en ? 'New room here' : 'Nova sala aqui'}</span>
+              </button>
+            ) : null}
             antes={trilho} />
         ) : trilho}
       </div>

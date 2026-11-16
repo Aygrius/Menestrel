@@ -156,13 +156,15 @@ describe('TecnicasList — cabeçalho: busca ao lado do +, sem filtros nem conta
   });
 });
 
-/* "Ao invés de usarmos um texto expansível, eu quero botões ao lado de 'novo'
-   no topo, para abrir um modal com as sugestões, etc." (usuário, 14/09/2026) */
-describe('TecnicasList — Sugestões é botão ao lado do + (a Verificação saiu em 15/11/2026)', () => {
+/* OS PAINÉIS SAÍRAM DO COMPÊNDIO (15/11/2026, usuário: "Remova 'sugestões' em
+   técnicas, 'painel' em magias e 'sugestões' em itens"). Antes: "botões ao lado
+   de 'novo' no topo, para abrir um modal com as sugestões" (14/09/2026). Os
+   componentes continuam no código (sugestoes-magias.test.jsx os monta). */
+describe('TecnicasList — só a busca e o + no cabeçalho', () => {
   const ac = () => window.ADMIN_COPY.pt;
   const esperarLista = () => vi.waitFor(() => expect(document.body.textContent).toMatch(/Mira/));
 
-  it('ficam no cabeçalho, entre a busca e o +, e nenhuma faixa sobra abaixo', async () => {
+  it('para o admin, a busca e o +, sem botão de painel e sem faixa abaixo', async () => {
     respostaEhAdmin = true;
     render(<TecnicasList ac={ac()} lang="pt" />);
     await esperarLista();
@@ -176,53 +178,9 @@ describe('TecnicasList — Sugestões é botão ao lado do + (a Verificação sa
         : el.getAttribute('aria-label') === 'Novo' ? '+'
         : el.textContent
     ));
-    // A Verificação saiu do Compêndio em 15/11/2026 (pedido do usuário).
-    expect(ordem).toEqual(['busca', 'Sugestões', '+']);
+    expect(ordem).toEqual(['busca', '+']);
+    expect(document.querySelector('.best-painel-abrir')).toBeNull();
     expect(document.querySelector('.best-auditoria')).toBeNull();
-    expect(document.querySelector('.best-aud-head')).toBeNull();
-  });
-
-  it('abrir a Sugestões mostra o documento numa janela', async () => {
-    respostaEhAdmin = true;
-    render(<TecnicasList ac={ac()} lang="pt" />);
-    await esperarLista();
-    const botao = await vi.waitFor(() => {
-      const b = [...document.querySelectorAll('.best-painel-abrir')].find((x) => x.textContent === 'Sugestões');
-      expect(b).toBeTruthy();
-      return b;
-    });
-    fireEvent.click(botao);
-    expect(document.querySelector('[role="dialog"][aria-label="Sugestões de técnicas"] .sug-md')).toBeTruthy();
-  });
-
-  /* "Nos botões de verificação, sugestão, etc, remova o ícone. E em todos esses
-     botões, até o '+' adicione tooltip." (usuário, 14/09/2026) */
-  it('sem ícone nos botões de painel, e tooltip em todos, inclusive no +', async () => {
-    respostaEhAdmin = true;
-    render(<TecnicasList ac={ac()} lang="pt" />);
-    await esperarLista();
-    const botoes = await vi.waitFor(() => {
-      const bs = [...document.querySelectorAll('.best-painel-abrir')];
-      expect(bs).toHaveLength(1);
-      return bs;
-    });
-    botoes.forEach((b) => expect(b.querySelector('.ti')).toBeNull());
-
-    // Cada botão tem o próprio tooltip; o anterior some com atraso, então
-    // confere que o esperado está entre os abertos.
-    const dicas = (el) => {
-      fireEvent.mouseEnter(el);
-      return [...document.querySelectorAll('.mn-tip')].map((t) => t.textContent);
-    };
-    expect(dicas(botoes[0])).toContain('Sugestões de técnicas');
-    expect(dicas(document.querySelector('[aria-label="Novo"]'))).toContain('Nova técnica');
-  });
-
-  it('para quem não é admin, não aparecem', async () => {
-    respostaEhAdmin = false;
-    render(<TecnicasList ac={ac()} lang="pt" />);
-    await esperarLista();
-    expect(document.querySelector('.best-painel-botao')).toBeNull();
   });
 });
 

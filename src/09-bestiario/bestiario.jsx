@@ -2439,11 +2439,7 @@ function MagiasList({ ac, lang, modoJogador, filtro, titulo, pedido = null, tril
         right={<BestBuscaENovo ac={ac} query={query} setQuery={setQuery}
           placeholder={lang === 'en' ? 'Search' : 'Buscar'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
-          dicaNovo={lang === 'en' ? 'New spell' : 'Nova magia'}
-          /* Só o Painel (resumo e tamanho do catálogo), só admin — desde
-             29/09/2026 Verificação, Sugestões, Estudo e Equilíbrio saíram
-             daqui a pedido do usuário. Ver MagiasPainel. */
-          ferramentas={ehAdmin && <MagiasPainel magias={magias} lang={lang} />} />} />
+          dicaNovo={lang === 'en' ? 'New spell' : 'Nova magia'} />} />
 
       {filtered.length === 0 ? (
         <div className="best-empty diario-empty-lg">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'magias', oQueEn: 'spell' })}</div>
@@ -2778,9 +2774,7 @@ function TecnicasList({ ac, lang, modoJogador, filtro, titulo, pedido = null, tr
           placeholder={lang === 'en' ? 'Search' : 'Buscar'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
           dicaNovo={lang === 'en' ? 'New technique' : 'Nova técnica'}
-          /* A Verificação (TecnicasAuditoriaPainel) saiu em 15/11/2026, a
-             pedido do usuário; ficam as Sugestões. */
-          ferramentas={ehAdmin && typeof TecnicasSugestoesPainel === 'function' && <TecnicasSugestoesPainel lang={lang} />} />} />
+          /* A Verificação saiu em 15/11/2026, e as Sugestões no mesmo dia (usuário: "Remova 'sugestões' em técnicas"). */ />} />
 
       {filtered.length === 0 ? (
         <div className="best-empty diario-empty-lg">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'técnicas', oQueEn: 'technique' })}</div>
@@ -3627,8 +3621,7 @@ function ItensList({ ac, lang, modoJogador, filtro, titulo, pedido = null, trilh
           placeholder={lang === 'en' ? 'Search' : 'Buscar'}
           podeCriar={ehAdmin} onNovo={() => setEditando(null)}
           dicaNovo={lang === 'en' ? 'New item' : 'Novo item'}
-          /* Sugestões de itens para batalha. Itens não tem verificação. */
-          ferramentas={ehAdmin && typeof ItensSugestoesPainel === 'function' && <ItensSugestoesPainel lang={lang} />} />} />
+          /* As Sugestões saíram em 15/11/2026 (usuário: "Remova ... 'sugestões' em itens"). */ />} />
 
       {filtered.length === 0 ? (
         <div className="best-empty diario-empty-lg">{textoListaVazia({ query, modoJogador: modoJogador, lang, oQue: 'itens', oQueEn: 'item' })}</div>

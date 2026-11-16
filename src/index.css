@@ -19326,3 +19326,58 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
   visibility: hidden; pointer-events: none;
 }
 #root .menestrel-ui .inicio-medida > .inicio-noticia { border-bottom: 1px solid var(--regua); }
+
+/* A busca sob a lâmina (15/11/2026, "adicione o efeito de brilho na barra de
+   busca"): o campo fica acima da luz, e o véu próprio do foco sai — quem
+   acende agora é a lâmina, como nos botões. */
+#root .menestrel-ui [data-lamina] .best-search { position: relative; z-index: 1; }
+#root .menestrel-ui [data-lamina] .best-search input,
+#root .menestrel-ui [data-lamina] .best-search input:focus { background: transparent; }
+
+/* O "+" com as peças do trilho (15/11/2026, usuário: "O botão de '+' nos
+   trilhos também precisam entrar no padrão com brilho, cor, etc."): 34px,
+   redondo, sem chão, ícone de 17px em ouro, tinta-2 que clareia na passagem;
+   a luz é a lâmina, como nos .mc-acao. */
+#root .menestrel-ui .best-header-acoes .best-botao-novo {
+  width: 34px; min-width: 34px; height: 34px; padding: 0; border: 1px solid transparent; border-radius: 999px;
+  background: none; box-shadow: none; color: var(--tinta-2);
+  display: inline-grid; place-items: center; transition: background-color .15s ease, color .15s ease;
+}
+#root .menestrel-ui .best-header-acoes .best-botao-novo i { font-size: 17px; color: var(--vivo); transition: transform .2s cubic-bezier(.16, 1, .3, 1); }
+#root .menestrel-ui .best-header-acoes .best-botao-novo:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
+#root .menestrel-ui [data-lamina] .best-botao-novo { position: relative; z-index: 1; }
+#root .menestrel-ui [data-lamina] .best-botao-novo:hover { background: transparent; }
+#root .menestrel-ui [data-lamina] .best-botao-novo:hover > i { transform: translateY(-1px); }
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui [data-lamina] .best-botao-novo:hover > i { transform: none; }
+}
+
+/* ── FÓRUM: A PASSAGEM SEM FUNDO (15/11/2026) ──────────────────────────────────
+   Usuário: "Ao passar o mouse sob os tópicos e salas, não quero que o fundo
+   mude de cor, o texto mudará de cor no padrão." O padrão é o do trilho: a
+   tinta-2 em repouso clareia para a tinta sob o ponteiro (e no foco). */
+#root .menestrel-ui .forum-linha:hover { background: none; }
+#root .menestrel-ui .forum-linha .forum-linha-titulo { color: var(--tinta-2); transition: color .15s ease; }
+#root .menestrel-ui .forum-linha:is(:hover, :has(.forum-linha-abrir:focus-visible)) .forum-linha-titulo { color: var(--tinta); }
+
+/* ── O OLHO DA BUSCA NO PADRÃO DO TRILHO (15/11/2026) ─────────────────────────
+   Usuário: "O ícone de olho da barra de busca está no padrão?" Não estava:
+   14px em tinta-3, enquanto os ícones do trilho têm 17px em ouro. Nos
+   trilhos (.cartoes-barra) ele passa a ser igual a eles, no mesmo recuo de
+   10px dos botões e com o texto a 7px do ícone. */
+#root .menestrel-ui .cartoes-barra .best-search > .busca-ic { left: 10px; font-size: 17px; color: var(--vivo); }
+#root .menestrel-ui .cartoes-barra .best-search input { padding-left: 34px; }
+
+/* ── A LÂMINA EM TODOS OS TRILHOS (15/11/2026) ─────────────────────────────────
+   Usuário: "Eu quero o efeito de brilho em todos os trilhos do sistema,
+   inclusive na página 'configurações'." Entram (10-shell, TRILHO_SELETOR) o
+   rodapé da data (.cdj-trilho) e as pílulas de escolha (.estoque-sim-nao, das
+   Configurações, das Contas e da loja Aberta); e, nos trilhos que já tinham a
+   lâmina, os botões redondos da ficha e as abas. Cada peça fica acima da luz,
+   e o véu próprio dela sai na passagem — quem acende é a lâmina. O gomo de
+   ouro do Sim/Não vira a lâmina pousada. */
+#root .menestrel-ui [data-lamina] :is(.cdj-bar, .estoque-sim-nao-op, .at-fab, .amg-fab, .rl-fab, .fp-aba-trilho) { position: relative; z-index: 1; }
+#root .menestrel-ui [data-lamina] :is(.cdj-bar, .at-fab, .amg-fab, .rl-fab, .fp-aba-trilho):hover { background: transparent; color: var(--tinta); }
+#root .menestrel-ui [data-lamina] .fp-aba-trilho.is-ativo { background: transparent; }
+#root .menestrel-ui [data-lamina] .estoque-sim-nao-op.is-on { background: transparent; box-shadow: none; }
+#root .menestrel-ui [data-lamina] .estoque-sim-nao-op:not(:disabled):hover { color: var(--tinta); }

@@ -384,12 +384,13 @@ function criarMotorMapa(raiz, cfg) {
     if (a && foco.tipo !== 'linha' && foco.tipo !== 'gente') h += mk(a, `<div class="mp-mira"></div>`);
     /* TODA CIDADE COM O MESMO SINAL (15/11/2026, usuário: "Deixe as cidades
        com o ícone de casinha, como está Saupami"). As 65 da pintura também
-       ganham o marcador, em cima do desenho delas; o nome não, porque a
-       pintura já o traz escrito ao lado — repeti-lo seria um segundo sinal
-       para a mesma informação. */
+       ganham o marcador, em cima do desenho delas.
+       TODA CIDADE COM O NOME (15/11/2026, usuário: "Algumas cidades mostram o
+       nome, outras não. Arrume isso"): as da pintura também ganham a
+       etiqueta — de perto, todas falam igual; de longe, nenhuma (.longe). */
     mesa.lugares.forEach((l) => {
       h += mk(l, `<button type="button" class="mp-marca${l.tipo === 'cidade' ? ' vila' : l.tipo === 'local' ? ' local' : ''}" data-alvo="lugar" data-id="${esc(l.id)}" aria-label="${esc(l.nome)}"><i class="ti ${ICONE_LUGAR[l.tipo] || 'ti-star'}" aria-hidden="true"></i></button>` +
-        (l.p ? '' : `<span class="mp-etiqueta">${esc(l.nome)}</span>`));
+        `<span class="mp-etiqueta">${esc(l.nome)}</span>`);
     });
     if (J) h += mk(J.destino, `<button type="button" class="mp-marca destino" data-alvo="${mestre ? 'linha' : 'destino'}" data-id="${esc(J.rota.id)}" aria-label="${tr('Destino', 'Destination')}: ${esc(J.destino.nome)}"><i class="ti ti-flag" aria-hidden="true"></i></button>`);
     if (!mestre) marcas.forEach((m) => {

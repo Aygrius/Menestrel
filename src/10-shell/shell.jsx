@@ -6223,8 +6223,22 @@ Object.assign(window, {
    cada página, e escutar cada um seria reescutar a cada troca. O pouso no
    botão ativo acompanha a navegação por um MutationObserver com um quadro de
    animação de folga — várias mutações num mesmo quadro viram uma conta só. */
-const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho';
-const TRILHO_BOTAO = '.mc-acao';
+/* O MAPA E A BUSCA TAMBÉM (15/11/2026, usuário: "O trilho do mapa ainda não
+   está com o mesmo efeito de brilho, adicione o efeito de brilho na barra de
+   busca"). `.mp-grupo` são as pílulas sobre o mapa (ferramentas e zoom); a
+   busca acende como um botão do trilho quando o ponteiro ou o foco está nela. */
+/* EM TODOS OS TRILHOS (15/11/2026, usuário: "Eu quero o efeito de brilho em
+   todos os trilhos do sistema, inclusive na página 'configurações'"): o
+   rodapé da data (.cdj-trilho) e as pílulas de escolha (.estoque-sim-nao —
+   Configurações, Contas, a loja Aberta Sim/Não). Os botões redondos do
+   trilho da ficha (.at-fab, .amg-fab, .rl-fab) e as abas dela também. */
+const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .estoque-sim-nao';
+// O "+" também (15/11/2026, usuário: "O botão de '+' nos trilhos também precisam entrar no padrão com brilho, cor, etc.").
+const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.estoque-sim-nao-op', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho'];
+const TRILHO_BOTAO = TRILHO_BOTOES.join(', ');
+// O marcado de cada família: .is-ativo nos trilhos, .is-on nas pílulas de escolha.
+const TRILHO_ATIVO = TRILHO_BOTOES.flatMap((b) => [b + '.is-ativo', b + '.is-on']).join(', ');
+const _laminaEhAtivo = (b) => b.classList.contains('is-ativo') || b.classList.contains('is-on');
 function _laminaPousar(trilho, alvo, modo) {
   if (!trilho) return;
   const st = trilho.style;
@@ -6249,7 +6263,7 @@ function _laminaPousar(trilho, alvo, modo) {
 }
 function _laminaAtivoDe(trilho) {
   // O ativo DESTE trilho, não o de um trilho aninhado (o da página dentro do da ficha).
-  return [...trilho.querySelectorAll(TRILHO_BOTAO + '.is-ativo')]
+  return [...trilho.querySelectorAll(TRILHO_ATIVO)]
     .find((b) => b.closest(TRILHO_SELETOR) === trilho) || null;
 }
 function _laminaRepousar(trilho) {
@@ -6269,12 +6283,17 @@ function instalarLaminaDosTrilhos() {
   const sobre = (e) => {
     const x = botaoNoTrilho(e.target);
     if (!x) return;
-    _laminaPousar(x.trilho, x.b, x.b.classList.contains('is-ativo') ? 'ativo' : 'passagem');
+    _laminaPousar(x.trilho, x.b, _laminaEhAtivo(x.b) ? 'ativo' : 'passagem');
   };
   const saiu = (e) => {
     const trilho = e.target && e.target.closest ? e.target.closest(TRILHO_SELETOR) : null;
     if (!trilho) return;
     if (e.relatedTarget && trilho.contains(e.relatedTarget)) return;   // ainda dentro do trilho
+    // O ponteiro saiu, mas o foco ficou (quem digita na busca): a luz fica nele.
+    if (e.type === 'pointerout') {
+      const f = botaoNoTrilho(document.activeElement);
+      if (f && f.trilho === trilho) { _laminaPousar(trilho, f.b, _laminaEhAtivo(f.b) ? 'ativo' : 'passagem'); return; }
+    }
     _laminaRepousar(trilho);
   };
   document.addEventListener('pointerover', sobre, true);
