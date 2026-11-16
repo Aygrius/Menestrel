@@ -5670,7 +5670,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                  ativo, mede distâncias e marca interesses. `key`: trocar de
                  mesa ou de personagem é outro mapa, não o mesmo atualizado. */
               <MapaView lang={lang} profile={profile} historiaId={mesaAtivaId} pj={profile === 'player' ? pjAtivo : null}
-                trilhoPaginas={trilhoPaginas} key={'mapa:' + (mesaAtivaId || 0) + ':' + ((profile === 'player' && pjAtivo && pjAtivo.id) || 0)} />
+                trilhoPaginas={trilhoPaginas} onLoja={profile === 'master' && mesaAtivaId ? () => ir('loja_mesa') : null} key={'mapa:' + (mesaAtivaId || 0) + ':' + ((profile === 'player' && pjAtivo && pjAtivo.id) || 0)} />
             ) : current.id === 'forum' ? (
               /* FÓRUM (15/11/2026): as salas de conversa (14-forum/forum.jsx).
                  Não depende de mesa nem de personagem: é da conta. */

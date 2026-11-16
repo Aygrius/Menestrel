@@ -1001,11 +1001,15 @@ function BestBotaoNovo({ ac, onClick, dica }) {
 /* `antes` (04/11/2026): o que vem ANTES da busca, na mesma pílula — os botões
    de página da Ambientação, para o trilho ser um só, como o da ficha. */
 /* `depois` (15/11/2026): o que vem DEPOIS do + — o filtro do Compêndio. */
+/* A BUSCA NUMA PÍLULA PRÓPRIA (15/11/2026, usuário: "Os botões de '- +' do
+   mapa ficam em um trilho separado, eu gostei dessa ideia. Separe o campo de
+   busca do trilho superior da mesma forma (em todos os trilhos)"). Com
+   `antes`, são duas pílulas lado a lado: as páginas, e a busca com o + — o
+   respiro entre elas vem do gap da .cartoes-barra. */
 function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, dicaNovo, ferramentas, antes = null, depois = null }) {
   const { Input } = (typeof UI !== 'undefined' ? UI : {});
-  return (
+  const busca = (
     <div className="best-header-acoes">
-      {antes}
       <div className="best-search">
         <i className="ti ti-eye busca-ic" aria-hidden="true" />
         {Input && <Input type="search" placeholder={placeholder} value={query} onChange={(e) => setQuery(e.target.value)} />}
@@ -1014,6 +1018,13 @@ function BestBuscaENovo({ ac, placeholder, query, setQuery, podeCriar, onNovo, d
       {podeCriar && <BestBotaoNovo ac={ac} onClick={onNovo} dica={dicaNovo} />}
       {depois}
     </div>
+  );
+  if (!antes) return busca;
+  return (
+    <>
+      <div className="best-header-acoes">{antes}</div>
+      {busca}
+    </>
   );
 }
 

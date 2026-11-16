@@ -32,6 +32,12 @@
 #root .menestrel-ui .mp-tela :focus-visible { outline: 2px solid var(--vivo-aro); outline-offset: 2px; }
 #root .menestrel-ui .mp-tela [hidden] { display: none; }
 
+/* SEM NADA ESCOLHIDO, SÓ O MAPA (15/11/2026, usuário: "Quando não tiver
+   nenhuma cidade ou local selecionado, o mapa ocupa a tela toda"). O motor
+   põe .so-mapa quando o painel não teria o que mostrar. */
+#root .menestrel-ui .mp-tela.so-mapa { grid-template-columns: minmax(0, 1fr); }
+#root .menestrel-ui .mp-tela.so-mapa > .mp-painel { display: none; }
+
 /* ───────── Painel ───────── */
 /* Sem moldura própria: a página já é um cartão, e cartão dentro de cartão pesa. */
 #root .menestrel-ui .mp-painel { min-height: 0; overflow-y: auto; padding: 0 16px 8px 0; }
@@ -177,17 +183,14 @@
   background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte);
 }
 #root .menestrel-ui .mp-grupo:empty { display: none; }
-#root .menestrel-ui .mp-tela .mp-ferr {
-  height: 34px; min-width: 34px; padding: 0 12px 0 10px; border: 1px solid transparent; border-radius: 999px;
-  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  font: 700 15px var(--font-body); color: var(--tinta-2); transition: background-color .15s ease, color .15s ease;
-}
-#root .menestrel-ui .mp-ferr i { font-size: 17px; color: var(--vivo); }
-#root .menestrel-ui .mp-tela .mp-ferr.so-ico { padding: 0; }
-#root .menestrel-ui .mp-tela .mp-ferr:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--tinta); }
-#root .menestrel-ui .mp-ferr:active { translate: 0 1px; }
-#root .menestrel-ui .mp-tela .mp-ferr[aria-pressed="true"] { background: var(--vivo-fundo); color: var(--tinta); }
-#root .menestrel-ui .mp-ferr:focus-visible { outline-offset: 1px; }
+/* OS BOTÕES SÃO OS DO TOPO (15/11/2026, usuário: "Os botões 'medir, cidade,
+   local' não está com o mesmo estilo dos botões no trilho do topo"). O mapa
+   não copia mais as medidas: a barra é .livro-trilho e cada botão é .mc-acao
+   com .mc-acao-rotulo — a pele vem de `.livro-trilho .mc-acao` (index.css).
+   Aqui só o que é do mapa: o botão de ícone só, redondo. */
+#root .menestrel-ui .mp-barra.livro-trilho { margin: 0; }
+#root .menestrel-ui .mp-tela .mp-barra .mc-acao.so-ico { width: 34px; padding: 0; justify-content: center; }
+#root .menestrel-ui .mp-tela .mp-barra .mc-acao:active { translate: 0 1px; }
 
 #root .menestrel-ui .mp-aviso {
   position: absolute; top: 66px; right: 12px; max-width: min(380px, calc(100% - 24px)); padding: 10px 14px; border-radius: 10px;
@@ -210,9 +213,10 @@
   #root .menestrel-ui .mp-mapa { grid-row: 1; }
   #root .menestrel-ui .mp-painel { grid-row: 2; padding: 14px 0 0; }
   #root .menestrel-ui .mp-barra { top: 8px; right: 8px; left: 8px; }
-  #root .menestrel-ui .mp-tela .mp-ferr { height: 40px; min-width: 40px; }  /* toque no celular */
-  #root .menestrel-ui .mp-barra.cheia .mp-ferr span { display: none; }
-  #root .menestrel-ui .mp-tela .mp-barra.cheia .mp-ferr { padding: 0; }
+  #root .menestrel-ui .mp-tela .mp-barra .mc-acao { height: 40px; min-width: 40px; }  /* toque no celular */
+  #root .menestrel-ui .mp-barra.cheia .mc-acao-rotulo { display: none; }
+  #root .menestrel-ui .mp-tela .mp-barra.cheia .mc-acao { padding: 0; justify-content: center; }
+  #root .menestrel-ui .mp-tela.so-mapa { grid-template-rows: minmax(0, 1fr); }
   #root .menestrel-ui .mp-aviso { top: 62px; right: 8px; }
   #root .menestrel-ui .mp-escala { left: 8px; bottom: 8px; }
 }

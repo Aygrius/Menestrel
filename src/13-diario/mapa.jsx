@@ -429,14 +429,10 @@ function criarMotorMapa(raiz, cfg) {
     const doisNums = (rot, k) => cel(rot, `${fmtKm(k)} <small>km</small>`) + cel(tr('A pé', 'On foot'), dias(k));
     const faltaPelaRota = () => km(caminho(J.falta));
 
-    if (f.tipo === 'nada') {
-      el.hidden = true;
-      pe.innerHTML = `<p class="mp-nota">${mestre
-        ? tr('Toque numa cidade para escolher, ou use as ferramentas do mapa para pôr cidades cadastradas e criar pontos, caminhos e rotas.', 'Tap a city to pick it, or use the map tools to place registered cities and create points, paths and routes.')
-        : cfg.semMesa ? tr('Toque numa cidade para escolher, ou use Medir. A rota e os personagens aparecem dentro de uma mesa.', 'Tap a city to pick it, or use Measure. The route and the characters show up inside a table.')
-        : tr('Toque numa cidade para ver a distância. O Mestre ainda não traçou a rota da mesa.', 'Tap a city to see the distance. The Game Master has not drawn the table route yet.')}</p>`;
-      return;
-    }
+    /* SEM NADA ESCOLHIDO, SÓ O MAPA (15/11/2026, usuário: "Quando não tiver
+       nenhuma cidade ou local selecionado, o mapa ocupa a tela toda. Ou seja,
+       remova o texto 'Toque numa cidade...'"). O painel some (ver painelVazio). */
+    if (f.tipo === 'nada') { el.hidden = true; pe.innerHTML = ''; return; }
     el.hidden = false;
     if (f.tipo === 'destino') {
       id = fixo(tr('Destino da mesa', 'Table destination'), true);
@@ -505,6 +501,10 @@ function criarMotorMapa(raiz, cfg) {
       if (pop) daFicha += cel(tr('População', 'Population'), fmtKm(pop));
       acoes = bt('ficha', 'ti-building', tr('Abrir a ficha', 'Open the entry')) + acoes;
     }
+    /* A LOJA MORA NA CIDADE DO MAPA (15/11/2026, usuário: "O botão 'loja' ...
+       agora ele só deve aparecer no mapa ao clicar na cidade"). Só o Mestre,
+       dentro de uma mesa: leva ao Estoque já na loja desta cidade. */
+    if (cfg.aoAbrirLoja && f.tipo === 'lugar' && a.tipo === 'cidade') acoes += bt('loja', 'ti-building-store', tr('Loja', 'Shop'));
     const editando = document.activeElement && document.activeElement.id === 'mp-nome-foco';
     if (!editando) el.innerHTML = `<div class="mp-passe-id">${id}</div>` + (nums ? `<div class="mp-passe-nums">${nums}</div>` : '') + (daFicha ? `<div class="mp-passe-nums">${daFicha}</div>` : '');   // não rouba o cursor de quem digita
     pe.innerHTML = (acoes ? `<div class="mp-acoes">${acoes}</div>` : '') + (nota ? `<p class="mp-nota">${nota}</p>` : '');
@@ -558,6 +558,12 @@ function criarMotorMapa(raiz, cfg) {
     }
     $('listas').innerHTML = h;
     achados();
+    /* O painel só existe quando tem o que mostrar: algo escolhido, uma
+       ferramenta que pede lista, uma busca, ou (Mestre) alguém da comitiva
+       ainda fora do mapa — sem o painel não haveria como pô-lo. */
+    const painelVazio = foco.tipo === 'nada' && !['cidade', 'local', 'ponto', 'caminho', 'rota'].includes(modo) && !busca.trim()
+      && !(mestre && gente.some((g) => !mesa.gente[g.id]));
+    elMapa.parentElement.classList.toggle('so-mapa', painelVazio);
   }
 
   function achados() {
@@ -602,7 +608,8 @@ function criarMotorMapa(raiz, cfg) {
     const doMundo = imperador ? ['cidade', 'local'] : [];
     const quais = mestre ? (cfg.semMesa ? ['medir', ...doMundo] : ['medir', ...doMundo, 'ponto', 'caminho', 'rota']) : (cfg.aoMudarMarcas ? ['medir', 'marcar'] : ['medir']);
     $('ferramentas').innerHTML = quais.map((k) =>
-      `<button type="button" class="mp-ferr" data-modo="${k}" aria-pressed="${modo === k}" aria-label="${FERR[k][1]}"><i class="ti ${FERR[k][0]}" aria-hidden="true"></i><span>${FERR[k][1]}</span></button>`).join('');
+      // As peças do trilho do topo (.livro-trilho .mc-acao), não uma cópia delas (15/11/2026).
+      `<button type="button" class="mc-acao mp-ferr${modo === k ? ' is-ativo' : ''}" data-modo="${k}" aria-pressed="${modo === k}" aria-label="${FERR[k][1]}"><i class="ti ${FERR[k][0]}" aria-hidden="true"></i><span class="mc-acao-rotulo">${FERR[k][1]}</span></button>`).join('');
     $('barra').classList.toggle('cheia', mestre);
     elMapa.classList.toggle('ferramenta', !!modo);
     const botoes = (...b) => `<span class="mp-aviso-acoes">${b.map(([acao, txt]) => `<button type="button" class="mp-acao" data-acao="${acao}">${txt}</button>`).join('')}</span>`;
@@ -842,6 +849,7 @@ function criarMotorMapa(raiz, cfg) {
       focar(l ? { tipo: 'lugar', id: l.id } : focoPadrao(), false);
     }
     else if (acao === 'medir') { modo = 'medir'; medida = [{ x: a.x, y: a.y }]; traco = []; continua = null; aviso(); desenhar(); }
+    else if (acao === 'loja') { if (cfg.aoAbrirLoja) cfg.aoAbrirLoja(a.nome); }
     else if (acao === 'ficha') { const fc = fichaDe(foco.tipo === 'marca' ? lugarId(a.lugar) : a); if (fc && cfg.aoAbrirCidade) cfg.aoAbrirCidade(fc); }
     else if (acao === 'limpar-medida') { medida = []; aviso(); desenhar(); }
     else if (acao === 'volta-ponto') { traco.pop(); aviso(); desenhar(); }
@@ -892,7 +900,7 @@ function criarMotorMapa(raiz, cfg) {
       mundo = Array.isArray(lugares) ? lugares : []; ultimoMundo = JSON.stringify(mundo);
       juntarMundo(); acertarNomes(); if (pronto) desenhar();
     },
-    buscar(texto) { busca = texto || ''; achados(); },
+    buscar(texto) { busca = texto || ''; listas(); },   // listas() chama achados() e decide se o painel aparece
     /* As cidades cadastradas chegaram (ou mudaram): religa e redesenha o passe. */
     catalogar(c) { porFichas(c); if (acertarNomes() && mestre) guardarMesa(); if (pronto) desenhar(); },
     falhou() { recado = { txt: tr('O mapa não foi salvo. Confira a conexão e mexa de novo.', 'The map was not saved. Check your connection and try again.') }; aviso(); },
@@ -986,7 +994,7 @@ function mapaBaseLadrilhos() {
    profile 'master': a mesa ativa, com as ferramentas de criação.
    profile 'player': a mesa do personagem ativo; mede e marca interesses.
    `api` e `base` existem para a prévia e os testes trocarem o banco. */
-function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, api = null, base = null }) {
+function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, api = null, base = null, onLoja = null }) {
   const en = lang === 'en', mestre = profile === 'master';
   const raiz = React.useRef(null), motor = React.useRef(null);
   const [estado, setEstado] = React.useState('carregando');   // 'carregando' | 'pronto' | 'erro'
@@ -1039,6 +1047,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
       motor.current = criarMotorMapa(raiz.current, {
         papel: mestre ? 'mestre' : 'jogador', en, base: base || mapaBaseLadrilhos(),
         mesa: d.mesa, marcas: d.marcas, gente: d.gente,
+        aoAbrirLoja: mestre && onLoja ? (nome) => { window.__mnLojaPedida = nome; onLoja(); } : null,
         imperador: ehImperador && mestre, mundo: mundo || [], aoMudarMundo: (ehImperador && mestre) ? aoMudarMundo : null,
         /* Grava com folga: arrastar um ponto dispara dezenas de mudanças. */
         aoMudarMesa: mestre ? (dados) => {
@@ -1092,7 +1101,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
   const ac = (typeof ADMIN_COPY !== 'undefined' && (ADMIN_COPY[lang] || ADMIN_COPY.pt)) || {};
   const Ficha = (typeof DetalheEntradaModal !== 'undefined' && DetalheEntradaModal) || window.DetalheEntradaModal;
   const zoom = (qual, ico, rot) => (
-    <button type="button" className="mp-ferr so-ico" data-zoom={qual} aria-label={rot}><i className={'ti ' + ico} aria-hidden="true" /></button>
+    <button type="button" className="mc-acao mp-ferr so-ico" data-zoom={qual} aria-label={rot}><i className={'ti ' + ico} aria-hidden="true" /></button>
   );
   return (
     <div className="pjs diario-pagina mp-pagina">
@@ -1120,7 +1129,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
               <svg className="mp-linhas" data-el="linhas" viewBox="0 0 1200 2000" aria-hidden="true" />
               <div data-el="marcadores" />
             </div>
-            <div className="mp-barra" data-el="barra">
+            <div className="mp-barra livro-trilho" data-el="barra">
               <div className="mp-grupo" data-el="ferramentas" />
               <div className="mp-grupo">
                 {zoom('menos', 'ti-minus', en ? 'Zoom out' : 'Afastar')}

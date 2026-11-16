@@ -101,9 +101,46 @@ function InicioNovidades({ lang = 'pt' }) {
   };
   const [reacoes, reagir] = useReacoesNoticias();
   const [page, setPage] = React.useState(1);
-  const totalPages = Math.max(1, Math.ceil(NOTICIAS_DO_SISTEMA.length / NOTICIAS_POR_PAGINA));
+  /* QUANTAS COUBEREM (15/11/2026, usuário: "você só está mostrando 4 itens por
+     página? Mostre quantos itens couber sem usar barra de rolagem vertical").
+     As notícias têm alturas diferentes, então a página não é um número: uma
+     lista escondida (.inicio-medida) mede cada uma, e as páginas são montadas
+     em ordem até encher a altura que o cartão tem (--pg-altura) menos o
+     cabeçalho e a paginação. Sem medida (teste, primeiro quadro), quatro. */
+  const cartao = React.useRef(null), lista = React.useRef(null), medida = React.useRef(null);
+  const [paginas, setPaginas] = React.useState(null);   // [[índices], ...]
+  React.useLayoutEffect(() => {
+    const medir = () => {
+      const c = cartao.current, l = lista.current, m = medida.current;
+      if (!c || !l || !m) return;
+      const alturas = [...m.children].map((li) => li.getBoundingClientRect().height);
+      const cs = getComputedStyle(c);
+      const teto = parseFloat(cs.minHeight) || 0;
+      if (!teto || !alturas.some((h) => h > 0)) { setPaginas(null); return; }
+      const pag = c.querySelector(':scope > .best-pag');
+      // A margem de cima da paginação é `auto` (empurra para o pé): não entra na conta.
+      const pe = pag ? pag.getBoundingClientRect().height : 56;
+      const util = teto - (l.getBoundingClientRect().top - c.getBoundingClientRect().top) - (parseFloat(cs.paddingBottom) || 0) - Math.max(pe, 56);
+      const out = []; let atual = [], soma = 0;
+      alturas.forEach((h, i) => {
+        if (atual.length && soma + h > util) { out.push(atual); atual = []; soma = 0; }
+        atual.push(i); soma += h;
+      });
+      if (atual.length) out.push(atual);
+      setPaginas((antes) => (JSON.stringify(antes) === JSON.stringify(out) ? antes : out));
+    };
+    medir();
+    // A fonte do corpo chega depois do primeiro quadro e muda a altura das linhas.
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(medir).catch(() => {});
+    window.addEventListener('resize', medir);
+    return () => window.removeEventListener('resize', medir);
+  }, [en]);
+  const porNumero = Array.from({ length: Math.ceil(NOTICIAS_DO_SISTEMA.length / NOTICIAS_POR_PAGINA) },
+    (_, p) => NOTICIAS_DO_SISTEMA.slice(p * NOTICIAS_POR_PAGINA, (p + 1) * NOTICIAS_POR_PAGINA).map((_n, i) => p * NOTICIAS_POR_PAGINA + i));
+  const grupos = paginas || porNumero;
+  const totalPages = Math.max(1, grupos.length);
   const safePage = Math.min(page, totalPages);
-  const pagina = NOTICIAS_DO_SISTEMA.slice((safePage - 1) * NOTICIAS_POR_PAGINA, safePage * NOTICIAS_POR_PAGINA);
+  const pagina = (grupos[safePage - 1] || []).map((i) => NOTICIAS_DO_SISTEMA[i]);
   const Paginas = (typeof BestPagination !== 'undefined' && BestPagination) || window.BestPagination;
   const botao = (n, reacao, icone, rotulo) => {
     const marcado = reacoes[n.id] === reacao;
@@ -114,34 +151,41 @@ function InicioNovidades({ lang = 'pt' }) {
       </button>
     );
   };
+  const noticia = (n, deVerdade) => {
+    const [titulo, texto] = en ? n.en : n.pt;
+    const area = AREAS_NOTICIA[n.area] || ['', '', 'ti-point'];
+    return (
+      <li key={n.id} className="inicio-noticia">
+        <div className="inicio-meta">
+          <time dateTime={n.data} className="inicio-data">{fmt(n.data)}</time>
+          <span className="inicio-area"><i className={'ti ' + area[2]} aria-hidden="true" />{en ? area[1] : area[0]}</span>
+        </div>
+        <div className="inicio-corpo">
+          {deVerdade ? <h3 className="inicio-noticia-titulo">{titulo}</h3> : <p className="inicio-noticia-titulo">{titulo}</p>}
+          <p className="inicio-noticia-texto">{texto}</p>
+        </div>
+        {deVerdade ? (
+          <div className="inicio-reacoes" role="group" aria-label={en ? 'Did you like it?' : 'Gostou?'}>
+            {botao(n, 'gostei', 'ti-heart', en ? 'I liked it' : 'Gostei')}
+            {botao(n, 'nao_gostei', 'ti-thumb-down', en ? 'I did not like it' : 'Não gostei')}
+          </div>
+        ) : <div className="inicio-reacoes"><span className="btn-icon btn-sm" /><span className="btn-icon btn-sm" /></div>}
+      </li>
+    );
+  };
   return (
-    <section className="inicio" aria-labelledby="inicio-titulo">
+    <section className="inicio" aria-labelledby="inicio-titulo" ref={cartao}>
       {/* Só o título (15/11/2026): o convite "Escolha uma mesa no menu lateral…"
           saiu, a pedido do usuário. */}
       <header className="inicio-cabeca">
         <h2 id="inicio-titulo" className="inicio-titulo">{en ? 'What is new in Menestrel' : 'Novidades do Menestrel'}</h2>
       </header>
-      <ol className="inicio-lista">
-        {pagina.map((n) => {
-          const [titulo, texto] = en ? n.en : n.pt;
-          const area = AREAS_NOTICIA[n.area] || ['', '', 'ti-point'];
-          return (
-            <li key={n.id} className="inicio-noticia">
-              <div className="inicio-meta">
-                <time dateTime={n.data} className="inicio-data">{fmt(n.data)}</time>
-                <span className="inicio-area"><i className={'ti ' + area[2]} aria-hidden="true" />{en ? area[1] : area[0]}</span>
-              </div>
-              <div className="inicio-corpo">
-                <h3 className="inicio-noticia-titulo">{titulo}</h3>
-                <p className="inicio-noticia-texto">{texto}</p>
-              </div>
-              <div className="inicio-reacoes" role="group" aria-label={en ? 'Did you like it?' : 'Gostou?'}>
-                {botao(n, 'gostei', 'ti-heart', en ? 'I liked it' : 'Gostei')}
-                {botao(n, 'nao_gostei', 'ti-thumb-down', en ? 'I did not like it' : 'Não gostei')}
-              </div>
-            </li>
-          );
-        })}
+      <ol className="inicio-lista" ref={lista}>
+        {pagina.map((n) => noticia(n, true))}
+      </ol>
+      {/* A régua de medir: todas as notícias, invisíveis, na largura da lista. */}
+      <ol className="inicio-lista inicio-medida" ref={medida} aria-hidden="true">
+        {NOTICIAS_DO_SISTEMA.map((n) => noticia(n, false))}
       </ol>
       {Paginas && totalPages > 1 && (
         <Paginas page={page} safePage={safePage} totalPages={totalPages} setPage={setPage} setExpandida={() => {}} lang={lang} />

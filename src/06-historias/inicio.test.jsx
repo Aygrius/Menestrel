@@ -37,12 +37,18 @@ describe('as novidades do sistema', () => {
     expect([...datas].sort().reverse()).toEqual(datas);
     window.NOTICIAS_DO_SISTEMA.forEach((n) => expect(window.AREAS_NOTICIA[n.area]).toBeTruthy());
   });
-  // 15/11/2026: sem rolagem — quatro por página, a paginação no pé; sem o convite de escolher mesa.
-  it('a página mostra quatro notícias por vez, com data e área, e sem o convite', () => {
+  /* 15/11/2026: sem rolagem, a paginação no pé; sem o convite de escolher mesa.
+     Quantas couberem ("Mostre quantos itens couber sem usar barra de rolagem
+     vertical"): o jsdom não mede altura, então aqui vale o recuo de quatro. A
+     lista de medir (.inicio-medida) traz todas, escondidas do leitor de tela. */
+  it('sem medida, mostra quatro notícias por vez, com data e área, e sem o convite', () => {
     render(<div id="root"><div className="menestrel-ui"><window.InicioNovidades lang="pt" /></div></div>);
     expect(document.querySelector('.inicio-titulo').textContent).toBe('Novidades do Menestrel');
-    expect(document.querySelectorAll('.inicio-noticia')).toHaveLength(Math.min(window.NOTICIAS_POR_PAGINA, window.NOTICIAS_DO_SISTEMA.length));
-    expect(document.querySelector('.inicio-noticia time').getAttribute('dateTime')).toBe(window.NOTICIAS_DO_SISTEMA[0].data);
+    const vistas = document.querySelectorAll('.inicio-lista:not(.inicio-medida) > .inicio-noticia');
+    expect(vistas).toHaveLength(Math.min(window.NOTICIAS_POR_PAGINA, window.NOTICIAS_DO_SISTEMA.length));
+    expect(document.querySelector('.inicio-medida').getAttribute('aria-hidden')).toBe('true');
+    expect(document.querySelectorAll('.inicio-medida > .inicio-noticia')).toHaveLength(window.NOTICIAS_DO_SISTEMA.length);
+    expect(vistas[0].querySelector('time').getAttribute('dateTime')).toBe(window.NOTICIAS_DO_SISTEMA[0].data);
     expect(document.body.textContent).not.toMatch(/Escolha uma mesa no menu lateral/);
   });
   it('toda notícia tem um id único, que é a chave da reação', () => {

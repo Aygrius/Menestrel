@@ -764,7 +764,11 @@ const NAV_MESA = {
          dele —, e as três como botões do trilho da página. A Loja do Mestre é
          o Estoque (lojas por cidade e propostas de venda, 23/10/2026). */
       { id: 'mesa_mestre', rotulo: R('Mesa', 'Table'), trilho: true, filhos: [
-        { secao: 'cena' }, { secao: 'batalha' }, { secao: 'loja_mesa', rotulo: R('Loja', 'Shop') },
+        { secao: 'cena' }, { secao: 'batalha' },
+        /* A LOJA SAIU DO TRILHO (15/11/2026, usuário: "O botão 'loja' ainda
+           está aparecendo em 'mesa', agora ele só deve aparecer no mapa ao
+           clicar na cidade"). A seção loja_mesa continua existindo: é para
+           onde o botão Loja do passe da cidade leva (13-diario/mapa.jsx). */
       ] },
       { secao: 'personagens_m' },
       /* AMBIENTAÇÃO (23/10/2026): "O menu diário pode ser alterado para

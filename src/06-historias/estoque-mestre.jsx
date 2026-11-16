@@ -365,7 +365,13 @@ function EstoqueMestreView({ historia, lang, onChanged, trilhoPaginas = null }) 
      como padrão"). O local da mesa (data_jogo_atual.local) casa com o lugar da
      loja sem acento; sem loja ali, a primeira, como antes. */
   const localDaMesa = estSemAcento((historia && historia.data_jogo_atual && historia.data_jogo_atual.local) || '');
-  const lojaDaMesa = localDaMesa ? comercios.find((c) => estSemAcento(c.lugar || c.nome) === localDaMesa) || null : null;
+  /* A LOJA SAIU DO TRILHO DA MESA E FOI PARA O MAPA (15/11/2026, usuário: "O
+     botão 'loja' ... agora ele só deve aparecer no mapa ao clicar na cidade").
+     O mapa deixa o nome da cidade em window.__mnLojaPedida antes de abrir esta
+     página; a loja dela vem antes da de onde a mesa está. Lido uma vez. */
+  const [pedida] = useState(() => { const n = window.__mnLojaPedida || ''; window.__mnLojaPedida = null; return estSemAcento(n); });
+  const lojaPedida = pedida ? comercios.find((c) => estSemAcento(c.lugar || c.nome) === pedida) || null : null;
+  const lojaDaMesa = lojaPedida || (localDaMesa ? comercios.find((c) => estSemAcento(c.lugar || c.nome) === localDaMesa) || null : null);
   const loja = comercios.find((c) => c.id === lojaId) || lojaDaMesa || comercios[0] || null;
   useEffect(() => {
     if (!lojaId && (lojaDaMesa || comercios[0])) setLojaId((lojaDaMesa || comercios[0]).id);
@@ -478,9 +484,10 @@ function EstoqueMestreView({ historia, lang, onChanged, trilhoPaginas = null }) 
   // ── o trilho
   const trilho = (
     <div className={'cartoes-barra inv-trilho estoque-trilho' + (trilhoPaginas ? ' trilho-unido' : '')}>
+      {/* As páginas da Mesa no início do trilho (04/11/2026), numa pílula só
+          delas desde 15/11/2026 — a busca e o seletor de loja vêm na seguinte. */}
+      {trilhoPaginas && <div className="best-header-acoes">{trilhoPaginas}</div>}
       <div className="best-header-acoes">
-        {/* As páginas da Mesa (Cena, Batalha, Loja) no início do trilho (04/11/2026). */}
-        {trilhoPaginas}
         {aba === 'loja' && (
           <div className="best-search">
             <i className="ti ti-eye busca-ic" aria-hidden="true" />

@@ -19301,3 +19301,28 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 @media (min-width: 641px) and (max-width: 900px) {
   #root .menestrel-ui .mundo-form > .mundo-campo--quarto { grid-column: span 2; }
 }
+
+/* ── O TRILHO DE BAIXO COM AS PEÇAS DO DE CIMA (15/11/2026) ────────────────────
+   Usuário: "Os botões no trilho inferior com 'data, local, etc' também não está
+   usando o estilo do trilho superior." Medido contra .livro-trilho .mc-acao: o
+   respiro era 0 16px (o de cima é 0 12px 0 10px), o ícone tinha 16px e as cores
+   do período e do clima (lua, nuvem, neve) em vez do ouro, e os botões só de
+   ícone tinham 32px de largura em 34px de altura. Agora são as mesmas peças. */
+#root .menestrel-ui .cdj-trilho .cdj-bar { padding: 0 12px 0 10px; }
+#root .menestrel-ui .cdj-trilho .cdj-bar:not(:has(span)) {
+  width: 34px; min-width: 34px; padding: 0 !important; justify-content: center;
+}
+#root .menestrel-ui .cdj-trilho .cdj-bar i { font-size: 17px; color: var(--vivo) !important; }
+
+/* As páginas numa pílula só delas (15/11/2026, "Separe o campo de busca do
+   trilho superior"): sem a busca ao lado, o respiro que as separava dela sai. */
+#root .menestrel-ui .best-header-acoes > .trilho-paginas:only-child { margin-right: 0; }
+
+/* Novidades: quantas couberem (15/11/2026). A lista de medir fica fora do
+   fluxo, invisível, na mesma largura da lista de verdade (06-historias/inicio.jsx). */
+#root .menestrel-ui .mc-content > .hist > .inicio { position: relative; }
+#root .menestrel-ui .inicio > .inicio-medida {
+  position: absolute; top: 0; left: calc(24px * var(--fp-z)); right: calc(24px * var(--fp-z));
+  visibility: hidden; pointer-events: none;
+}
+#root .menestrel-ui .inicio-medida > .inicio-noticia { border-bottom: 1px solid var(--regua); }

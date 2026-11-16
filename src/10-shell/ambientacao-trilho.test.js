@@ -52,7 +52,10 @@ describe('a Ambientação do Mestre', () => {
     const diario = readFileSync(resolve(__dirname, '../13-diario/diario.jsx'), 'utf8');
     expect(diario).toMatch(/antes=\{trilhoPaginas\} \/>/);
     const best = readFileSync(resolve(__dirname, '../09-bestiario/bestiario.jsx'), 'utf8');
-    expect(best).toMatch(/<div className="best-header-acoes">\s*\{antes\}\s*<div className="best-search">/);
+    /* A busca numa pílula própria (15/11/2026, usuário: "Separe o campo de
+       busca do trilho superior"): as páginas na primeira, a busca na seguinte. */
+    expect(best).toMatch(/<div className="best-header-acoes">\{antes\}<\/div>\s*\{busca\}/);
+    expect(best).toMatch(/const busca = \(\s*<div className="best-header-acoes">\s*<div className="best-search">/);
   });
 
   it('cada folha tem ícone próprio, não o pontinho de recuo', () => {
@@ -89,10 +92,13 @@ describe('a Mesa do Mestre', () => {
   const mesa = nav.NAV_MESA.master.mesa;
   const grupo = mesa.find((n) => n.id === 'mesa_mestre');
 
-  it('é um grupo de trilho com Cena, Batalha e Loja', () => {
+  /* A Loja saiu do trilho em 15/11/2026 (usuário: "agora ele só deve aparecer
+     no mapa ao clicar na cidade"): o passe da cidade leva a loja_mesa. */
+  it('é um grupo de trilho com Cena e Batalha; a Loja abre pelo mapa', () => {
     expect(grupo.trilho).toBe(true);
     expect(grupo.rotulo.pt).toBe('Mesa');
-    expect(grupo.filhos.map((f) => f.secao)).toEqual(['cena', 'batalha', 'loja_mesa']);
+    expect(grupo.filhos.map((f) => f.secao)).toEqual(['cena', 'batalha']);
+    expect(shell).toMatch(/<MapaView [^\n]*\n[^\n]*onLoja=\{profile === 'master' && mesaAtivaId \? \(\) => ir\('loja_mesa'\) : null\}/);
     // As três saíram do primeiro andar do menu.
     expect(mesa.filter((n) => ['cena', 'batalha', 'loja_mesa'].includes(n.secao))).toHaveLength(0);
   });
@@ -105,7 +111,7 @@ describe('a Mesa do Mestre', () => {
     const bat = readFileSync(resolve(__dirname, '../12-batalha/batalha.jsx'), 'utf8');
     expect(bat).toMatch(/antes=\{trilhoPaginas\}/);
     const est = readFileSync(resolve(__dirname, '../06-historias/estoque-mestre.jsx'), 'utf8');
-    expect(est).toMatch(/<div className="best-header-acoes">\s*\{\/\*[^*]*\*\/\}\s*\{trilhoPaginas\}/);
+    expect(est).toMatch(/\{trilhoPaginas && <div className="best-header-acoes">\{trilhoPaginas\}<\/div>\}\s*<div className="best-header-acoes">/);
   });
 });
 
