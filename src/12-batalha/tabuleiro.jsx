@@ -702,7 +702,7 @@ function TabuleiroToken({ p, meta, size, selecionado, atual, podeSel, onSelect, 
     onKeyDown: (e) => {
       if (podeSel && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); e.stopPropagation(); onSelect(e); }
     },
-    className: 'batalha-token' + (atual ? ' batalha-token--atual' : '') + (flash ? ' is-dano' : '')
+    className: 'batalha-token' + (atual ? ' batalha-token--atual' : '') + (flash ? ' is-dano' : '') + (selecionado ? ' is-selecionado' : '')
       + (p.tipo === 'pj' ? ' batalha-token--pj' : ' batalha-token--criatura'),
     style: {
       position: 'relative', width: size, display: 'flex', flexDirection: 'column',
@@ -1482,7 +1482,10 @@ function TabuleiroBatalha({
 
     /* O quadro continua existindo como moldura do tabuleiro; o que ele
        perdeu em 27/10/2026 foram as duas faixas de régua e o canto. */
-    React.createElement('div', { className: 'batalha-tabuleiro-quadro' },
+    React.createElement('div', {
+      /* OS OUTROS RECUAM (16/11/2026, usuário: "Quando um avatar no campo de
+         batalha estiver selecionado, os demais ficam 'apagados', ou opacos"). */
+      className: 'batalha-tabuleiro-quadro' + ((menuAberto != null || movendo != null) ? ' tem-selecionado' : '') },
     React.createElement('div', {
       ref: scrollRef, className: 'batalha-tabuleiro-scroll',
       style: {
@@ -1540,21 +1543,20 @@ function TabuleiroBatalha({
             // a grade fina, uma casa
             'linear-gradient(to right, rgba(170,150,240,.17) 1px, transparent 1px)',
             'linear-gradient(to bottom, rgba(170,150,240,.17) 1px, transparent 1px)',
-            // os círculos rúnicos, do tamanho do campo
-            'radial-gradient(circle closest-side at 50% 50%, transparent 80%, rgba(170,150,240,.11) 80.4%, rgba(170,150,240,.11) 81%, transparent 81.4%)',
-            'radial-gradient(circle closest-side at 50% 50%, transparent 98%, rgba(170,150,240,.08) 98.3%, rgba(170,150,240,.08) 98.8%, transparent 99.1%)',
+            // Os dois círculos rúnicos saíram (16/11/2026, usuário: "Remova os dois
+            // círculos do fundo do campo de batalha").
             ambiente ? 'url(/batalha/fundo-' + ambiente + '.webp)'
               : 'radial-gradient(ellipse at 50% 50%, #1b1733, #100d1d 80%)',
           ].join(', '),
           backgroundSize: [
             cel * 5 + 'px ' + cel * 5 + 'px',
             cel + 'px ' + cel + 'px', cel + 'px ' + cel + 'px',
-            '100% 100%', '100% 100%', '100% 100%',
+            '100% 100%',
           ].join(', '),
           backgroundPosition: [
-            (-cel * 2.5) + 'px ' + (-cel * 2.5) + 'px', '0 0', '0 0', 'center', 'center', 'center',
+            (-cel * 2.5) + 'px ' + (-cel * 2.5) + 'px', '0 0', '0 0', 'center',
           ].join(', '),
-          backgroundRepeat: 'repeat, repeat, repeat, no-repeat, no-repeat, no-repeat',
+          backgroundRepeat: 'repeat, repeat, repeat, no-repeat',
         },
       },
         /* ESCURIDÃO (13/09/2026): "Adicione um efeito para escurecer o

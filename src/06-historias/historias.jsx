@@ -672,24 +672,29 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
               <div className="cena-folha-id">
                 <h2 id="cena-folha-tit" className="cena-folha-tit">{tituloDe(folha.c)}</h2>
               </div>
-              <div className="cena-folha-acoes">
+              {/* AS AÇÕES NUMA PÍLULA DE TRILHO (16/11/2026, usuário: 'Os botões de
+                  navegação em "cena" como "anterior", "próximo", "trocar imagem"
+                  estão com o mesmo tamanho dos botões do trilho? Me parece que não'):
+                  eram btn-ghost soltos (34px sem a casca); agora são as peças do
+                  trilho (.mc-acao) dentro da casca dele, com a lâmina. */}
+              <div className="cena-folha-acoes trilho-solto livro-trilho">
                 <input ref={imgInputRef} type="file" accept="image/*" hidden onChange={inserirImagem}
                   data-testid="cena-imagem-input" />
-                <button type="button" className="btn-ghost btn-sm" disabled={imgEnviando || !capId}
+                <button type="button" className="mc-acao" disabled={imgEnviando || !capId}
                   onClick={() => imgInputRef.current && imgInputRef.current.click()}>
                   <i className="ti ti-photo" aria-hidden="true" />
-                  {imgEnviando ? (en ? 'Saving…' : 'Salvando…')
-                    : imagemDe(folha.c) ? (en ? 'Change image' : 'Trocar imagem') : (en ? 'Insert image' : 'Inserir imagem')}
+                  <span className="mc-acao-rotulo">{imgEnviando ? (en ? 'Saving…' : 'Salvando…')
+                    : imagemDe(folha.c) ? (en ? 'Change image' : 'Trocar imagem') : (en ? 'Insert image' : 'Inserir imagem')}</span>
                 </button>
                 {imagemDe(folha.c) && (
-                  <button type="button" className="btn-ghost btn-icon btn-sm" disabled={imgEnviando}
+                  <button type="button" className="mc-acao so-ico" disabled={imgEnviando}
                     aria-label={en ? 'Remove image' : 'Tirar imagem'} {...propsTip(abrirTip, fecharTip, en ? 'Remove image' : 'Tirar imagem')}
                     onClick={tirarImagem}>
                     <i className="ti ti-trash" aria-hidden="true" />
                   </button>
                 )}
-                <button type="button" className="btn-ghost btn-sm" onClick={onEscrever}>
-                  <i className="ti ti-pencil" aria-hidden="true" />{en ? 'Write' : 'Escrever'}
+                <button type="button" className="mc-acao" onClick={onEscrever}>
+                  <i className="ti ti-pencil" aria-hidden="true" /><span className="mc-acao-rotulo">{en ? 'Write' : 'Escrever'}</span>
                 </button>
               </div>
             </header>
@@ -735,9 +740,11 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
             <Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
           </article>
           <nav ref={navRef} className="cena-folha-nav" aria-label={en ? 'Chapters' : 'Capítulos'}>
-            <button type="button" className="btn-ghost btn-sm" disabled={!temAnterior} onClick={voltar}>
-              <i className="ti ti-chevron-left" aria-hidden="true" />{en ? 'Previous' : 'Anterior'}
-            </button>
+            <span className="trilho-solto livro-trilho">
+              <button type="button" className="mc-acao" disabled={!temAnterior} onClick={voltar}>
+                <i className="ti ti-chevron-left" aria-hidden="true" /><span className="mc-acao-rotulo">{en ? 'Previous' : 'Anterior'}</span>
+              </button>
+            </span>
             <span className="cena-folha-pos" aria-live="polite">
               {en ? 'Chapter ' : 'Capítulo '}<b>{folha.n}</b>{en ? ' of ' : ' de '}{caps.length}
               {totalPag > 1 && (
@@ -747,9 +754,11 @@ function CenaCronica({ h, personagens, lang, onEscrever, onNovoCapitulo, onAlter
                 </>
               )}
             </span>
-            <button type="button" className="btn-ghost btn-sm" disabled={!temProxima} onClick={avancar}>
-              {en ? 'Next' : 'Próximo'}<i className="ti ti-chevron-right" aria-hidden="true" />
-            </button>
+            <span className="trilho-solto livro-trilho">
+              <button type="button" className="mc-acao" disabled={!temProxima} onClick={avancar}>
+                <span className="mc-acao-rotulo">{en ? 'Next' : 'Próximo'}</span><i className="ti ti-chevron-right" aria-hidden="true" />
+              </button>
+            </span>
           </nav>
         </>
       ) : (

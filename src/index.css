@@ -19703,3 +19703,32 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 #root .menestrel-ui :is(.btn, .btn-ghost, .btn-icon, .btn-primary, .btn-danger, .hist-card-btn, .diario-card-arte-btn, .batalha-acao-nomeada, .batalha-status-chip, .cv-chip):is(:hover, :focus) { border-color: transparent; }
 #root .menestrel-ui .mp-passe { border-color: transparent; }
 #root .menestrel-ui :is(.cena-cap-figura, .cena-palco-arte) { border-color: transparent; }
+
+/* ── A PÍLULA DE TRILHO AVULSA (16/11/2026) ─────────────────────────────────────
+   Usuário: "Os botões de navegação em 'cena' como 'anterior', 'próximo',
+   'trocar imagem' estão com o mesmo tamanho dos botões do trilho? Me parece
+   que não." Tinham a altura do botão do trilho (34px), mas soltos, sem a
+   casca de 46px em volta — lado a lado com o trilho, pareciam menores. Agora
+   moram numa casca de trilho (.trilho-solto, com a lâmina — 10-shell,
+   TRILHO_SELETOR), e as peças são as do trilho (.livro-trilho .mc-acao). */
+#root .menestrel-ui .trilho-solto {
+  display: inline-flex; align-items: center; gap: 2px; padding: 5px; margin: 0;
+  border-radius: 999px; background: var(--chao-celula-opaco); border: 0;
+}
+#root .menestrel-ui .trilho-solto .mc-acao.so-ico { width: 34px; padding: 0; justify-content: center; }
+#root .menestrel-ui .trilho-solto .mc-acao:disabled { opacity: .45; cursor: not-allowed; }
+#root .menestrel-ui .cena-folha-nav > .trilho-solto { justify-self: start; }
+#root .menestrel-ui .cena-folha-nav > .trilho-solto:last-child { justify-self: end; }
+
+/* ── O CAMPO DE BATALHA (16/11/2026) ────────────────────────────────────────────
+   Usuário: "Remova o fundo ao passar o mouse no nome, ef, eh, etc no campo de
+   batalha" e "Quando um avatar no campo de batalha estiver selecionado, os
+   demais ficam 'apagados', ou opacos". O nome (com o seletor de estado), as
+   reservas e os efeitos não ganham chão na passagem: o texto clareia, como no
+   trilho. Com alguém escolhido (.tem-selecionado, tabuleiro.jsx), os outros
+   recuam — meio apagados e sem cor; quem está escolhido segue inteiro. */
+#root .menestrel-ui :is(.batalha-nome-estado, .batalha-pool-linha.editavel, .batalha-status-chip, .batalha-status-chip.batalha-efeito-botao):hover { background: transparent; }
+#root .menestrel-ui :is(.batalha-nome-estado, .batalha-pool-linha.editavel):hover { color: var(--tinta); }
+#root .menestrel-ui .batalha-token { transition: opacity .2s ease, filter .2s ease; }
+#root .menestrel-ui .batalha-tabuleiro-quadro.tem-selecionado .batalha-token:not(.is-selecionado) { opacity: .4; filter: saturate(.5); }
+#root .menestrel-ui .batalha-tabuleiro-quadro.tem-selecionado .batalha-token:not(.is-selecionado):hover { opacity: .75; }

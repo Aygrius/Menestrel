@@ -6296,7 +6296,7 @@ Object.assign(window, {
    e botão ao mesmo tempo (15/11/2026, usuário: "Use o mesmo estilo de botão
    com brilho no seletor de aventura, no botão da conta inferior esquerdo"). */
 // A paginação também (.best-pag, 16/11/2026: "Aplique o efeito de brilho nos botões de navegação das páginas").
-const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .estoque-sim-nao, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu';
+const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .estoque-sim-nao, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu, .trilho-solto';
 // O "+" também (15/11/2026, usuário: "O botão de '+' nos trilhos também precisam entrar no padrão com brilho, cor, etc.").
 const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.estoque-sim-nao-op', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho', '.mc-navitem', '.mc-navbusca', '.wiz-fase', '.mc-ident', '.mc-user', '.best-page-btn', '.mc-menu-item', '.mc-usermenu [role="menuitem"]'];
 const TRILHO_BOTAO = TRILHO_BOTOES.join(', ');
