@@ -179,3 +179,17 @@ describe('a camada do mundo', () => {
     expect(sql).toMatch(/ARRAY\['entidade'::text, 'grupo'::text, 'mapa'::text\]/);
   });
 });
+
+/* SÓ O QUE O PERSONAGEM CONHECE (17/11/2026): para o Jogador, cidade e local
+   sem ficha no catálogo dele não têm marcador, nome, toque nem busca. */
+describe('o jogador só vê cidades e locais que conhece', () => {
+  const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+  it('a regra cobre cidade e local, e só vale fora do Mestre', () => {
+    expect(fonte).toMatch(/const oculto = \(l\) => !mestre && \(l\.tipo === 'cidade' \|\| l\.tipo === 'local'\)/);
+  });
+  it('o marcador, o toque (perto) e a busca pulam o oculto', () => {
+    expect(fonte).toMatch(/mesa\.lugares\.forEach\(\(l\) => \{\s*if \(oculto\(l\)\) return;/);
+    expect(fonte).toMatch(/for \(const l of mesa\.lugares\) \{ if \(oculto\(l\)\) continue;/);
+    expect(fonte).toMatch(/mesa\.lugares\.filter\(\(l\) => !oculto\(l\)\)\.map\(\(l\) => \[semAcento\(l\.nome\), l\]\)/);
+  });
+});

@@ -176,6 +176,29 @@ describe('as mesmas peças de Personagens', () => {
     // Desde 17/11/2026 o compartilhar vale só para amigos (pacto selado).
     expect(rotulos).toEqual(expect.arrayContaining(['Compartilhar com amigos', 'Editar', 'Excluir']));
   });
+
+  /* O TIPO E O VÍNCULO DA MEMÓRIA (17/11/2026): os tipos só aparecem quando o
+     personagem conhece algo deles; o vínculo vai para a RPC. */
+  it('a memória escolhe o tipo e vincula a algo conhecido', async () => {
+    await montar('memoria');
+    fireEvent.click(document.querySelector('.diario-cartao'));
+    const pills = () => [...document.querySelectorAll('[role="dialog"] .select-pill-btn')];
+    fireEvent.click(pills()[0]);
+    const tipos = [...document.querySelectorAll('.select-pill-drop [role="option"]')].map((o) => o.textContent.trim());
+    expect(tipos).toEqual(['Geral', 'Reino', 'Cidade', 'Pessoa']);
+    fireEvent.click([...document.querySelectorAll('.select-pill-drop [role="option"]')].find((o) => /Cidade/.test(o.textContent)));
+    fireEvent.click(pills()[1]);
+    fireEvent.click([...document.querySelectorAll('.select-pill-drop [role="option"]')].find((o) => /Verrogar/.test(o.textContent)));
+    const chamadas = [];
+    const antes = window.supabaseClient.rpc;
+    window.supabaseClient.rpc = async (nome, args) => { chamadas.push([nome, args]); return { data: RPC[nome] ?? { ok: true }, error: null }; };
+    try {
+      fireEvent.click([...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent.trim() === 'Salvar'));
+      await vi.waitFor(() => expect(chamadas.some(([n]) => n === 'salvar_memoria_diario')).toBe(true));
+    } finally { window.supabaseClient.rpc = antes; }
+    const [, args] = chamadas.find(([n]) => n === 'salvar_memoria_diario');
+    expect(args).toMatchObject({ p_vinculo_tipo: 'cidade', p_vinculo_id: 'verrogar' });
+  });
 });
 
 /* A aba Diário dentro da ficha, na visão do Mestre (23/10/2026): também em

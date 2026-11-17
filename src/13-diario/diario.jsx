@@ -1136,9 +1136,31 @@ function DetalheEntradaModal({
 
 // ---------- MemoriaModal ----------
 
-function MemoriaModal({ memoria, lang, pjId, onClose, onSaved, onExcluir = null, alheia = false, onCompartilhar = null }) {
+/* Os tipos de memória (17/11/2026); '' é a memória sem vínculo. */
+const TIPOS_MEMORIA = ['', 'reino', 'cidade', 'local', 'npc', 'criatura'];
+function rotuloTipoMemoria(t, lang) {
+  const en = lang === 'en';
+  return ({ '': en ? 'General' : 'Geral', reino: en ? 'Kingdom' : 'Reino', cidade: en ? 'City' : 'Cidade',
+    local: en ? 'Place' : 'Local', npc: en ? 'Person' : 'Pessoa', criatura: en ? 'Creature' : 'Criatura' })[t || ''] || t;
+}
+// As entradas conhecidas do tipo; a que a memória já aponta fica, mesmo que tenha saído.
+function opcoesVinculo(conhecidos, tipo, memoria) {
+  const lista = ((conhecidos && conhecidos[tipo]) || []).map((e) => ({ value: String(e.id), label: e.nome }));
+  if (memoria && memoria.vinculo_tipo === tipo && memoria.vinculo_id && !lista.some((o) => o.value === String(memoria.vinculo_id))) {
+    lista.unshift({ value: String(memoria.vinculo_id), label: memoria.vinculo_nome || String(memoria.vinculo_id) });
+  }
+  return lista.sort((a, b) => String(a.label).localeCompare(String(b.label), 'pt-BR'));
+}
+function MemoriaModal({ memoria, lang, pjId, onClose, onSaved, onExcluir = null, alheia = false, onCompartilhar = null, conhecidos = null }) {
   const en = lang === 'en';
   const isEdit = !!memoria;
+  /* O TIPO E O VÍNCULO (17/11/2026, usuário: "ao criar a memória, o jogador
+     seleciona qual é o tipo de memória. E ele poderá vincular a algo que ele
+     conhece"). `conhecidos` = { reino, cidade, local, npc, criatura }, cada um
+     [{ id, nome }]: o que o diário deste personagem enxerga. O banco guarda o
+     tipo, o id e o nome (salvar_memoria_diario). */
+  const [vinculoTipo, setVinculoTipo] = useState(memoria?.vinculo_tipo || '');
+  const [vinculoId, setVinculoId] = useState(memoria?.vinculo_id || '');
   // Compartilhada com amigos (17/11/2026): o estado do botão, que já grava ao clicar.
   const [compartilhada, setCompartilhada] = useState(!!memoria?.compartilhado);
   // Excluir em dois cliques (23/10/2026): a lixeira saiu da linha da tabela.
@@ -1161,6 +1183,8 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved, onExcluir = null,
       p_personagem_id: pjId,
       p_titulo: titulo,
       p_conteudo: conteudo,
+      p_vinculo_tipo: vinculoTipo && vinculoId ? vinculoTipo : null,
+      p_vinculo_id: vinculoTipo && vinculoId ? String(vinculoId) : null,
     });
     setSaving(false);
     if (err) { setError(err.message); return; }
@@ -1175,6 +1199,7 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved, onExcluir = null,
     return (
       <ModalShell title={memoria.titulo || (en ? '(untitled)' : '(sem título)')} lang={lang} size="lg" onClose={onClose}>
         {memoria.autor_nome && <p className="mn-janela-frase diario-memoria-autor">{en ? 'Written by ' : 'Escrita por '}{memoria.autor_nome}</p>}
+        {memoria.vinculo_nome && <p className="mn-janela-frase diario-memoria-autor">{rotuloTipoMemoria(memoria.vinculo_tipo, lang)} · {memoria.vinculo_nome}</p>}
         {texto.split(/\n{2,}/).filter((p) => p.trim()).map((p, i) => <p key={i} className="diario-memoria-texto">{p}</p>)}
       </ModalShell>
     );
@@ -1209,7 +1234,24 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved, onExcluir = null,
         </button>
       ) : null}
     >
-      <label className="diario-field-label">{en ? 'Title' : 'Título'}</label>
+      <div className="diario-form-linha-nome diario-memoria-vinculo">
+        <div>
+          <label className="diario-field-label">{en ? 'Memory type' : 'Tipo de memória'}</label>
+          <SelectPill value={vinculoTipo}
+            onChange={(v) => { setVinculoTipo(v || ''); setVinculoId(''); }}
+            options={TIPOS_MEMORIA.filter((t) => !t || t === vinculoTipo || (conhecidos && (conhecidos[t] || []).length))
+              .map((t) => ({ value: t, label: rotuloTipoMemoria(t, lang) }))} />
+        </div>
+        {vinculoTipo && (
+          <div>
+            <label className="diario-field-label">{en ? 'About' : 'Sobre'}</label>
+            <SelectPill value={vinculoId} onChange={(v) => setVinculoId(v || '')}
+              placeholder={en ? 'Choose' : 'Escolha'}
+              options={opcoesVinculo(conhecidos, vinculoTipo, memoria)} />
+          </div>
+        )}
+      </div>
+      <label className="diario-field-label diario-field-label--mt">{en ? 'Title' : 'Título'}</label>
       <input
         className="diario-input"
         type="text"
@@ -1636,6 +1678,17 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
     return { base, lista: base.filter((e) => casa(e.nome)) };
   }, [tipoAba, query, memorias, criaturas, lore, disponibilizados, pjId, en]);
 
+  /* O que este personagem conhece, para o vínculo da memória (17/11/2026):
+     o diário dele (lore), o que o Mestre liberou e as criaturas. */
+  const conhecidosMemoria = React.useMemo(() => {
+    const por = { reino: new Map(), cidade: new Map(), local: new Map(), npc: new Map(), criatura: new Map() };
+    [...(lore || []), ...Object.values(disponibilizados || {}).flat()].forEach((e) => {
+      const id = e && (e.slug || e.id);
+      if (e && por[e.tipo] && id != null && e.nome) por[e.tipo].set(String(id), { id: String(id), nome: e.nome });
+    });
+    (criaturas || []).forEach((c) => { if (c && c.id != null && c.nome) por.criatura.set(String(c.id), { id: String(c.id), nome: c.nome }); });
+    return Object.fromEntries(Object.entries(por).map(([k, m]) => [k, [...m.values()]]));
+  }, [lore, disponibilizados, criaturas]);
   const { sorted: linhas, sortKey, sortDir, toggleSort } = useSort(listaDaAba);
   const wrapRef = React.useRef(null);
   const porPagina = useFitPageSize(wrapRef, { fallback: PAGE_SIZE });
@@ -2082,6 +2135,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
         <MemoriaModal
           memoria={memoriaAberta.id ? memoriaAberta : null}
           pjId={pjId}
+          conhecidos={conhecidosMemoria}
           lang={lang}
           onClose={() => setMemoriaAberta(null)}
           onSaved={() => { setMemoriaAberta(null); carregar(); }}
@@ -2115,7 +2169,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
     : tipoAba === 'memoria'
     ? (m) => (
       <CartaoDiario key={m.id} nome={m.titulo || (en ? '(untitled)' : '(sem título)')}
-        linha1={memoriaDeAmigo(m) && m.autor_nome ? [(en ? 'By ' : 'De ') + m.autor_nome] : []}
+        linha1={[...(m.vinculo_nome ? [rotuloTipoMemoria(m.vinculo_tipo, lang) + ' · ' + m.vinculo_nome] : []), ...(memoriaDeAmigo(m) && m.autor_nome ? [(en ? 'By ' : 'De ') + m.autor_nome] : [])]}
         linha2={resumoDeTexto(m.comentario, 140)} abrirTip={abrirTip} fecharTip={fecharTip}
         canto={memoriaDeAmigo(m)
           ? { icone: 'ti-heart-handshake', rotulo: en ? 'Shared by a friend' : 'Compartilhada por um amigo' }
@@ -2186,6 +2240,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
         <MemoriaModal
           memoria={memoriaAberta.id ? memoriaAberta : null}
           pjId={pjId}
+          conhecidos={conhecidosMemoria}
           lang={lang}
           onClose={() => setMemoriaAberta(null)}
           onSaved={() => { setMemoriaAberta(null); carregar(); }}
@@ -2259,6 +2314,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
         <MemoriaModal
           memoria={memoriaAberta.id ? memoriaAberta : null}
           pjId={pjId}
+          conhecidos={conhecidosMemoria}
           lang={lang}
           onClose={() => setMemoriaAberta(null)}
           onSaved={() => { setMemoriaAberta(null); carregar(); }}

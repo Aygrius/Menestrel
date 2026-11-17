@@ -20232,3 +20232,11 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 #root .menestrel-ui .det-venda-cidade b { color: var(--tinta); font-weight: 700; }
 #root .menestrel-ui .det-venda-cidade .ti { color: var(--tinta-3); }
 #root .menestrel-ui .det-venda-acoes { display: inline-flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+/* A entidade ou o grupo que o personagem não conhece (17/11/2026): só o nome,
+   apagado; não abre. */
+#root .menestrel-ui .diario-cartao.is-desconhecido { cursor: not-allowed; opacity: .5; }
+/* O tipo e o vínculo da memória (17/11/2026): o tipo estreito, o "Sobre" no resto. */
+#root .menestrel-ui .diario-form-linha-nome.diario-memoria-vinculo { grid-template-columns: 200px minmax(0, 1fr); }
+@media (max-width: 640px) {
+  #root .menestrel-ui .diario-form-linha-nome.diario-memoria-vinculo { grid-template-columns: minmax(0, 1fr); }
+}

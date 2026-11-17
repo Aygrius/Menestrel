@@ -4815,6 +4815,23 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     })();
     return () => { cancel = true; };
   }, [user, profile, pjAtivoIdMenu, currentId]);
+  /* O QUE O PERSONAGEM CONHECE DO MUNDO (17/11/2026, usuário: "só será possível
+     ver as informações das entidades e grupos que conhece" — escolha:
+     "Automático pela ficha"). Conhece o deus que cultua (personagens.deus) e o
+     grupo da especialização (personagens.especializacao: o colégio do mago, a
+     ordem do sacerdote...). O nome da especialização casa com o do grupo sem
+     acento; "Colégio Ilusionista" é o "Colégio das Ilusões" do catálogo.
+     null para o Mestre: ele vê tudo. */
+  const conheceNoMundo = (tipo) => {
+    if (profile !== 'player') return null;
+    const sem = (t) => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const ALIAS = { 'colegio ilusionista': 'colegio das ilusoes' };
+    const deus = sem(pjAtivo && pjAtivo.deus);
+    const esp = sem(pjAtivo && pjAtivo.especializacao);
+    const espNome = ALIAS[esp] || esp;
+    if (tipo === 'entidade') return (e) => !!deus && sem(e && e.nome) === deus;
+    return (g) => !!espNome && sem(g && g.nome) === espNome;
+  };
   /* O porquê da página apagada, no balão. */
   const motivoPaginaVazia = (secao) => {
     if (profile !== 'player' || !paginasVazias || !paginasVazias.has(secao)) return null;
@@ -5803,11 +5820,11 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
               /* ENTIDADES (08/11/2026): deuses, titãs e príncipes. Catálogo do
                  mundo, igual para Mestre e Jogador e sem mesa nem PJ — o que
                  um deus é não muda de uma aventura para outra. */
-              <EntidadesView lang={lang} trilhoPaginas={trilhoPaginas} />
+              <EntidadesView lang={lang} trilhoPaginas={trilhoPaginas} conhece={conheceNoMundo('entidade')} />
             ) : current.id === 'grupos' ? (
               /* GRUPOS (13/11/2026): os colégios de magia. Catálogo do mundo,
                  como Entidades — mesma página, outro catálogo. */
-              <GruposView lang={lang} trilhoPaginas={trilhoPaginas} />
+              <GruposView lang={lang} trilhoPaginas={trilhoPaginas} conhece={conheceNoMundo('grupo')} />
             ) : current.id === 'mapa' ? (
               /* MAPA (15/11/2026): o mapa de Tagmar DA MESA. O Mestre desenha
                  sobre a mesa ativa (cidades, pontos, caminhos, rotas, onde está

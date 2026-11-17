@@ -150,8 +150,19 @@ function criarMotorMapa(raiz, cfg) {
 
   const lugarId = (id) => mesa.lugares.find((l) => l.id === id);
   const linhaId = (id) => mesa.linhas.find((l) => l.id === id);
+  /* SÓ AS CIDADES QUE O PERSONAGEM CONHECE (17/11/2026, usuário: "O personagem
+     só verá informações das cidades que ele conhece no mapa" — escolha: "Não
+     aparece marcador ou nome"). Para o Jogador, o catálogo do mapa já é o que
+     ele conhece (o diário dele e o que o Mestre liberou, banco.catalogo):
+     cidade sem ficha ali não tem marcador, nome, toque nem busca. Enquanto o
+     catálogo não chega, nenhuma aparece — o mapa não revela antes da hora. */
+  /* Locais também (17/11/2026, usuário: "Locais também devem sair se o
+     personagem não conhece"). A cidade onde a mesa está já chega conhecida: o
+     banco a põe na mesa ao mudar o lugar (historias_lugar_atual_conhecido). */
+  const oculto = (l) => !mestre && (l.tipo === 'cidade' || l.tipo === 'local')
+    && ((l.tipo === 'local' ? locaisCad : cadastradas) === null || !fichaDe(l));
   const perto = (p, raio = 4) => { let m = null, md = raio;
-    for (const l of mesa.lugares) { const d = dist(l, p); if (d < md) { md = d; m = l; } } return m; };
+    for (const l of mesa.lugares) { if (oculto(l)) continue; const d = dist(l, p); if (d < md) { md = d; m = l; } } return m; };
   const onde = (p) => { const l = perto(p); return l ? l.nome : tr('Na estrada', 'On the road'); };
   /* Quem está no mapa, já com a posição. */
   const postos = () => gente.filter((g) => mesa.gente[g.id]).map((g) => ({ ...g, x: mesa.gente[g.id].x, y: mesa.gente[g.id].y }));
@@ -390,6 +401,7 @@ function criarMotorMapa(raiz, cfg) {
        nome, outras não. Arrume isso"): as da pintura também ganham a
        etiqueta — de perto, todas falam igual; de longe, nenhuma (.longe). */
     mesa.lugares.forEach((l) => {
+      if (oculto(l)) return;
       h += mk(l, `<button type="button" class="mp-marca${l.tipo === 'cidade' ? ' vila' : l.tipo === 'local' ? ' local' : ''}" data-alvo="lugar" data-id="${esc(l.id)}" aria-label="${esc(l.nome)}"><i class="ti ${ICONE_LUGAR[l.tipo] || 'ti-star'}" aria-hidden="true"></i></button>` +
         `<span class="mp-etiqueta">${esc(l.nome)}</span>`);
     });
@@ -596,7 +608,7 @@ function criarMotorMapa(raiz, cfg) {
       return;
     }
     if (!q) { el.innerHTML = ''; return; }
-    const nomes = mesa.lugares.map((l) => [semAcento(l.nome), l]).sort((x, y) => x[0].localeCompare(y[0]));
+    const nomes = mesa.lugares.filter((l) => !oculto(l)).map((l) => [semAcento(l.nome), l]).sort((x, y) => x[0].localeCompare(y[0]));
     const achou = [...nomes.filter((n) => n[0].startsWith(q)), ...nomes.filter((n) => !n[0].startsWith(q) && n[0].includes(q))].slice(0, 6).map((n) => n[1]);
     el.innerHTML = achou.map((l) => `<li><button type="button" class="mp-linha" data-alvo="lugar" data-id="${esc(l.id)}">
       <span class="mp-ln-txt"><span class="mp-ln-nome">${esc(l.nome)}</span></span><span class="mp-ln-num">${EU ? fmtKm(km(dist(EU, l))) + ' km' : ''}</span></button></li>`).join('')

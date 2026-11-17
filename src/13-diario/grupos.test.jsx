@@ -67,3 +67,17 @@ describe('a página', () => {
     expect(nomes).toEqual(['Colégio Necromântico']);
   });
 });
+
+/* SÓ O QUE O PERSONAGEM CONHECE (17/11/2026): o grupo desconhecido mostra só o
+   nome, apagado, e não abre. */
+describe('conhece', () => {
+  it('o desconhecido não abre e não mostra o tipo', () => {
+    render(<div className="menestrel-ui"><window.GruposView lang="pt" grupos={GRUPOS} conhece={() => false} /></div>);
+    const cartao = document.querySelector('.diario-cartao');
+    expect(cartao.classList.contains('is-desconhecido')).toBe(true);
+    expect(cartao.getAttribute('aria-disabled')).toBe('true');
+    expect(cartao.textContent).toMatch(/Seu personagem não conhece/);
+    fireEvent.click(cartao);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+  });
+});

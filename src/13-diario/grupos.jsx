@@ -67,7 +67,7 @@ function GrupoDetalhe({ grupo: g, lang, onClose, onEditar = null }) {
   );
 }
 
-function GruposView({ lang, trilhoPaginas = null, grupos }) {
+function GruposView({ lang, trilhoPaginas = null, grupos , conhece = null }) {
   const en = lang === 'en';
   /* EDITÁVEL DESDE 15/11/2026 (13-diario/catalogo-mundo.jsx), como Entidades. */
   const vigentes = (_grp('useCatalogoMundo') || (() => null))('grupo');
@@ -129,15 +129,20 @@ function GruposView({ lang, trilhoPaginas = null, grupos }) {
         <>
         <div className="pjs-grid diario-cartoes">
           {pagina.map((g) => {
-            const abrir = () => setAberto(g.slug);
+            /* SÓ O QUE O PERSONAGEM CONHECE (17/11/2026, usuário: "só será possível
+               ver as informações das entidades e grupos que conhece" — escolha:
+               automático pela ficha). `conhece` vem do console (10-shell) para o
+               Jogador; o desconhecido mostra só o nome, apagado, e não abre. */
+            const sabe = !conhece || conhece(g);
+            const abrir = () => { if (sabe) setAberto(g.slug); };
             return (
               <div className="pj-card-wrap" key={g.slug}>
-                <article className="pj-card is-clickable diario-cartao" role="button" tabIndex={0}
+                <article className={'pj-card diario-cartao' + (sabe ? ' is-clickable' : ' is-desconhecido')} role="button" tabIndex={0} aria-disabled={sabe ? undefined : true}
                   onClick={abrir}
                   onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(); } }}>
                   <div className="pj-card-body">
-                    <div className={'pj-card-portrait' + (g.imagem ? '' : ' is-empty')}>
-                      {g.imagem
+                    <div className={'pj-card-portrait' + (g.imagem && sabe ? '' : ' is-empty')}>
+                      {g.imagem && sabe
                         ? <img src={g.imagem} alt="" className="pj-card-portrait-img" />
                         : <span className="pj-card-portrait-mono" aria-hidden="true">{inicial(g.nome)}</span>}
                     </div>
@@ -148,8 +153,8 @@ function GruposView({ lang, trilhoPaginas = null, grupos }) {
                         </div>
                       </header>
                       <div className="pj-meta-linhas">
-                        <div className="pj-meta pj-meta--quem diario-cartao-meta"><span>{tipoDe(g, lang)}</span></div>
-                        {g.titulo && <div className="pj-meta pj-meta--estagio diario-cartao-meta">{g.titulo}</div>}
+                        {sabe ? <div className="pj-meta pj-meta--quem diario-cartao-meta"><span>{tipoDe(g, lang)}</span></div> : <div className="pj-meta pj-meta--quem diario-cartao-meta"><span>{lang === 'en' ? 'Unknown to your character' : 'Seu personagem não conhece'}</span></div>}
+                        {sabe && g.titulo && <div className="pj-meta pj-meta--estagio diario-cartao-meta">{g.titulo}</div>}
                       </div>
                     </div>
                   </div>

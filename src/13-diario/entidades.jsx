@@ -103,7 +103,7 @@ function EntidadeDetalhe({ entidade: e, lang, onClose, onEditar = null }) {
   );
 }
 
-function EntidadesView({ lang, trilhoPaginas = null, entidades }) {
+function EntidadesView({ lang, trilhoPaginas = null, entidades , conhece = null }) {
   const en = lang === 'en';
   /* EDITÁVEL DESDE 15/11/2026 (13-diario/catalogo-mundo.jsx): o código junto
      com o que o admin editou no banco; o admin ganha o + e o lápis. */
@@ -159,15 +159,20 @@ function EntidadesView({ lang, trilhoPaginas = null, entidades }) {
         <>
         <div className="pjs-grid diario-cartoes">
           {pagina.map((e) => {
-            const abrir = () => setAberta(e.slug);
+            /* SÓ O QUE O PERSONAGEM CONHECE (17/11/2026, usuário: "só será possível
+               ver as informações das entidades e grupos que conhece" — escolha:
+               automático pela ficha). `conhece` vem do console (10-shell) para o
+               Jogador; o desconhecido mostra só o nome, apagado, e não abre. */
+            const sabe = !conhece || conhece(e);
+            const abrir = () => { if (sabe) setAberta(e.slug); };
             return (
               <div className="pj-card-wrap" key={e.slug}>
-                <article className="pj-card is-clickable diario-cartao" role="button" tabIndex={0}
+                <article className={'pj-card diario-cartao' + (sabe ? ' is-clickable' : ' is-desconhecido')} role="button" tabIndex={0} aria-disabled={sabe ? undefined : true}
                   onClick={abrir}
                   onKeyDown={(ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrir(); } }}>
                   <div className="pj-card-body">
-                    <div className={'pj-card-portrait' + (e.imagem ? '' : ' is-empty')}>
-                      {e.imagem
+                    <div className={'pj-card-portrait' + (e.imagem && sabe ? '' : ' is-empty')}>
+                      {e.imagem && sabe
                         ? <img src={e.imagem} alt="" className="pj-card-portrait-img" />
                         : <span className="pj-card-portrait-mono" aria-hidden="true">{String(e.nome || '?').charAt(0).toUpperCase()}</span>}
                     </div>
@@ -178,8 +183,8 @@ function EntidadesView({ lang, trilhoPaginas = null, entidades }) {
                         </div>
                       </header>
                       <div className="pj-meta-linhas">
-                        <div className="pj-meta pj-meta--quem diario-cartao-meta"><span>{classeDe(e, lang)}</span></div>
-                        {e.titulo && <div className="pj-meta pj-meta--estagio diario-cartao-meta">{e.titulo}</div>}
+                        {sabe ? <div className="pj-meta pj-meta--quem diario-cartao-meta"><span>{classeDe(e, lang)}</span></div> : <div className="pj-meta pj-meta--quem diario-cartao-meta"><span>{lang === 'en' ? 'Unknown to your character' : 'Seu personagem não conhece'}</span></div>}
+                        {sabe && e.titulo && <div className="pj-meta pj-meta--estagio diario-cartao-meta">{e.titulo}</div>}
                       </div>
                     </div>
                   </div>

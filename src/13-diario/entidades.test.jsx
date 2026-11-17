@@ -100,6 +100,7 @@ describe('o menu', () => {
     const { readFileSync } = await import('node:fs');
     const { resolve } = await import('node:path');
     const shell = readFileSync(resolve(__dirname, '../10-shell/shell.jsx'), 'utf8');
-    expect(shell).toMatch(/current\.id === 'entidades' \? \([\s\S]{0,300}<EntidadesView lang=\{lang\} trilhoPaginas=\{trilhoPaginas\} \/>/);
+    // conhece (17/11/2026): o Jogador só abre a entidade que o personagem conhece.
+    expect(shell).toMatch(/current\.id === 'entidades' \? \([\s\S]{0,300}<EntidadesView lang=\{lang\} trilhoPaginas=\{trilhoPaginas\} conhece=\{conheceNoMundo\('entidade'\)\} \/>/);
   });
 });
