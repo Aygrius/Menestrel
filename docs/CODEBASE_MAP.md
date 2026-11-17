@@ -73,7 +73,7 @@ graph TB
 01-core/copy · constants · helpers · inventario-helpers
 01-core/bases-item · fabricacao · forca-minima · efeito-temporario · grupo-afetado
 01-core/animal-condicao · animal-experiencia · forma-raca   ← registra Vampiro/Lobisomem
-01-core/select-pill · supabase · clima-desgaste · game-data
+01-core/select-pill · abas-formulario · supabase · clima-desgaste · game-data
 01-core/tecnicas-efeito · magias-efeito · status-efeito
 09-bestiario/ataques-criatura · criatura-formulas · catalogo-descritores · catalogo-editor
 02-shell/shaders · dado-d20 · dado-d10 · tweaks-panel
@@ -149,6 +149,7 @@ arquivo daqui conhece tela.
 | `forca-minima.jsx` | Quem limita a arma é a Força, não a linhagem. |
 | `grupo-afetado.jsx` | Qual recorte de PJs o relógio e o seletor de local alcançam. |
 | `select-pill.jsx` | O dropdown único do sistema (lista por portal). |
+| `abas-formulario.jsx` | As abas dos editores longos (`AbasDoFormulario`, `useAbaDoFormulario`): Compêndio, Entidades/Grupos, Lugares/Pessoas. |
 | `supabase.jsx` + `sessao-retry.js` | O cliente, com renovação de JWT e um retry. |
 
 **`calcularFicha(p, catalogoBySlug, condicoes, ventoDegrau, subraca, dataJogo)`**

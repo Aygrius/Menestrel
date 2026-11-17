@@ -13202,6 +13202,17 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
     height: 100%; max-height: 98px; width: auto; aspect-ratio: 76 / 98; flex: none;
   }
 }
+/* O RETRATO FIXO (17/11/2026, usuário: "Na página de reinos, cidades, grupos, o
+   espaço da imagem é fixo, ocupando um tamanho com igual espaçamento topo e
+   rodapé"). Acompanhando a fileira, ele mudava de tamanho com a altura da
+   janela e, passando do teto de 98px, ficava preso em cima, com a sobra toda
+   embaixo. Agora mede sempre 68 × 88 (a proporção de sempre, 76 × 98) e fica
+   no meio da altura do cartão; só encolhe se o cartão não tiver os 88px. */
+@media (min-width: 1600px) {
+  #root .menestrel-ui .mc-content > .pjs.diario-pagina .diario-cartoes .pj-card-wrap:not(.pj-card-wrap--ativo) .pj-card-portrait {
+    height: min(88px, 100%); max-height: none; width: auto; aspect-ratio: 76 / 98; flex: none; align-self: center;
+  }
+}
 /* Sozinho, segue no centro (23/10/2026), mas com a largura de UMA coluna:
    metade da grade quando há duas, um terço quando há três. */
 #root .menestrel-ui .pjs-grid.diario-cartoes > .pj-card-wrap:only-child { width: calc((100% - 14px) / 2); }
@@ -19375,14 +19386,13 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 }
 #root .menestrel-ui .mundo-lista-item > .mundo-campo { grid-column: 1 / -1; }
 #root .menestrel-ui .mundo-lista-item > .mundo-campo--meia { grid-column: span 1; }
-#root .menestrel-ui .mundo-lista-tirar {
-  grid-column: 1 / -1; justify-self: start; display: inline-flex; align-items: center; gap: 6px;
-  min-height: 32px; padding: 0 10px; margin-left: -10px; border: 0; border-radius: 999px; cursor: pointer;
-  background: transparent; color: var(--alerta); font: 600 var(--fs-sm)/1 var(--font-body);
-}
-#root .menestrel-ui .mundo-lista-tirar:hover { background: var(--alerta-fundo); }
-#root .menestrel-ui .mundo-lista-tirar:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
-#root .menestrel-ui .mundo-lista-por { align-self: flex-start; margin-top: 12px; display: inline-flex; align-items: center; gap: 6px; }
+/* Tirar e Adicionar (17/11/2026): os dois são o botão do sistema
+   (.btn-ghost .btn-md: ícone em ouro, brasa na passagem), lado a lado na
+   linha de ações do último item; o primeiro alinha o ícone com os campos. */
+#root .menestrel-ui .mundo-lista-acoes { grid-column: 1 / -1; display: flex; align-items: center; gap: 6px; }
+#root .menestrel-ui .mundo-lista > .mundo-lista-acoes { margin-top: 12px; }
+/* Só ícone (17/11/2026): o Tirar vermelho (.btn-danger), o Adicionar em ouro. */
+#root .menestrel-ui :is(.mundo-lista-tirar, .mundo-lista-por) { display: inline-grid; place-items: center; }
 @media (max-width: 640px) {
   #root .menestrel-ui .mundo-form, #root .menestrel-ui .mundo-lista-item { grid-template-columns: 1fr; }
   #root .menestrel-ui .mundo-form > .mundo-campo--meia, #root .menestrel-ui .mundo-lista-item > .mundo-campo--meia,
@@ -20448,3 +20458,76 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
   #root .cal-overlay .menestrel-ui .cal-dia { align-items: center; padding: 6px 4px; font-size: 16px; }
   #root .cal-overlay .menestrel-ui .cal-titulo-mes { font-size: 22px; }
 }
+
+/* A EPÍGRAFE COM A IMAGEM PARADA (17/11/2026, usuário: "A imagem de Crezir não
+   está ocupando de forma igual, e ao descer a barra de rolagem, a imagem sobe,
+   é para ser duas colunas com a imagem fixa"). Quando a aba aberta é a
+   epígrafe com imagem (Prefácio das Entidades, Epígrafe dos Grupos), o corpo
+   da janela deixa de rolar: as duas colunas ocupam a altura toda dele, a
+   imagem preenche a sua (cover) e fica parada, e só o texto rola, com a
+   barra fina do sistema. No celular continua uma coluna sobre a outra. */
+@media (min-width: 721px) {
+  #root .menestrel-ui .ms-body:has(> .best-secao:not([hidden]) > .grp-epigrafe--com-imagem) {
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  #root .menestrel-ui .ms-body > .best-secao:not([hidden]):has(> .grp-epigrafe--com-imagem) {
+    flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+  }
+  #root .menestrel-ui .ms-body > .best-secao:not([hidden]) > .grp-epigrafe--com-imagem {
+    flex: 1 1 auto; min-height: 0; align-items: stretch;
+  }
+  #root .menestrel-ui .ms-body > .best-secao:not([hidden]) > .grp-epigrafe--com-imagem .grp-epigrafe-arte { min-height: 0; height: 100%; }
+  #root .menestrel-ui .ms-body > .best-secao:not([hidden]) > .grp-epigrafe--com-imagem .grp-epigrafe-arte img {
+    width: 100%; height: 100%; max-height: none; object-fit: cover; object-position: center 20%;
+  }
+  #root .menestrel-ui .ms-body > .best-secao:not([hidden]) > .grp-epigrafe--com-imagem .grp-epigrafe-texto {
+    min-height: 0; overflow-y: auto; padding-right: 10px;
+    scrollbar-width: thin; scrollbar-color: var(--regua-forte) transparent;
+  }
+  #root .menestrel-ui .ms-body > .best-secao:not([hidden]) > .grp-epigrafe--com-imagem .grp-epigrafe-texto::-webkit-scrollbar { width: 8px; }
+  #root .menestrel-ui .ms-body > .best-secao:not([hidden]) > .grp-epigrafe--com-imagem .grp-epigrafe-texto::-webkit-scrollbar-thumb { background: var(--regua-forte); border-radius: 8px; }
+}
+
+/* A JANELA DA ENTIDADE (17/11/2026, usuário: "adicione um título para cada
+   página, e no card eu quero nossa fonte de título" — escolhas: o título no
+   alto de cada aba; os nomes dos itens das listas). Cada aba abre com o nome
+   dela em Cinzel (22px), e os nomes de Locais, Itens, Feriados e Relações
+   passam para o Cinzel em 18px, o menor tamanho em que ele entra. */
+#root .menestrel-ui .modal-entidade .best-detail.best-com-abas > .best-secao > .best-secao-titulo {
+  display: block; margin: 0 0 14px;
+  font: 600 22px/1.2 var(--font-title); letter-spacing: .01em; text-transform: none; color: var(--tinta);
+}
+#root .menestrel-ui .modal-entidade .ent-item-nome { font: 600 18px/1.25 var(--font-title); letter-spacing: .01em; color: var(--tinta); }
+/* Com imagem, o título do Prefácio fica na coluna do texto: o de cima sai. */
+#root .menestrel-ui .modal-entidade .best-detail.best-com-abas > .best-secao:has(> .grp-epigrafe--com-imagem) > .best-secao-titulo { display: none; }
+#root .menestrel-ui .modal-entidade .grp-epigrafe-texto > .ent-titulo-na-coluna {
+  display: block; margin: 0 0 14px; font: 600 22px/1.2 var(--font-title); letter-spacing: .01em; text-transform: none; color: var(--tinta);
+}
+
+/* AS ABAS DOS EDITORES (17/11/2026, 01-core/abas-formulario.jsx). A pílula
+   segmentada do sistema (.nb-paginas), presa no alto do corpo da janela
+   enquanto o formulário rola — com o chão da janela por trás, para o texto
+   não passar por baixo dela à vista. O ponto de brasa marca a aba com campo
+   obrigatório vazio. */
+#root .menestrel-ui .nb-paginas.form-abas {
+  position: sticky; top: 0; z-index: 5;
+  margin: -20px -24px 18px; padding: 14px 24px 12px;
+  border: 0; border-radius: 0; background: var(--chao-celula-opaco);
+}
+#root .menestrel-ui .form-abas .nb-pagina-op { position: relative; z-index: 1; min-width: 0; }
+#root .menestrel-ui .form-abas .form-aba-rotulo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .menestrel-ui .form-abas .form-aba-alerta {
+  width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--alerta); flex: none;
+}
+@media (max-width: 640px) {
+  #root .menestrel-ui .nb-paginas.form-abas { margin: -16px -16px 14px; padding: 10px 16px; overflow-x: auto; grid-auto-columns: max-content; }
+}
+/* Os campos das abas: o que não é da aba aberta se esconde. No Compêndio é o
+   próprio filho da grade; em Lugares e Pessoas, o painel (display: contents,
+   que não muda o fluxo do formulário). */
+#root .menestrel-ui .catalogo-form-grid > .fora-da-aba.fora-da-aba { display: none; }
+#root .menestrel-ui .form-aba-painel { display: contents; }
+#root .menestrel-ui .form-aba-painel.fora-da-aba { display: none; }
+/* Com abas, a janela não pula de altura a cada troca: guarda uma altura
+   mínima (a maior parte das abas cabe nela; as longas rolam). */
+#root .menestrel-ui .ms-modal:has(.form-abas) { min-height: min(620px, calc(100dvh - 80px)); }

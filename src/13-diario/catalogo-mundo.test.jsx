@@ -36,10 +36,14 @@ describe('o que vai para o banco', () => {
   it('feriado de uma data vira dia/mês; de várias, datas; e o vazio sai', () => {
     const d = W.limparEntradaMundo({
       slug: 'x', nome: 'X', titulo: '', prefacio: { texto: 'a', fonte: '' },
+      /* 17/11/2026: a Data é o seletor (_data, uma); as outras datas do
+         feriado seguem em _datasResto; escolher a data tira o "quando". */
       feriados: [
-        { nome: 'Um dia', _datas: '21/5', texto: 't' },
-        { nome: 'Dois dias', _datas: '30/4, 1/5', quando: 'na virada' },
-        { nome: '', _datas: '3/3' },
+        { nome: 'Um dia', _data: { dia: 21, mes: 5, ano: 0 }, _datasResto: [], texto: 't' },
+        { nome: 'Dois dias', _data: { dia: 30, mes: 4, ano: 0 }, _datasResto: [{ dia: 1, mes: 5 }], quando: 'na virada' },
+        { nome: 'Escolhido', _data: { dia: 2, mes: 6, ano: 0 }, _datasResto: [], quando: 'antes', _dataEscolhida: true },
+        { nome: 'Sem data', _data: null, _datasResto: [], quando: 'no fim do inverno' },
+        { nome: '', _data: { dia: 3, mes: 3, ano: 0 } },
       ],
       relacoes: [],
     });
@@ -48,8 +52,16 @@ describe('o que vai para o banco', () => {
       feriados: [
         { nome: 'Um dia', texto: 't', dia: 21, mes: 5 },
         { nome: 'Dois dias', quando: 'na virada', datas: [{ dia: 30, mes: 4 }, { dia: 1, mes: 5 }] },
+        { nome: 'Escolhido', dia: 2, mes: 6 },
+        { nome: 'Sem data', quando: 'no fim do inverno' },
       ],
     });
+  });
+  it('a Data é o seletor do calendário do mundo, sem o "quando, por extenso"', () => {
+    const f = fonte('catalogo-mundo.jsx');
+    expect(f).toContain("campos: [['nome', 'Nome', 'Name'], ['_data', 'Data', 'Date', 'data'], ['texto', 'Texto', 'Text', 'area']] },");
+    expect(f).not.toContain('Quando, por extenso');
+    expect(f).toMatch(/<Picker lang=\{lang\} semAno value=\{it\[k\] \|\| null\}/);
   });
   it('os campos do formulário cobrem tudo o que a ficha mostra', () => {
     const chaves = (t) => W.CAMPOS_MUNDO[t].map((c) => c.chave.split('.')[0]);

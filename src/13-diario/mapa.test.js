@@ -172,7 +172,8 @@ describe('a camada do mundo', () => {
   });
   it('fora de mesa, o Imperador abre o mapa com as ferramentas, e grava no catálogo do mundo', () => {
     expect(fonte).toMatch(/papel: ehImperador \? 'mestre' : 'jogador', semMesa: true/);
-    expect(fonte).toMatch(/window\.salvarNoMundo\('mapa', \{ slug: 'mundo', lugares: l \}\)/);
+    // 17/11/2026: cada plano tem a sua camada do mundo ('mundo', 'mundo-celestial', 'mundo-infernal').
+    expect(fonte).toMatch(/window\.salvarNoMundo\('mapa', \{ slug: mapaSlugMundo\(p\), lugares: l \}\)/);
   });
   it('o banco aceita o tipo mapa no catálogo do mundo', () => {
     const sql = readFileSync(join(aqui, '../../scripts/sql/mapa-do-mundo-2026-11-15.sql'), 'utf8');
@@ -211,5 +212,46 @@ describe('a névoa do jogador', () => {
   });
   it('a camada da névoa fica entre as linhas e os marcadores', () => {
     expect(fonte).toMatch(/data-el="linhas"[^\n]*\r?\n\s*<svg className="mp-nevoa" data-el="nevoa"/);
+  });
+});
+
+/* OS PLANOS (17/11/2026): material, celestial e infernal. O Jogador vê só o
+   plano em que o personagem está; cada personagem fica num plano só. */
+describe('os planos do mapa', () => {
+  it('o plano material é a raiz; os outros moram em planos[plano] e nascem vazios', () => {
+    const dados = { lugares: [{ id: 'a' }], linhas: [], rota: null, gente: { 1: { x: 1, y: 1 } }, planos: { celestial: { lugares: [{ id: 'c' }], linhas: [], rota: null, gente: {} } } };
+    expect(window.mapaDoPlano(dados, 'material').planos).toBeUndefined();
+    expect(window.mapaDoPlano(dados, 'material').lugares).toEqual([{ id: 'a' }]);
+    expect(window.mapaDoPlano(dados, 'celestial').lugares).toEqual([{ id: 'c' }]);
+    expect(window.mapaDoPlano(dados, 'infernal').lugares).toEqual([]);
+    expect(window.mapaNormalizar(null, 'infernal').lugares).toEqual([]);
+    expect(window.mapaNormalizar(null).lugares.length).toBeGreaterThan(0);   // a semente da pintura
+  });
+  it('pôr o personagem num plano o tira dos outros', () => {
+    const dados = { lugares: [], linhas: [], rota: null, gente: { 7: { x: 1, y: 1 }, 8: { x: 2, y: 2 } } };
+    const novo = window.mapaComPlano(dados, 'infernal', { lugares: [], linhas: [], rota: null, gente: { 7: { x: 5, y: 5 } } });
+    expect(novo.gente).toEqual({ 8: { x: 2, y: 2 } });
+    expect(novo.planos.infernal.gente).toEqual({ 7: { x: 5, y: 5 } });
+    const volta = window.mapaComPlano(novo, 'material', { ...window.mapaDoPlano(novo, 'material'), gente: { 7: { x: 9, y: 9 }, 8: { x: 2, y: 2 } } });
+    expect(volta.planos.infernal.gente).toEqual({});
+    expect(volta.gente[7]).toEqual({ x: 9, y: 9 });
+  });
+  it('o plano do personagem é onde ele tem posição; sem posição, o material', () => {
+    const dados = { gente: { 1: { x: 0, y: 0 } }, planos: { celestial: { gente: { 2: { x: 0, y: 0 } } } } };
+    expect(window.mapaPlanoDe(dados, 1)).toBe('material');
+    expect(window.mapaPlanoDe(dados, 2)).toBe('celestial');
+    expect(window.mapaPlanoDe(dados, 3)).toBe('material');
+    expect(window.mapaPlanoDe(null, 2)).toBe('material');
+  });
+  it('só quem conduz troca o plano; o Jogador segue o personagem', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(fonte).toContain('const podeTrocarPlano = mestre || (semMesa && ehImperador);');
+    expect(fonte).toContain('if (!mestre) { const p = mapaPlanoDe(dadosTodos, pjId); if (p !== plano) { setPlano(p); return; } }');
+    // O Mestre leva o personagem para outro plano: o mapa do Jogador vai junto.
+    expect(fonte).toContain('if (!mestre) { const p = mapaPlanoDe(dados, pjId); if (p !== plano) { setPlano(p); return; } }');
+  });
+  it('fora do material não há pintura', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(fonte).toContain("const baseDoPlano = plano === 'material' ? (base || mapaBaseLadrilhos()) : null;");
   });
 });

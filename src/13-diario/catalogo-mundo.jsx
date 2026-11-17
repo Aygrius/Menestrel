@@ -91,12 +91,6 @@ async function removerDoMundo(tipo, slug) {
 /* ── O FORMULÁRIO ────────────────────────────────────────────────────────
    Os campos de cada tipo, na ordem das abas da ficha. `lista` são as
    entradas com nome (Relações, Locais, Feriados…), editadas uma a uma. */
-const _dataTxt = (f) => (Array.isArray(f.datas) ? f.datas : (f.dia && f.mes ? [{ dia: f.dia, mes: f.mes }] : []))
-  .map((d) => d.dia + '/' + d.mes).join(', ');
-const _lerDatas = (txt) => String(txt || '').split(/[,;]+/).map((s) => s.trim()).filter(Boolean).map((s) => {
-  const m = /^(\d{1,2})\s*\/\s*(\d{1,2})$/.exec(s);
-  return m ? { dia: Number(m[1]), mes: Number(m[2]) } : null;
-}).filter((d) => d && d.dia >= 1 && d.dia <= 30 && d.mes >= 1 && d.mes <= 13);
 
 const CAMPOS_MUNDO = {
   entidade: [
@@ -113,12 +107,16 @@ const CAMPOS_MUNDO = {
     { chave: 'prefacio.texto', pt: 'Prefácio', en: 'Preface', tipo: 'area', linhas: 6 },
     { chave: 'prefacio.fonte', pt: 'Fonte do prefácio', en: 'Preface source', tipo: 'texto' },
     { chave: 'descricao', pt: 'História', en: 'History', tipo: 'area', linhas: 8 },
-    { chave: 'locais', pt: 'História · Locais', en: 'History · Places', tipo: 'lista', campos: [['nome', 'Nome', 'Name'], ['onde', 'Onde', 'Where'], ['texto', 'Texto', 'Text', 'area']] },
-    { chave: 'itens', pt: 'História · Itens', en: 'History · Items', tipo: 'lista', campos: [['nome', 'Nome', 'Name'], ['texto', 'Texto', 'Text', 'area']] },
-    { chave: 'feriados', pt: 'História · Feriados (calendário)', en: 'History · Holidays (calendar)', tipo: 'lista',
-      campos: [['nome', 'Nome', 'Name'], ['_datas', 'Datas (dia/mês, separadas por vírgula)', 'Dates (day/month, comma-separated)'],
-        ['quando', 'Quando, por extenso (opcional)', 'When, in words (optional)'], ['texto', 'Texto', 'Text', 'area']] },
+    { chave: 'locais', pt: 'Locais', en: 'Places', tipo: 'lista', campos: [['nome', 'Nome', 'Name'], ['onde', 'Onde', 'Where'], ['texto', 'Texto', 'Text', 'area']] },
+    { chave: 'feriados', pt: 'Feriados (calendário)', en: 'Holidays (calendar)', tipo: 'lista',
+      /* A DATA NO SELETOR (17/11/2026, usuário: "o campo de datas, deve ser um
+         seletor de data e o título será 'Data'. Remova o campo 'quando, por
+         extenso'"). Escolher a data apaga o "quando" que o feriado tinha. */
+      campos: [['nome', 'Nome', 'Name'], ['_data', 'Data', 'Date', 'data'], ['texto', 'Texto', 'Text', 'area']] },
+    { chave: 'itens', pt: 'Relíquias', en: 'Relics', tipo: 'lista', campos: [['nome', 'Nome', 'Name'], ['texto', 'Texto', 'Text', 'area']] },
     { chave: 'relacoes', pt: 'Política', en: 'Politics', tipo: 'lista', campos: [['nome', 'Nome', 'Name'], ['texto', 'Texto', 'Text', 'area']] },
+    // Religião (17/11/2026, usuário: "Na página de entidades, adicione campo para adicionar 'Religião'").
+    { chave: 'religiao', pt: 'Religião', en: 'Religion', tipo: 'area', linhas: 8 },
   ],
   grupo: [
     /* NOME, TIPO, TÍTULO E IMAGEM NUMA LINHA (15/11/2026, usuário: "Os botões
@@ -144,6 +142,25 @@ const CAMPOS_MUNDO = {
   ],
 };
 
+/* AS ABAS DO EDITOR (17/11/2026, usuário: "Crie abas para preenchimento
+   organizado de todas as páginas de compêndio e ambientação"): as mesmas da
+   janela de leitura, mais a Geral (nome, classe/tipo, título, imagem). */
+const ABAS_MUNDO = {
+  entidade: {
+    abas: [['geral', 'Geral', 'General'], ['prefacio', 'Prefácio', 'Preface'], ['historia', 'História', 'History'],
+      ['reliquias', 'Relíquias', 'Relics'], ['politica', 'Política', 'Politics'], ['religiao', 'Religião', 'Religion']],
+    mapa: { 'prefacio.texto': 'prefacio', 'prefacio.fonte': 'prefacio', descricao: 'historia', locais: 'historia', feriados: 'historia',
+      itens: 'reliquias', relacoes: 'politica', religiao: 'religiao' },
+  },
+  grupo: {
+    abas: [['geral', 'Geral', 'General'], ['epigrafe', 'Epígrafe', 'Epigraph'], ['historia', 'História', 'History'], ['localizacao', 'Localização', 'Location'],
+      ['admissao', 'Admissão', 'Admission'], ['organizacao', 'Organização', 'Organization'], ['reliquias', 'Relíquias', 'Relics'], ['rumores', 'Rumores', 'Rumors']],
+    mapa: { 'epigrafe.texto': 'epigrafe', 'epigrafe.autor': 'epigrafe', historia: 'historia', locais: 'localizacao',
+      admissao: 'admissao', organizacao: 'organizacao', reliquias: 'reliquias', rumores: 'rumores' },
+  },
+};
+const abaDoCampoMundo = (tipo, c) => (ABAS_MUNDO[tipo] && ABAS_MUNDO[tipo].mapa[c.chave]) || 'geral';
+
 const _ler = (o, chave) => chave.split('.').reduce((v, k) => (v == null ? v : v[k]), o);
 function _gravar(o, chave, valor) {
   const [a, b] = chave.split('.');
@@ -159,11 +176,12 @@ function _limparEntrada(e) {
     if (Array.isArray(v)) {
       const itens = v.map((it) => {
         const x = {};
-        Object.entries(it).forEach(([ik, iv]) => { if (ik !== '_datas' && iv != null && iv !== '') x[ik] = iv; });
-        if ('_datas' in it) {
+        Object.entries(it).forEach(([ik, iv]) => { if (!ik.startsWith('_') && iv != null && iv !== '') x[ik] = iv; });
+        if ('_data' in it) {
           delete x.datas; delete x.dia; delete x.mes;
-          const ds = _lerDatas(it._datas);
+          const ds = [...(it._data ? [{ dia: it._data.dia, mes: it._data.mes }] : []), ...(it._datasResto || [])];
           if (ds.length === 1) { x.dia = ds[0].dia; x.mes = ds[0].mes; } else if (ds.length > 1) x.datas = ds;
+          if (it._dataEscolhida) delete x.quando;
         }
         return x;
       }).filter((x) => x.nome);
@@ -320,6 +338,13 @@ function useOpcoesDoCatalogo(ligado) {
 /* A JANELA DE EDITAR — a mesma do editor de catálogo (.modal-catalogo):
    campos sem borda, Excluir no rodapé no lugar do Cancelar, em dois cliques. */
 function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
+  // O balão do sistema para os botões só de ícone (Tirar, Adicionar), 17/11/2026.
+  const useTip = (typeof usePortalTooltip === 'function' ? usePortalTooltip : _cmw('usePortalTooltip')) || (() => [null, () => {}, () => {}, () => {}]);
+  const [tip, abrirTip, fecharTip, manterTip] = useTip(60);
+  const Balao = (typeof PortalTooltip !== 'undefined' && PortalTooltip) || _cmw('PortalTooltip');
+  const [abaAberta, setAbaAberta] = ((typeof useAbaDoFormulario === 'function' ? useAbaDoFormulario : _cmw('useAbaDoFormulario')) || ((ids) => [ids[0], () => {}]))(
+    ((ABAS_MUNDO[tipo] && ABAS_MUNDO[tipo].abas) || []).map(([id]) => id));
+  const dica = (texto) => ((typeof propsTip === 'function' ? propsTip : _cmw('propsTip')) || (() => ({})))(abrirTip, fecharTip, texto);
   const en = lang === 'en';
   const Modal = (typeof ModalShell !== 'undefined' && ModalShell) || _cmw('ModalShell');
   const Select = (typeof SelectPill !== 'undefined' && SelectPill) || _cmw('SelectPill');
@@ -327,7 +352,13 @@ function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
   const [form, setForm] = React.useState(() => {
     const e = { ...(entrada || {}) };
     campos.filter((c) => c.tipo === 'lista').forEach((c) => {
-      e[c.chave] = (e[c.chave] || []).map((it) => (c.chave === 'feriados' ? { ...it, _datas: _dataTxt(it) } : { ...it }));
+      /* O feriado de várias datas (a Festa da Fartura) segue com as outras: o
+         seletor mexe na primeira; as demais voltam junto ao gravar. */
+      e[c.chave] = (e[c.chave] || []).map((it) => {
+        if (c.chave !== 'feriados') return { ...it };
+        const ds = Array.isArray(it.datas) ? it.datas : (it.dia && it.mes ? [{ dia: it.dia, mes: it.mes }] : []);
+        return { ...it, _data: ds[0] ? { dia: ds[0].dia, mes: ds[0].mes, ano: 0 } : null, _datasResto: ds.slice(1) };
+      });
     });
     return e;
   });
@@ -392,6 +423,13 @@ function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
     const mudarItemVarios = (i, patch) => setForm((f) => ({ ...f, [c.chave]: f[c.chave].map((it, j) => (j === i ? { ...it, ...patch } : it)) }));
     const tirar = (i) => setForm((f) => ({ ...f, [c.chave]: f[c.chave].filter((_, j) => j !== i) }));
     const por = () => setForm((f) => ({ ...f, [c.chave]: [...(f[c.chave] || []), {}] }));
+    const curtosDaLista = c.campos.filter(([, , , area]) => !area || area === 'cidade' || area === 'item' || area === 'data').length;
+    const botaoPor = (
+      <button type="button" className="btn-icon btn-md mundo-lista-por" onClick={por}
+        aria-label={en ? 'Add' : 'Adicionar'} {...dica(en ? 'Add' : 'Adicionar')}>
+        <i className="ti ti-plus" aria-hidden="true" />
+      </button>
+    );
     return (
       <section key={c.chave} className="mundo-lista" aria-label={rot(c)}>
         <div className="mundo-lista-cab">
@@ -404,28 +442,48 @@ function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
               const id = `mundo-${c.chave}-${i}-${k}`;
               // 'cidade' e 'item': a busca no catálogo; grava o nome em `k` e a chave ao lado.
               const busca = area === 'cidade' || area === 'item';
+              /* Campo curto ocupa meia largura, ao lado de outro curto; sozinho
+                 (Política e Itens: só Nome e Texto), a largura toda (17/11/2026,
+                 usuário: "Em política 2, o campo nome ocupa a largura toda do modal"). */
+              const curto = !area || busca || area === 'data';
+              const meia = curto && curtosDaLista > 1;
               return (
-                <div key={k} className={'mundo-campo' + (area && !busca ? '' : ' mundo-campo--meia')}>
+                <div key={k} className={'mundo-campo' + (meia ? ' mundo-campo--meia' : '')}>
                   <label className="diario-field-label" htmlFor={id}>{en ? ing : pt}</label>
                   {busca ? (
                     <BuscaNoCatalogo id={id} valor={it[k]} en={en} carregando={!opcoesCatalogo}
                       opcoes={opcoesCatalogo ? (area === 'cidade' ? opcoesCatalogo.cidades : opcoesCatalogo.itens) : []}
                       onDigitar={(val) => mudarItemVarios(i, { [k]: val, [area]: undefined })}
                       onEscolher={(o) => mudarItemVarios(i, { [k]: o.nome, [area]: o.chave })} />
+                  ) : area === 'data' ? (
+                    (() => {
+                      const Picker = (typeof FantasyDatePicker !== 'undefined' && FantasyDatePicker) || _cmw('FantasyDatePicker');
+                      return Picker ? (
+                        <Picker lang={lang} semAno value={it[k] || null} placeholder={en ? 'Choose the date' : 'Escolher a data'}
+                          onChange={(v) => mudarItemVarios(i, { [k]: { dia: v.dia, mes: v.mes, ano: 0 }, _dataEscolhida: true })} />
+                      ) : null;
+                    })()
                   ) : area
                     ? <textarea id={id} className="diario-textarea" rows={3} value={it[k] || ''} onChange={(e) => mudarItem(i, k, e.target.value)} />
                     : <input id={id} className="diario-input" value={it[k] || ''} onChange={(e) => mudarItem(i, k, e.target.value)} autoComplete="off" />}
                 </div>
               );
             })}
-            <button type="button" className="mundo-lista-tirar" onClick={() => tirar(i)}>
-              <i className="ti ti-trash" aria-hidden="true" />{en ? 'Remove' : 'Tirar'}
-            </button>
+            {/* Tirar no padrão com brilho; o Adicionar ao lado do último Tirar
+                (17/11/2026, usuário: "os botões de tirar estão fora do padrão com
+                brilho, o botão de adicionar fica ao lado do último de tirar"). */}
+            <div className="mundo-lista-acoes">
+              {/* Só o ícone (17/11/2026, usuário: "O botão de tirar é vermelho, e não terá
+                  texto, será apenas o ícone, faça isso para o adicionar"). */}
+              <button type="button" className="btn-icon btn-danger btn-md mundo-lista-tirar" onClick={() => tirar(i)}
+                aria-label={en ? 'Remove' : 'Tirar'} {...dica(en ? 'Remove' : 'Tirar')}>
+                <i className="ti ti-trash" aria-hidden="true" />
+              </button>
+              {i === itens.length - 1 && botaoPor}
+            </div>
           </div>
         ))}
-        <button type="button" className="btn-ghost btn-md mundo-lista-por" onClick={por}>
-          <i className="ti ti-plus" aria-hidden="true" />{en ? 'Add' : 'Adicionar'}
-        </button>
+        {itens.length === 0 && <div className="mundo-lista-acoes">{botaoPor}</div>}
       </section>
     );
   };
@@ -449,17 +507,25 @@ function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
           {en ? 'Click "Confirm delete" to delete. It disappears for every table.' : 'Clique em "Confirmar exclusão" para excluir. Some para todas as mesas.'}
         </div>
       )}
+      {(() => {
+        const Abas = (typeof AbasDoFormulario === 'function' ? AbasDoFormulario : _cmw('AbasDoFormulario'));
+        const def = ABAS_MUNDO[tipo];
+        return Abas && def ? <Abas ativa={abaAberta} onTrocar={setAbaAberta} rotulo={en ? 'Sections' : 'Seções'}
+          abas={def.abas.map(([id, pt, ing]) => ({ id, rotulo: en ? ing : pt, alerta: id === 'geral' && !nomeOk }))} /> : null;
+      })()}
       <div className="mundo-form">
-        {campos.map((c) => (c.tipo === 'lista' ? campoLista(c) : campoSimples(c)))}
+        {campos.filter((c) => !ABAS_MUNDO[tipo] || abaDoCampoMundo(tipo, c) === abaAberta)
+          .map((c) => (c.tipo === 'lista' ? campoLista(c) : campoSimples(c)))}
       </div>
       {erro && <div className="err-msg">{erro}</div>}
+      {Balao && <Balao tip={tip} onEnter={manterTip} onLeave={fecharTip} />}
     </Modal>
   );
 }
 
 Object.assign(window, {
   mundoVigente, carregarCatalogoMundo, definirCatalogoMundo, useCatalogoMundo, salvarNoMundo, removerDoMundo,
-  EditorMundo, CAMPOS_MUNDO, limparEntradaMundo: _limparEntrada,
+  EditorMundo, CAMPOS_MUNDO, ABAS_MUNDO, limparEntradaMundo: _limparEntrada,
   // O campo de imagem por upload também serve ao editor de Reinos (13-diario/diario.jsx).
   CampoImagemMundo,
 });

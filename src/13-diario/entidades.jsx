@@ -67,7 +67,7 @@ function EntidadeDetalhe({ entidade: e, lang, onClose, onEditar = null }) {
   const tem = (lista) => Array.isArray(lista) && lista.length > 0;
   const classe = (typeof classeDaEntidade === 'function' ? classeDaEntidade : _ent('classeDaEntidade'))?.(e, lang);
   return (
-    <Janela title={e.nome} lang={lang} onClose={onClose} extraClass="modal-ambientacao"
+    <Janela title={e.nome} lang={lang} onClose={onClose} extraClass="modal-ambientacao modal-entidade"
       acoes={onEditar ? [{ chave: 'editar', icone: 'ti-pencil', rotulo: en ? 'Edit' : 'Editar', onClick: onEditar }] : []}>
       {/* O PREFÁCIO COMO A EPÍGRAFE DOS GRUPOS (15/11/2026, usuário: "a imagem
           das entidades não foi atualizada como em 'grupos'"): a imagem numa
@@ -77,6 +77,9 @@ function EntidadeDetalhe({ entidade: e, lang, onClose, onEditar = null }) {
         <div className={'grp-epigrafe' + (e.imagem ? ' grp-epigrafe--com-imagem' : '')}>
           {e.imagem && <div className="grp-epigrafe-arte"><img src={e.imagem} alt={e.nome} /></div>}
           <div className="grp-epigrafe-texto">
+            {/* Com imagem, o título da aba mora na coluna do texto (17/11/2026, usuário:
+                "O título fica acima do texto, não da imagem"). */}
+            {e.imagem && <h4 className="best-secao-titulo ent-titulo-na-coluna">{en ? 'Preface' : 'Prefácio'}</h4>}
             {e.prefacio && paragrafos(e.prefacio.texto)}
             {e.prefacio && e.prefacio.fonte && <p className="ent-fonte">{e.prefacio.fonte}</p>}
           </div>
@@ -94,11 +97,16 @@ function EntidadeDetalhe({ entidade: e, lang, onClose, onEditar = null }) {
           )}
           {paragrafos(e.descricao)}
           {tem(e.locais) && <><h5 className="mn-rotulo ent-sub">{en ? 'Places' : 'Locais'}</h5><EntidadeLista itens={e.locais} meta={(l) => l.onde} /></>}
-          {tem(e.itens) && <><h5 className="mn-rotulo ent-sub">{en ? 'Items' : 'Itens'}</h5><EntidadeLista itens={e.itens} /></>}
           {tem(e.feriados) && <><h5 className="mn-rotulo ent-sub">{en ? 'Holidays' : 'Feriados'}</h5><EntidadeLista itens={e.feriados} meta={(f) => dataDoFeriado(f, lang)} /></>}
         </>
       ), 'best-secao--descricao')}
+      {/* RELÍQUIAS (17/11/2026, usuário: "Os itens sagrados são chamados de
+          relíquias, e possuem aba própria"): saíram da História. No banco seguem
+          em `itens`. */}
+      {tem(e.itens) && secao(en ? 'Relics' : 'Relíquias', <EntidadeLista itens={e.itens} />)}
       {tem(e.relacoes) && secao(en ? 'Politics' : 'Política', <EntidadeLista itens={e.relacoes} />)}
+      {/* RELIGIÃO (17/11/2026): a aba depois da Política, só quando há texto. */}
+      {e.religiao && String(e.religiao).trim() && secao(en ? 'Religion' : 'Religião', paragrafos(e.religiao), 'best-secao--descricao')}
     </Janela>
   );
 }

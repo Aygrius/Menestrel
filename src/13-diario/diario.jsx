@@ -2496,8 +2496,21 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
     && LUGAR_TIPOS.has(tipo)
     && !(entrada && entrada.id);
 
+  /* AS ABAS (17/11/2026, usuário: "Crie abas para preenchimento organizado de
+     todas as páginas de compêndio e ambientação"): Geral (tipo, nome e o que
+     vai na linha dele; o resumo do reino), História (Fundação e História; a
+     Descrição, na pessoa) e Detalhes (o resto de cada tipo). */
+  const [aba, setAba] = ((typeof useAbaDoFormulario === 'function' ? useAbaDoFormulario : window.useAbaDoFormulario) || ((ids) => [ids[0], () => {}]))(['geral', 'historia', 'detalhes']);
+  const Abas = (typeof AbasDoFormulario === 'function' ? AbasDoFormulario : window.AbasDoFormulario);
+  const nomeVazio = !String(v.nome || '').trim();
   return (
     <>
+      {Abas && <Abas ativa={aba} onTrocar={setAba} rotulo={en ? 'Sections' : 'Seções'} abas={[
+        { id: 'geral', rotulo: en ? 'General' : 'Geral', alerta: nomeVazio },
+        { id: 'historia', rotulo: LUGAR_TIPOS.has(tipo) ? (en ? 'History' : 'História') : (en ? 'Description' : 'Descrição') },
+        { id: 'detalhes', rotulo: en ? 'Details' : 'Detalhes' },
+      ]} />}
+      <div className={'form-aba-painel' + (aba !== 'geral' ? ' fora-da-aba' : '')} data-aba="geral">
       {escolheTipoLugar && (
         <>
           <label className="diario-field-label">{tl.tipoDeLugar}</label>
@@ -2623,6 +2636,8 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
         </>
       )}
 
+      </div>
+      <div className={'form-aba-painel' + (aba !== 'historia' ? ' fora-da-aba' : '')} data-aba="historia">
       {/* FUNDAÇÃO E HISTÓRIA (15/11/2026): os dois primeiros tópicos de reino,
           cidade e local. A História é a descrição, com outro nome. */}
       {LUGAR_TIPOS.has(tipo) && (
@@ -2634,6 +2649,8 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
       <label className="diario-field-label diario-field-label--mt">{LUGAR_TIPOS.has(tipo) ? (en ? 'History' : 'História') : tl.descricao}</label>
       <textarea className="diario-textarea" rows={5} value={v.descricao} onChange={(e) => set({ descricao: e.target.value })} />
 
+      </div>
+      <div className={'form-aba-painel' + (aba !== 'detalhes' ? ' fora-da-aba' : '')} data-aba="detalhes">
       {/* Sem campo de Imagem desde 26/09/2026 — saiu do reino ("remova o
           input 'imagem', 'ícone'"), do conhecido ("remover input de imagem") e
           da cidade ("remover input de url de imagem"). O que já estiver gravado
@@ -2771,6 +2788,7 @@ function LoreEntradaForm({ tipo, entrada, onChange, onTipoChange, reinosDaHistor
           </div>
         </div>
       )}
+      </div>
     </>
   );
 }

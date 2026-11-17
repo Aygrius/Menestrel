@@ -112,7 +112,7 @@ function CalPopover({ anchorRef, onClose, children, rotulo }) {
 function QuadroCalendario({
   lang, mes, ano, meses, semana, inicio, totalDias, anoMin = null,
   selecionado = null, hoje = null, marcas = null, rotuloDia, diasDe,
-  onMes, onAno, onEscolher, rodape = null, acoes = null,
+  onMes, onAno, onEscolher, rodape = null, acoes = null, semAno = false,
 }) {
   const en = lang === 'en';
   const [modo, setModo] = React.useState('dias');   // 'dias' | 'meses'
@@ -187,7 +187,7 @@ function QuadroCalendario({
           <span>{meses[mes - 1]?.nome}</span>
           <i className="ti ti-chevron-down" aria-hidden="true" />
         </button>
-        <input className="cal-ano" type="text" inputMode="numeric" value={anoTxt}
+        {!semAno && <input className="cal-ano" type="text" inputMode="numeric" value={anoTxt}
           aria-label={en ? 'Year' : 'Ano'}
           onChange={(e) => setAnoTxt(e.target.value.replace(/[^0-9-]/g, ''))}
           onBlur={confirmarAno}
@@ -195,7 +195,7 @@ function QuadroCalendario({
             if (e.key === 'Enter') { e.preventDefault(); confirmarAno(); }
             if (e.key === 'ArrowUp') { e.preventDefault(); onAno(ano + 1); }
             if (e.key === 'ArrowDown' && (anoMin == null || ano - 1 >= anoMin)) { e.preventDefault(); onAno(ano - 1); }
-          }} />
+          }} />}
         <div className="cal-setas">
           <button type="button" className="cal-seta" aria-label={en ? 'Previous month' : 'Mês anterior'}
             disabled={anoMin != null && ano <= anoMin && mes === 1} onClick={() => andar(-1)}>
@@ -382,8 +382,13 @@ function CampoData({ value, onChange, lang = 'pt', disabled = false, id, 'aria-l
    `disabled` (12/09/2026): a data de nascimento trava depois que o personagem
    existe — "não devem ficar disponíveis para editar depois de criar o
    personagem, mesmo para o mestre" (usuário). O campo continua visível. */
-function FantasyDatePicker({ value, onChange, disabled = false, lang = 'pt' }) {
+/* `semAno` e `placeholder` (17/11/2026): o feriado de uma entidade é um dia do
+   ano, todo ano — o campo mostra só o dia e o mês, sem o dia da semana (que
+   muda de um ano para o outro) e sem o ano no quadro. Sem valor, mostra o
+   placeholder em vez de fingir que a data é 1º do primeiro mês. */
+function FantasyDatePicker({ value, onChange, disabled = false, lang = 'pt', semAno = false, placeholder = null }) {
   const en = lang === 'en';
+  const vazio = !value;
   const val = value || { dia: 1, mes: 1, ano: 0 };
   const [aberto, setAberto] = React.useState(false);
   const [vista, setVista] = React.useState({ mes: val.mes, ano: val.ano });
@@ -399,39 +404,41 @@ function FantasyDatePicker({ value, onChange, disabled = false, lang = 'pt' }) {
     if (devolverFoco && botaoRef.current) botaoRef.current.focus();
   }, []);
   // Cruine não é "de mês": é o próprio dia.
-  const extenso = (d, m, a) => (m === 13
-    ? `${nomeMes(13)}, ${en ? 'year' : 'ano'} ${a}`
-    : `${d} ${en ? 'of' : 'de'} ${nomeMes(m)}, ${en ? 'year' : 'ano'} ${a}`);
+  const extenso = (d, m, a) => (semAno
+    ? (m === 13 ? nomeMes(13) : `${d} ${en ? 'of' : 'de'} ${nomeMes(m)}`)
+    : (m === 13
+      ? `${nomeMes(13)}, ${en ? 'year' : 'ano'} ${a}`
+      : `${d} ${en ? 'of' : 'de'} ${nomeMes(m)}, ${en ? 'year' : 'ano'} ${a}`));
 
   const ehVista = val.mes === vista.mes && val.ano === vista.ano;
-  const feriadosVal = feriados(val.dia, val.mes);
+  const feriadosVal = vazio ? [] : feriados(val.dia, val.mes);
 
   return (
     <div ref={campoRef} className="fdp-campo-wrap">
       <button ref={botaoRef} type="button" className={'cal-campo cal-campo--botao fdp-campo' + (aberto ? ' is-aberto' : '')}
         disabled={disabled} aria-haspopup="dialog" aria-expanded={aberto}
         onClick={() => (aberto ? fechar(false) : abrir())}>
-        <span className="cal-campo-valor">{extenso(val.dia, val.mes, val.ano)}</span>
-        <span className="cal-campo-semana">{semanaDe(val.ano, val.mes, val.dia)}</span>
+        <span className={'cal-campo-valor' + (vazio && placeholder ? ' is-vazio' : '')}>{vazio && placeholder ? placeholder : extenso(val.dia, val.mes, val.ano)}</span>
+        {!semAno && !vazio && <span className="cal-campo-semana">{semanaDe(val.ano, val.mes, val.dia)}</span>}
         {feriadosVal.length > 0 && <i className="ti ti-star cal-campo-feriado" aria-label={feriadosVal.join(', ')} />}
         <i className="ti ti-calendar cal-campo-icone" aria-hidden="true" />
       </button>
       {aberto && (
         <CalPopover anchorRef={campoRef} onClose={fechar} rotulo={en ? 'World calendar' : 'Calendário do mundo'}>
           <QuadroCalendario
-            lang={lang} mes={vista.mes} ano={vista.ano} anoMin={0}
+            lang={lang} mes={vista.mes} ano={vista.ano} anoMin={0} semAno={semAno}
             meses={FANTASY_MONTHS.map((m) => ({ n: m.n, nome: m.nome, curto: m.nome.replace(/^(Mês d[aoe]s? |Dia de )/, '') }))}
             semana={FANTASY_WEEKDAYS.map((s) => ({ curto: s.slice(0, 3), inteiro: s }))}
             inicio={Math.max(0, FANTASY_WEEKDAYS.indexOf(semanaDe(vista.ano, vista.mes, 1)))}
             totalDias={FANTASY_MONTHS[vista.mes - 1]?.dias || 30}
             diasDe={(m) => FANTASY_MONTHS[m - 1]?.dias || 30}
-            selecionado={ehVista ? val.dia : null}
+            selecionado={ehVista && !vazio ? val.dia : null}
             marcas={(d) => feriados(d, vista.mes)}
-            rotuloDia={(d) => `${semanaDe(vista.ano, vista.mes, d)}, ${extenso(d, vista.mes, vista.ano)}`}
+            rotuloDia={(d) => (semAno ? extenso(d, vista.mes, vista.ano) : `${semanaDe(vista.ano, vista.mes, d)}, ${extenso(d, vista.mes, vista.ano)}`)}
             onMes={(m, a) => setVista({ mes: m, ano: a })}
             onAno={(a) => setVista((v) => ({ ...v, ano: a }))}
             onEscolher={(d) => { onChange({ dia: d, mes: vista.mes, ano: vista.ano }); fechar(true); }}
-            rodape={`${semanaDe(val.ano, val.mes, val.dia)}, ${extenso(val.dia, val.mes, val.ano)}`}
+            rodape={vazio ? (placeholder || '') : (semAno ? extenso(val.dia, val.mes, val.ano) : `${semanaDe(val.ano, val.mes, val.dia)}, ${extenso(val.dia, val.mes, val.ano)}`)}
           />
         </CalPopover>
       )}
@@ -6438,7 +6445,7 @@ Object.assign(window, {
 // padrão"): clima, hora e local são menus soltos — a lâmina desliza entre as opções e pousa na escolhida (.is-ativa).
 // A janela Dar item (16/11/2026, usuário: "Coloque os efeitos de brilho, padrão"): o topo (busca e o −/+ da
 // quantidade) e a lista, um trilho em pé — a lâmina desce de linha em linha e pousa no item escolhido (.is-on).
-const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu, .trilho-solto, .batalha-zoom, .dar-item-topo, .dar-item-lista, .cdj-tempo-lista, .cdj-hora-lista, .cdj-local-lista, .select-pill-drop, .cal-topo, .cal-grade, .cal-meses, .cal-rodape, .estudar-abas, .venda-moeda, .cal-nav-mes, .cal-nav-ano, .cal-grid, .cal-meses-grade, .cal-legenda';
+const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu, .trilho-solto, .batalha-zoom, .dar-item-topo, .dar-item-lista, .cdj-tempo-lista, .cdj-hora-lista, .cdj-local-lista, .select-pill-drop, .cal-topo, .cal-grade, .cal-meses, .cal-rodape, .estudar-abas, .venda-moeda, .cal-nav-mes, .cal-nav-ano, .cal-grid, .cal-meses-grade, .cal-legenda, .form-abas';
 // O "+" também (15/11/2026, usuário: "O botão de '+' nos trilhos também precisam entrar no padrão com brilho, cor, etc.").
 const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho', '.mc-navitem', '.mc-navbusca', '.wiz-fase', '.mc-ident', '.mc-user', '.best-page-btn', '.mc-menu-item', '.mc-usermenu [role="menuitem"]', '.batalha-zoom-btn', '.dar-item-linha', '.dar-item-qtd .fp-step-btn', '.cdj-tempo-opcao', '.cdj-hora-opcao', '.select-pill-drop li', '.cal-titulo', '.cal-seta', '.cal-dia', '.cal-mes', '.cal-acao', '.nb-pagina-op', '.venda-moeda .fp-step-btn', '.cal-nav-seta', '.cal-nav-titulo', '.cal-nav-hoje', '.cal-meses-casa', '.cal-legenda-row'];
 const TRILHO_BOTAO = TRILHO_BOTOES.join(', ');

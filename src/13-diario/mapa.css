@@ -226,3 +226,24 @@
    o mapa some no mesmo escuro do fundo; a borda do círculo esfuma. */
 #root .menestrel-ui .mp-nevoa { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 #root .menestrel-ui .mp-nevoa-veu { fill: #17110A; opacity: .97; }
+
+/* OS PLANOS SEM PINTURA (17/11/2026, usuário: "Fundo liso por enquanto"). O
+   celestial é um céu de índigo com luz de ouro vinda do alto; o infernal, um
+   fundo de brasa que sobe de baixo. A área do mapa (1200 × 2000) ganha um
+   chão um pouco mais claro, para o Mestre saber até onde pôr lugares. */
+#root .menestrel-ui .mp-mapa[data-plano="celestial"] {
+  background:
+    radial-gradient(90% 60% at 50% 0%, rgba(232,196,120,.16), transparent 70%),
+    linear-gradient(180deg, #1C1B36 0%, #121126 60%, #0B0A18 100%);
+}
+#root .menestrel-ui .mp-mapa[data-plano="infernal"] {
+  background:
+    radial-gradient(90% 60% at 50% 100%, rgba(214,84,40,.22), transparent 70%),
+    linear-gradient(0deg, #2A0C07 0%, #1A0806 55%, #100504 100%);
+}
+#root .menestrel-ui .mp-mapa:is([data-plano="celestial"], [data-plano="infernal"]) .mp-arte {
+  border-radius: 24px; background: rgba(255,240,210,.035);
+}
+/* O seletor de plano: ícone e nome, no trilho da barra do mapa. */
+#root .menestrel-ui .mp-planos .mc-acao { gap: 6px; padding: 0 14px 0 12px; }
+#root .menestrel-ui .mp-planos .mc-acao span { font: 700 15px var(--font-body); }

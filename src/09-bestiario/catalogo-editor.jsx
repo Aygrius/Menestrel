@@ -841,6 +841,41 @@ function campoDoGrupo(campo, form) {
 /* `onExcluido` (14/09/2026): "No rodapé adicionar um botão para excluir." Só
    no editor de criaturas e só editando uma que existe. Dois cliques: o
    primeiro arma, o segundo apaga. */
+/* AS ABAS DO EDITOR (17/11/2026, usuário: "Crie abas para preenchimento
+   organizado de todas as páginas de compêndio e ambientação"). Por tabela, a
+   ordem das abas e as colunas de cada uma; coluna fora do mapa fica na
+   primeira (Geral) — nada some. Aba sem campo visível (Combate de uma poção)
+   não aparece. */
+const ABAS_CATALOGO = {
+  tecnicas: { abas: [['geral', 'Geral', 'General'], ['descricao', 'Descrição', 'Description']],
+    mapa: { descricao: 'descricao', efeito: 'descricao' } },
+  habilidades: { abas: [['geral', 'Geral', 'General'], ['descricao', 'Descrição', 'Description']],
+    mapa: { vantagem: 'descricao', desvantagem: 'descricao', descricao: 'descricao' } },
+  magias: { abas: [['geral', 'Geral', 'General'], ['descricao', 'Descrição', 'Description'], ['niveis', 'Níveis', 'Levels']],
+    mapa: { descricao: 'descricao', nivel_1: 'niveis', nivel_3: 'niveis', nivel_5: 'niveis', nivel_7: 'niveis', nivel_9: 'niveis' } },
+  criaturas: { abas: [['geral', 'Geral', 'General'], ['atributos', 'Atributos', 'Attributes'], ['equipamento', 'Equipamento', 'Equipment'],
+    ['poderes', 'Poderes', 'Powers'], ['descricao', 'Descrição', 'Description']],
+    mapa: { intelecto: 'atributos', aura: 'atributos', carisma: 'atributos', forca: 'atributos', fisico: 'atributos', agilidade: 'atributos', percepcao: 'atributos',
+      equipamento: 'equipamento', magia: 'poderes', tecnicas_especiais: 'poderes', habilidades: 'poderes', descricao: 'descricao' } },
+  itens: { abas: [['geral', 'Geral', 'General'], ['combate', 'Combate', 'Combat'], ['efeitos', 'Efeitos e magia', 'Effects and magic'], ['descricao', 'Descrição', 'Description']],
+    mapa: Object.fromEntries([
+      ...['dano', 'alcance', 'ajuste_atributo', 'grupo_armas', 'dano_l', 'dano_m', 'dano_p', 'forca_req', 'defesa', 'absorcao', 'tipo_armadura', 'conjunto',
+        'categoria_equip', 'slot_equip', 'resistencia', 'maos_pequenino', 'maos_anao', 'maos_outras'].map((c) => [c, 'combate']),
+      ...['__efeitos', 'efeito_positivo', 'efeito_negativo', 'magia', 'nivel_magia', 'magico', 'tecnica', 'pergaminhos_do_livro'].map((c) => [c, 'efeitos']),
+      ...['descricao', 'doc_url'].map((c) => [c, 'descricao']),
+    ]) },
+};
+// Os campos que o editor mostra para esta linha (a mesma regra da grade).
+function camposVisiveisDoCatalogo(descritor, form) {
+  return descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto
+    && !(typeof campo.ocultoSe === 'function' && campo.ocultoSe(form))
+    && campo.tipo !== 'derivado' && campoDoGrupo(campo, form));
+}
+const abaDoCampo = (tabela, campo) => {
+  const def = ABAS_CATALOGO[tabela];
+  return (def && def.mapa[campo.col]) || (def ? def.abas[0][0] : null);
+};
+
 function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) {
   const t = (ADMIN_COPY[lang] || ADMIN_COPY.pt);
   const descritor = descritorDe(tabela);
@@ -989,6 +1024,21 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
     setForm((f) => ({ ...f, [campo.col]: valor }));
   };
 
+  // As abas visíveis desta linha (antes do return antecipado: é um hook).
+  const _visiveisAba = descritor ? camposVisiveisDoCatalogo(descritor, form) : [];
+  const _defAbas = descritor ? ABAS_CATALOGO[descritor.tabela] : null;
+  const abasVisiveis = _defAbas ? _defAbas.abas.filter(([id]) => _visiveisAba.some((c) => abaDoCampo(descritor.tabela, c) === id)) : [];
+  const _useAba = (typeof useAbaDoFormulario === 'function' ? useAbaDoFormulario : window.useAbaDoFormulario) || ((ids) => [ids[0] || null, () => {}]);
+  const [abaAberta, setAbaAberta] = _useAba(abasVisiveis.map(([id]) => id));
+  const gradeRef = React.useRef(null);
+  const abasDosFilhosRef = React.useRef([]);
+  React.useLayoutEffect(() => {
+    const g = gradeRef.current;
+    if (!g) return;
+    const lista = abasDosFilhosRef.current;
+    const emAbas = abasVisiveis.length > 1 && !!abaAberta;
+    [...g.children].forEach((ch, i) => { ch.classList.toggle('fora-da-aba', emAbas && !!lista[i] && lista[i] !== abaAberta); });
+  });
   if (!descritor) return null; // tabela sem descritor: nada a montar
 
   const valorDoCampo = (campo) => (campo.tipo === 'derivado' ? derivados[campo.col] : form[campo.col]);
@@ -1214,14 +1264,29 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
             : `${emUso} personage${emUso === 1 ? 'm carrega' : 'ns carregam'} este item. Excluir o tira ${emUso === 1 ? 'desse inventário' : 'desses inventários'}.`)}
         </div>
       )}
-      <div className="catalogo-form-grid">
+      {(() => {
+        const Abas = (typeof AbasDoFormulario === 'function' ? AbasDoFormulario : window.AbasDoFormulario);
+        const falta = (id) => descritor.campos.some((c) => c.obrigatorio && !c.autoDeNome && abaDoCampo(descritor.tabela, c) === id
+          && (form[c.col] === undefined || form[c.col] === null || String(form[c.col]).trim() === ''));
+        return Abas ? <Abas abas={abasVisiveis.map(([id, pt, ing]) => ({ id, rotulo: lang === 'en' ? ing : pt, alerta: falta(id) }))}
+          ativa={abaAberta} onTrocar={setAbaAberta} rotulo={lang === 'en' ? 'Sections' : 'Seções'} /> : null;
+      })()}
+      <div className="catalogo-form-grid" ref={gradeRef}>
         {/* `largura: 'curta'` (25/09/2026): meia coluna da grade — Estágio,
             Montaria, Peso e Altura cabem na linha de Nome e Subtipo. */}
         {/* `ocultoSe(form)` (30/10/2026): oculto que depende do item — a grade
             de efeitos OU as duas prosas, conforme a grade lê a prosa inteira. */}
-        {agruparAtributos(descritor.campos.filter((campo) => !campo.autoDeNome && !campo.oculto
-          && !(typeof campo.ocultoSe === 'function' && campo.ocultoSe(form))
-          && campo.tipo !== 'derivado' && campoDoGrupo(campo, form)).map((campoBruto) => {
+        {/* Os campos de todas as abas ficam montados (o que se digitou não se
+            perde ao trocar de aba) e seguem filhos diretos da grade — o CSS
+            dela é todo de "> filho". O efeito abaixo marca .fora-da-aba nos
+            que não são da aba aberta. */}
+        {(() => {
+          const vis = camposVisiveisDoCatalogo(descritor, form);
+          const abaPorChave = {};
+          vis.forEach((c) => { abaPorChave[c.col + (c.parte ? ':' + c.parte : '')] = abaDoCampo(descritor.tabela, c); });
+          const escala = vis.find((c) => c.escala);
+          if (escala) abaPorChave.atributos = abaDoCampo(descritor.tabela, escala);
+          const filhos = agruparAtributos(vis.map((campoBruto) => {
           /* `opcoesDe` (26/10/2026): a lista depende da LINHA, não só do
              descritor — as bases que cabem num item saem da região dele
              (ou do grupo, quando não é vestível). Ver opcoesDeBase. */
@@ -1269,11 +1334,14 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
           return campo.largura === 'curta'
             ? <div key={chave} className="catalogo-campo-curto" data-campo={campo.col}>{el}</div>
             : el;
-        }))}
+        }));
+          abasDosFilhosRef.current = filhos.map((el) => abaPorChave[el.key] || null);
+          return filhos;
+        })()}
       </div>
       {error && <div className="err-msg">{error}</div>}
     </ModalShell>
   );
 }
 
-Object.assign(window, { CatalogoEditor, slugDeNome, chaveLivre });
+Object.assign(window, { CatalogoEditor, slugDeNome, chaveLivre, ABAS_CATALOGO });

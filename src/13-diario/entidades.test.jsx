@@ -82,9 +82,10 @@ describe('a página', () => {
     fireEvent.click(cartao);
     const abas = [...document.querySelectorAll('[role="tab"]')].map((b) => b.textContent.trim());
     // Prefácio · História · Política (15/11/2026); Locais, Itens e Feriados moram na História.
-    expect(abas).toEqual(['Prefácio', 'História', 'Política']);
+    // Relíquias com aba própria (17/11/2026): saíram da História.
+    expect(abas).toEqual(['Prefácio', 'História', 'Relíquias', 'Política']);
     const historia = [...document.querySelectorAll('.ent-sub')].map((h) => h.textContent);
-    expect(historia).toEqual(['Locais', 'Itens', 'Feriados']);
+    expect(historia).toEqual(['Locais', 'Feriados']);
     expect(getByText('Extratos do Livro de Maudi — Biblioteca de Saravossa.')).toBeTruthy();
   });
 
@@ -102,5 +103,23 @@ describe('o menu', () => {
     const shell = readFileSync(resolve(__dirname, '../10-shell/shell.jsx'), 'utf8');
     // conhece (17/11/2026): o Jogador só abre a entidade que o personagem conhece.
     expect(shell).toMatch(/current\.id === 'entidades' \? \([\s\S]{0,300}<EntidadesView lang=\{lang\} trilhoPaginas=\{trilhoPaginas\} conhece=\{conheceNoMundo\('entidade'\)\} \/>/);
+  });
+});
+
+/* RELIGIÃO (17/11/2026): a aba depois da Política, só quando há texto. */
+describe('a religião', () => {
+  it('com texto, ganha a aba e o texto', () => {
+    const { container } = render(<div className="menestrel-ui"><window.EntidadesView lang="pt" entidades={[{ ...CRUINE, religiao: 'Os fiéis guardam a ampulheta.' }]} /></div>);
+    fireEvent.click(container.querySelector('.diario-cartao'));
+    const abas = [...document.querySelectorAll('[role="tab"]')].map((b) => b.textContent.trim());
+    expect(abas).toEqual(['Prefácio', 'História', 'Relíquias', 'Política', 'Religião']);
+    fireEvent.click([...document.querySelectorAll('[role="tab"]')].find((b) => b.textContent.trim() === 'Religião'));
+    expect(document.body.textContent).toMatch(/Os fiéis guardam a ampulheta\./);
+  });
+  it('o editor tem o campo', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const fonte = readFileSync(resolve(__dirname, 'catalogo-mundo.jsx'), 'utf8');
+    expect(fonte).toContain("{ chave: 'religiao', pt: 'Religião', en: 'Religion', tipo: 'area', linhas: 8 }");
   });
 });
