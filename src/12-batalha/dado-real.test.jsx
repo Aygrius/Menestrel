@@ -126,3 +126,27 @@ describe('o dado do crítico: obrigatório, e só no clique', () => {
     expect(onRolou).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('o dado do crítico em série: Épico e Catástrofe (só o texto)', () => {
+  const rolarCrit = (tipo, aleatorio) => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(aleatorio);
+    overlay(false, { isCritico: true, tipoCritico: tipo });
+    fireEvent.click(screen.getByRole('button', { name: /Rolar novamente/ }));
+    act(() => { vi.advanceTimersByTime(3000); });
+  };
+  afterEach(() => { vi.restoreAllMocks(); });
+  it('crítico no alvo e o dado do crítico em Absurdo: Épico', () => {
+    rolarCrit('alvo', 0.99);
+    expect(document.body.textContent).toMatch(/Épico/);
+  });
+  it('falha crítica e o dado em Falha Crítica: Catástrofe', () => {
+    rolarCrit('si', 0);
+    expect(document.body.textContent).toMatch(/Catástrofe/);
+  });
+  it('fora da série, segue "Crítico"', () => {
+    rolarCrit('alvo', 0.5);
+    expect(document.body.textContent).toMatch(/Crítico/);
+    expect(document.body.textContent).not.toMatch(/Épico/);
+  });
+});

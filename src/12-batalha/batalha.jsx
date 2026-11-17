@@ -12142,10 +12142,16 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
   }
 
   // "Crítico" no sucesso e "Falha Crítica" na falha (17/11/2026, usuário).
+  // EM SÉRIE (mesmo dia: "duas falhas críticas seguidas vira uma catástrofe,
+  // dois críticos seguidos vira épico. É apenas texto para mostrar"): se o dado
+  // do crítico cai de novo no mesmo tipo — o Absurdo depois do crítico, a
+  // Falha Crítica depois da falha —, o nome muda. A regra não muda.
+  const rCrit = isCritico && resultado && resultado.res;
+  const emSerie = !!rCrit && (tipoCritico === 'alvo' ? (!!rCrit.critico && rCrit.codigo !== 'FC') : rCrit.codigo === 'FC');
   const labelCriticoTipo = isCritico
     ? (tipoCritico === 'alvo'
-        ? (isEn ? 'Critical' : 'Crítico')
-        : (isEn ? 'Critical Failure' : 'Falha Crítica'))
+        ? (emSerie ? (isEn ? 'Epic' : 'Épico') : (isEn ? 'Critical' : 'Crítico'))
+        : (emSerie ? (isEn ? 'Catastrophe' : 'Catástrofe') : (isEn ? 'Critical Failure' : 'Falha Crítica')))
     : null;
 
   /* PORTAL obrigatório (30/08/2026): o AcaoPanel agora vive dentro do

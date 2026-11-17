@@ -410,7 +410,21 @@ function RolagemD20Overlay(props) {
     if (!r) return false;
     return livre ? r.d20 === 1 : r.codigo === "FC";
   }
+  /* EM SÉRIE (17/11/2026, usuário: "duas falhas críticas seguidas vira uma
+     catástrofe, dois críticos seguidos vira épico. É apenas texto para
+     mostrar, os critérios de cálculo já foram definidos"). Guarda o tipo do
+     crítico que mandou rolar de novo; se o novo for do mesmo tipo, o nome
+     muda. Só o texto: a regra (rolar de novo) continua a mesma. */
+  var anteriorState = useState(null);   // "falha" | "sucesso" | null
+  var anterior = anteriorState[0];
+  var setAnterior = anteriorState[1];
+  function tipoCritico(r) {
+    if (!ehCritico(r)) return null;
+    return falhaCritica(r) ? "falha" : "sucesso";
+  }
+  var emSerie = !!resultado && !!anterior && tipoCritico(resultado) === anterior;
   function rolarDeNovo() {
+    setAnterior(tipoCritico(resultado));
     setResultado(null);
     if (dadoRef.current) dadoRef.current.roll();
   }
@@ -487,7 +501,9 @@ function RolagemD20Overlay(props) {
                   falha (17/11/2026, usuário). Fora dele, Sucesso ou Falha. */}
               {ehCritico(resultado) ? (
                 <div style={{ fontFamily: "var(--font-title)", fontWeight: 700, fontSize: "clamp(24px, 4.5vw, 38px)", color: falhaCritica(resultado) ? "var(--ember-bright, #B8472F)" : "var(--gold)", letterSpacing: ".01em" }}>
-                  {falhaCritica(resultado) ? (en ? "Critical Failure" : "Falha Crítica") : (en ? "Critical" : "Crítico")}
+                  {falhaCritica(resultado)
+                    ? (emSerie ? (en ? "Catastrophe" : "Catástrofe") : (en ? "Critical Failure" : "Falha Crítica"))
+                    : (emSerie ? (en ? "Epic" : "Épico") : (en ? "Critical" : "Crítico"))}
                 </div>
               ) : resultado.sucesso != null && (
                 <div style={{ fontFamily: "var(--font-title)", fontWeight: 700, fontSize: "clamp(24px, 4.5vw, 38px)", color: resultado.sucesso ? "var(--gold)" : "var(--ember-bright, #B8472F)", letterSpacing: ".01em" }}>

@@ -107,3 +107,27 @@ describe('os textos do crítico', () => {
     expect(texto()).toMatch(/Falha Crítica/);
   });
 });
+
+/* 17/11/2026, usuário: "duas falhas críticas seguidas vira uma catástrofe,
+   dois críticos seguidos vira épico. É apenas texto para mostrar." */
+describe('críticos em série: Épico e Catástrofe', () => {
+  const texto = () => document.body.textContent;
+  const deNovo = () => { fireEvent.click(botao()); act(() => { vi.advanceTimersByTime(1200); }); };
+  it('dois críticos seguidos: Épico', () => {
+    rolar(0.99);
+    deNovo();
+    expect(texto()).toMatch(/Épico/);
+  });
+  it('duas falhas críticas seguidas: Catástrofe', () => {
+    rolar(0);
+    deNovo();
+    expect(texto()).toMatch(/Catástrofe/);
+  });
+  it('crítico e depois falha crítica: só Falha Crítica', () => {
+    rolar(0.99);
+    Math.random.mockReturnValue(0);
+    deNovo();
+    expect(texto()).toMatch(/Falha Crítica/);
+    expect(texto()).not.toMatch(/Catástrofe|Épico/);
+  });
+});
