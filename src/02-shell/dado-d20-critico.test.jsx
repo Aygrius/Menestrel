@@ -76,12 +76,12 @@ describe('no crítico, rolar de novo é obrigatório (e é no clique)', () => {
   it('o dado só rola de novo quando o jogador clica', () => {
     const onResultado = vi.fn();
     rolar(0.99, { onResultado });
-    expect(onResultado).toHaveBeenCalledTimes(1);
     act(() => { vi.advanceTimersByTime(5000); });
-    expect(onResultado).toHaveBeenCalledTimes(1);
+    expect(botao()).toBeTruthy();                 // parado no crítico, esperando o clique
+    Math.random.mockReturnValue(0.5);
     fireEvent.click(botao());
     act(() => { vi.advanceTimersByTime(1200); });
-    expect(onResultado).toHaveBeenCalledTimes(2);
+    expect(onResultado).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -129,5 +129,35 @@ describe('críticos em série: Épico e Catástrofe', () => {
     deNovo();
     expect(texto()).toMatch(/Falha Crítica/);
     expect(texto()).not.toMatch(/Catástrofe|Épico/);
+  });
+});
+
+/* 17/11/2026, usuário: "Quando rolar dois dados assim, ele é considerado uma
+   ação só, ou seja, na barra de notificação vai mostrar apenas uma
+   notificação mostrando que o primeiro dado foi crítico." */
+describe('crítico + rolar novamente = uma entrega só', () => {
+  const deNovo = (aleatorio) => { Math.random.mockReturnValue(aleatorio); fireEvent.click(botao()); act(() => { vi.advanceTimersByTime(1200); }); };
+  it('o crítico não é entregue; o dado final sai com o crítico do primeiro', () => {
+    const onResultado = vi.fn();
+    rolar(0.99, { onResultado });
+    expect(onResultado).not.toHaveBeenCalled();
+    deNovo(0.5);
+    expect(onResultado).toHaveBeenCalledTimes(1);
+    expect(onResultado.mock.calls[0][0]).toMatchObject({ d20: 11, criticoAntes: 'sucesso', emSerie: false, dadosAntes: [20] });
+  });
+  it('duas falhas críticas e o final: emSerie', () => {
+    const onResultado = vi.fn();
+    rolar(0, { onResultado });
+    deNovo(0);
+    expect(onResultado).not.toHaveBeenCalled();
+    deNovo(0.5);
+    expect(onResultado).toHaveBeenCalledTimes(1);
+    expect(onResultado.mock.calls[0][0]).toMatchObject({ criticoAntes: 'falha', emSerie: true, dadosAntes: [1, 1] });
+  });
+  it('sem crítico, a entrega de sempre (sem criticoAntes)', () => {
+    const onResultado = vi.fn();
+    rolar(0.5, { onResultado });
+    expect(onResultado).toHaveBeenCalledTimes(1);
+    expect(onResultado.mock.calls[0][0].criticoAntes).toBeUndefined();
   });
 });

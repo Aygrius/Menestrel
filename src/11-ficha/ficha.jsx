@@ -5153,7 +5153,20 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
     const loc = en ? 'en-US' : 'pt-BR';
     const dif = difLbl ? ` (${String(difLbl).toLocaleLowerCase(loc)})` : '';
     const hab = String(rolagem.nome || '').toLocaleLowerCase(loc);
-    const texto = en
+    /* UMA NOTIFICAÇÃO SÓ PARA O CRÍTICO E O "ROLAR NOVAMENTE" (17/11/2026,
+       usuário): o RolagemD20Overlay entrega só o dado final, com o crítico
+       do primeiro em res.criticoAntes (e res.emSerie quando os dois primeiros
+       foram do mesmo tipo: épico ou catástrofe). */
+    const rotuloCrit = res.criticoAntes
+      ? (res.criticoAntes === 'falha'
+        ? (res.emSerie ? (en ? 'a catastrophe' : 'uma catástrofe') : (en ? 'a critical failure' : 'uma falha crítica'))
+        : (res.emSerie ? (en ? 'an epic' : 'um épico') : (en ? 'a critical' : 'um crítico')))
+      : null;
+    const texto = rotuloCrit
+      ? (en
+        ? `${nomePj} rolled ${rotuloCrit} on ${hab}${dif}, rolled again and ${res.sucesso ? 'succeeded' : 'failed'}.`
+        : `${nomePj} tirou ${rotuloCrit} em ${hab}${dif}, rolou novamente e ${res.sucesso ? 'teve sucesso' : 'falhou'}.`)
+      : en
       ? (res.sucesso ? `${nomePj} used ${hab}${dif} and succeeded.` : `${nomePj} used ${hab}${dif}, but failed.`)
       : (res.sucesso ? `${nomePj} usou ${hab}${dif} e teve sucesso.` : `${nomePj} usou ${hab}${dif}, mas falhou.`);
     /* Magia "para o próximo teste" (Avaliação, Faro…) some depois dele — só a
@@ -5174,6 +5187,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
       qualidade_label: en ? res.en : res.pt,
       d20: res.d20,
       sucesso: res.sucesso,
+      ...(res.criticoAntes ? { critico_antes: res.criticoAntes, em_serie: !!res.emSerie, d20_antes: res.dadosAntes } : {}),
     });
 
     /* Era um teste DA BANCADA: guarda o resultado; quem decide é o

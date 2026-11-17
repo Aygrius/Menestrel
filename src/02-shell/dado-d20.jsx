@@ -386,7 +386,7 @@ function RolagemD20Overlay(props) {
     if (livre) {
       var rLivre = { d20: d20 };
       setResultado(rLivre);
-      if (props.onResultado) props.onResultado(rLivre);
+      entregar(rLivre);
       return;
     }
     var res = (typeof resolverAcao === "function")
@@ -396,7 +396,29 @@ function RolagemD20Overlay(props) {
     var sucesso = (typeof reqQ === "number") ? res.q >= reqQ : null;
     var r = Object.assign({}, res, { sucesso: sucesso });
     setResultado(r);
-    if (props.onResultado) props.onResultado(r);
+    entregar(r);
+  }
+
+  /* UMA AÇÃO SÓ (17/11/2026, usuário: "Quando rolar dois dados assim, ele é
+     considerado uma ação só, ou seja, na barra de notificação vai mostrar
+     apenas uma notificação mostrando que o primeiro dado foi crítico"). O
+     crítico obriga a rolar de novo, então quem ouve (onResultado: a
+     notificação da mesa, a bancada) só recebe o dado FINAL, com o que veio
+     antes: criticoAntes ("sucesso" | "falha", o do primeiro dado), emSerie
+     (os dois primeiros do mesmo tipo: Épico/Catástrofe) e dadosAntes. */
+  var cadeiaRef = useRef([]);   // [{ tipo, d20 }] dos críticos que mandaram rolar de novo
+  function entregar(r) {
+    if (ehCritico(r)) return;
+    var cadeia = cadeiaRef.current;
+    cadeiaRef.current = [];
+    var final = cadeia.length
+      ? Object.assign({}, r, {
+          criticoAntes: cadeia[0].tipo,
+          emSerie: cadeia.length > 1 && cadeia[1].tipo === cadeia[0].tipo,
+          dadosAntes: cadeia.map(function (c) { return c.d20; }),
+        })
+      : r;
+    if (props.onResultado) props.onResultado(final);
   }
 
   // O crítico dá direito a rolar de novo (ver o botão no fim).
@@ -424,6 +446,7 @@ function RolagemD20Overlay(props) {
   }
   var emSerie = !!resultado && !!anterior && tipoCritico(resultado) === anterior;
   function rolarDeNovo() {
+    if (resultado) cadeiaRef.current = cadeiaRef.current.concat([{ tipo: tipoCritico(resultado), d20: resultado.d20 }]);
     setAnterior(tipoCritico(resultado));
     setResultado(null);
     if (dadoRef.current) dadoRef.current.roll();

@@ -4250,8 +4250,19 @@ function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
     const valor = res.d20 ?? res.d10;
     const tipo  = res.d20 != null ? 'd20' : 'd10';
     const faces = tipo === 'd20' ? 20 : 10;
-    /* "Lirael fez um rolamento livre e obteve 17 de 20." (27/09/2026) */
-    const texto = en
+    /* "Lirael fez um rolamento livre e obteve 17 de 20." (27/09/2026)
+       Com crítico, uma notificação só para os dois dados (17/11/2026): o
+       RolagemD20Overlay entrega o final com o do primeiro em res.criticoAntes. */
+    const rotuloCrit = res.criticoAntes
+      ? (res.criticoAntes === 'falha'
+        ? (res.emSerie ? (en ? 'a catastrophe' : 'uma catástrofe') : (en ? 'a critical failure' : 'uma falha crítica'))
+        : (res.emSerie ? (en ? 'an epic' : 'um épico') : (en ? 'a critical' : 'um crítico')))
+      : null;
+    const texto = rotuloCrit
+      ? (en
+        ? `${nome} made a free roll, got ${rotuloCrit}, rolled again and got ${valor} out of ${faces}.`
+        : `${nome} fez um rolamento livre, tirou ${rotuloCrit}, rolou novamente e obteve ${valor} de ${faces}.`)
+      : en
       ? `${nome} made a free roll and got ${valor} out of ${faces}.`
       : `${nome} fez um rolamento livre e obteve ${valor} de ${faces}.`;
     supabaseClient
@@ -4259,7 +4270,7 @@ function RolagemLivreFab({ lang, historiaId, nomeUsuario }) {
         p_historia_id: historiaId,
         p_tipo: 'teste',
         p_texto: texto,
-        p_meta: { [tipo]: valor, livre: true },
+        p_meta: { [tipo]: valor, livre: true, ...(res.criticoAntes ? { critico_antes: res.criticoAntes, em_serie: !!res.emSerie, d20_antes: res.dadosAntes } : {}) },
       })
       .then(({ error }) => {
         if (error) console.error('[RolagemLivreFab] registrar_evento_mesa falhou:', error);
