@@ -12141,10 +12141,11 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
     if (r.critico)  detalheRes += tb.critico;
   }
 
+  // "Crítico" no sucesso e "Falha Crítica" na falha (17/11/2026, usuário).
   const labelCriticoTipo = isCritico
     ? (tipoCritico === 'alvo'
-        ? (tb.criticoNoAlvo)
-        : (tb.criticoEmSiMesmo))
+        ? (isEn ? 'Critical' : 'Crítico')
+        : (isEn ? 'Critical Failure' : 'Falha Crítica'))
     : null;
 
   /* PORTAL obrigatório (30/08/2026): o AcaoPanel agora vive dentro do
@@ -12237,7 +12238,7 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
           )}
           {esperaClique && !resultado && (
             <button type="button" className="btn-primary" onClick={rolarCritico} disabled={iniciado}>
-              <i className="ti ti-dice-5" aria-hidden="true" /> {isEn ? 'Roll the critical' : 'Rolar o crítico'}
+              <i className="ti ti-dice-5" aria-hidden="true" /> {isEn ? 'Roll again' : 'Rolar novamente'}
             </button>
           )}
           {onConfirmar && !(dadoReal && !resultado) && !(esperaClique && !resultado) && (

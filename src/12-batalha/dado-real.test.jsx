@@ -109,7 +109,7 @@ describe('o dado do crítico: obrigatório, e só no clique', () => {
     act(() => { vi.advanceTimersByTime(3000); });
     expect(onRolou).not.toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: /Rolar o crítico/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Rolar novamente/ }));
     act(() => { vi.advanceTimersByTime(3000); });
     expect(onRolou).toHaveBeenCalledTimes(1);
   });

@@ -405,6 +405,11 @@ function RolagemD20Overlay(props) {
     if (livre) return r.d20 === 1 || r.d20 === 20;
     return r.codigo === "FC" || !!r.critico;
   }
+  // A falha crítica: a FC da tabela (o 1 sempre é); no modo livre, o 1.
+  function falhaCritica(r) {
+    if (!r) return false;
+    return livre ? r.d20 === 1 : r.codigo === "FC";
+  }
   function rolarDeNovo() {
     setResultado(null);
     if (dadoRef.current) dadoRef.current.roll();
@@ -478,7 +483,13 @@ function RolagemD20Overlay(props) {
                 display: "inline-block", minWidth: "min(82vw, 280px)",
               }}
             >
-              {resultado.sucesso != null && (
+              {/* No crítico, o nome dele: "Crítico" no sucesso e "Falha Crítica" na
+                  falha (17/11/2026, usuário). Fora dele, Sucesso ou Falha. */}
+              {ehCritico(resultado) ? (
+                <div style={{ fontFamily: "var(--font-title)", fontWeight: 700, fontSize: "clamp(24px, 4.5vw, 38px)", color: falhaCritica(resultado) ? "var(--ember-bright, #B8472F)" : "var(--gold)", letterSpacing: ".01em" }}>
+                  {falhaCritica(resultado) ? (en ? "Critical Failure" : "Falha Crítica") : (en ? "Critical" : "Crítico")}
+                </div>
+              ) : resultado.sucesso != null && (
                 <div style={{ fontFamily: "var(--font-title)", fontWeight: 700, fontSize: "clamp(24px, 4.5vw, 38px)", color: resultado.sucesso ? "var(--gold)" : "var(--ember-bright, #B8472F)", letterSpacing: ".01em" }}>
                   {resultado.sucesso ? (en ? "Success" : "Sucesso") : (en ? "Failure" : "Falha")}
                   <span style={{ color: "var(--muted-foreground)", fontWeight: 400 }}></span>
@@ -502,7 +513,7 @@ function RolagemD20Overlay(props) {
           {ehCritico(resultado) ? (
             <button type="button" className="btn-primary" data-rolar-de-novo="1" onClick={rolarDeNovo}>
               <i className="ti ti-refresh" aria-hidden="true" style={{ marginRight: 6, verticalAlign: "-2px" }} />
-              {en ? "Roll again (critical)" : "Rolar de novo (crítico)"}
+              {en ? "Roll again" : "Rolar novamente"}
             </button>
           ) : (
             <button type="button" className="btn-primary" onClick={onClose}>

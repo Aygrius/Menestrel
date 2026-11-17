@@ -437,8 +437,8 @@ function RolagemD10Overlay(props) {
                   letterSpacing: ".01em",
                 }}>
                   {resultado.d10 === 10
-                    ? (en ? "Critical!" : "Crítico!")
-                    : (en ? "Fumble!" : "Falha Crítica!")}
+                    ? (en ? "Critical" : "Crítico")
+                    : (en ? "Critical Failure" : "Falha Crítica")}
                 </div>
               )}
             </div>

@@ -84,3 +84,26 @@ describe('no crítico, rolar de novo é obrigatório (e é no clique)', () => {
     expect(onResultado).toHaveBeenCalledTimes(2);
   });
 });
+
+/* 17/11/2026, usuário: "Quando houver um crítico, o texto será 'Rolar
+   novamente'. E o texto é 'Falha Crítica' (falha) ou 'Crítico' (sucesso)." */
+describe('os textos do crítico', () => {
+  const texto = () => document.body.textContent;
+  it('o botão diz "Rolar novamente"', () => {
+    rolar(0.99);
+    expect(botao().textContent.trim()).toBe('Rolar novamente');
+  });
+  it('o 20 é "Crítico"', () => {
+    rolar(0.99);
+    expect(texto()).toMatch(/Crítico/);
+    expect(texto()).not.toMatch(/Sucesso/);
+  });
+  it('o 1 é "Falha Crítica"', () => {
+    rolar(0);
+    expect(texto()).toMatch(/Falha Crítica/);
+  });
+  it('no modo livre também', () => {
+    rolar(0, { livre: true });
+    expect(texto()).toMatch(/Falha Crítica/);
+  });
+});
