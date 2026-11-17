@@ -48,10 +48,9 @@ const AUTH_COPY = {
     /* Copy do login reescrita pelo usuário em 27/10/2026: o lema fala com quem
        vai usar ("você"), e a chamada de entrada troca a instrução pela lore —
        Palier é um dos treze deuses de Tagmar (ver DEUSES em game-data.jsx). */
-    /* Entre "a" e "gente" vai um ESPAÇO DURO (U+00A0, invisível aqui): a
-       manchete do login quebra em 17ch e o artigo ficava sozinho no fim da
-       linha ("…histórias, a / gente automatiza…"). */
-    lema:        'Você se preocupa em contar as histórias, a gente automatiza as regras.',
+    /* 17/11/2026, usuário: 'o texto será alterado para "Você cria as histórias.
+       Nós cuidamos das regras." e não precisa quebrar em linha tantas vezes'. */
+    lema:        'Você cria as histórias. Nós cuidamos das regras.',
     feito:       'Feito para Tagmar · Mestres e Jogadores',
     title:       'Entrar',
     sub:         'Palier e seus enviados estão aguardando por você.',
@@ -63,7 +62,7 @@ const AUTH_COPY = {
     signout:     'Sign out',
     google_btn:  'Continue with Google',
     redirecting: 'Forging your access...',
-    lema:        'You take care of telling the stories; we automate the rules.',
+    lema:        'You create the stories. We take care of the rules.',
     feito:       'Made for Tagmar · Game Masters and Players',
     title:       'Sign in',
     sub:         'Palier and their envoys are waiting for you.',

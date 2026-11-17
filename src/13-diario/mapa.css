@@ -222,3 +222,7 @@
   #root .menestrel-ui :is(.mp-rota-falta, .mp-onda, .mp-valor.assenta) { animation: none; }
   #root .menestrel-ui .mp-onda { scale: 1.6; opacity: .7; }
 }
+/* A névoa do Jogador (17/11/2026): fora dos 100 km em volta do personagem,
+   o mapa some no mesmo escuro do fundo; a borda do círculo esfuma. */
+#root .menestrel-ui .mp-nevoa { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+#root .menestrel-ui .mp-nevoa-veu { fill: #17110A; opacity: .97; }

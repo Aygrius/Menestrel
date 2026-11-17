@@ -41,6 +41,9 @@ const MAPA_ZOOM_NOMES = 1;   // escala da câmera a partir da qual as etiquetas 
 const MAPA_KM = 400 / 152.5;
 /* Suposição da tela, não regra do Tagmar: um dia de marcha a pé. */
 const MAPA_KM_DIA_A_PE = 30;
+/* A NÉVOA (17/11/2026, usuário: "o jogador só vai conseguir ver um raio de
+   100 km ao redor de seu personagem"). */
+const MAPA_NEVOA_KM = 100;
 const MAPA_LADO = 512, MAPA_SOBRA = 2;
 
 /* As cidades que a pintura já traz escritas: o Mestre parte delas. */
@@ -159,8 +162,20 @@ function criarMotorMapa(raiz, cfg) {
   /* Locais também (17/11/2026, usuário: "Locais também devem sair se o
      personagem não conhece"). A cidade onde a mesa está já chega conhecida: o
      banco a põe na mesa ao mudar o lugar (historias_lugar_atual_conhecido). */
-  const oculto = (l) => !mestre && (l.tipo === 'cidade' || l.tipo === 'local')
-    && ((l.tipo === 'local' ? locaisCad : cadastradas) === null || !fichaDe(l));
+  /* Onde o personagem está também vale (17/11/2026, usuário: "Aygrius está na
+     cidade de Igara, mas no mapa diz que ele está na estrada"): o banco passa a
+     conhecer o lugar quando o Mestre o põe ali (mapas_mesa_lugar_conhecido),
+     e aqui ele aparece na hora, antes de o catálogo ser lido de novo. */
+  /* A névoa: o Jogador numa mesa só enxerga até MAPA_NEVOA_KM do personagem
+     dele; sem posição no mapa, não enxerga nada. O Mestre e o mapa fora de
+     mesa ficam sem névoa. */
+  const comNevoa = !mestre && !cfg.semMesa;
+  const raioNevoa = MAPA_NEVOA_KM / MAPA_KM;
+  const meuPosto = () => { const g = gente.find((x) => x.eu); return (g && mesa.gente[g.id]) || null; };
+  const naNevoa = (p) => { if (!comNevoa) return false; const eu = meuPosto(); return !eu || dist(eu, p) > raioNevoa; };
+  const ondeEstou = (l) => gente.some((g) => g.eu && mesa.gente[g.id] && dist(mesa.gente[g.id], l) < 4);
+  const oculto = (l) => naNevoa(l) || (!mestre && (l.tipo === 'cidade' || l.tipo === 'local') && !ondeEstou(l)
+    && ((l.tipo === 'local' ? locaisCad : cadastradas) === null || !fichaDe(l)));
   const perto = (p, raio = 4) => { let m = null, md = raio;
     for (const l of mesa.lugares) { if (oculto(l)) continue; const d = dist(l, p); if (d < md) { md = d; m = l; } } return m; };
   const onde = (p) => { const l = perto(p); return l ? l.nome : tr('Na estrada', 'On the road'); };
@@ -389,6 +404,19 @@ function criarMotorMapa(raiz, cfg) {
     if (J && J.rota.id !== continua) s += linha('mp-rota-base', J.rota.pts) + linha('mp-rota-feita', J.feita) + linha('mp-rota-falta', J.falta);
     s += linha('mp-medida-base', traco) + linha('mp-traco', traco) + linha('mp-medida-base', medida) + linha('mp-medida', medida);
     $('linhas').innerHTML = s;
+    /* A névoa por cima da pintura e das linhas, embaixo dos marcadores. A
+       máscara é branca (véu) com o círculo do personagem em degradê até o
+       preto (buraco): a borda esfuma. */
+    const elNevoa = $('nevoa');
+    if (elNevoa) {
+      const eu = comNevoa ? meuPosto() : null;
+      const caixa = 'x="-2000" y="-2000" width="5200" height="6000"';
+      elNevoa.innerHTML = !comNevoa ? '' :
+        '<defs><radialGradient id="mp-nevoa-g"><stop offset="0.8" stop-color="#000"/><stop offset="1" stop-color="#fff"/></radialGradient>' +
+        '<mask id="mp-nevoa-m" maskUnits="userSpaceOnUse" ' + caixa + '><rect ' + caixa + ' fill="#fff"/>' +
+        (eu ? '<circle cx="' + eu.x + '" cy="' + eu.y + '" r="' + raioNevoa + '" fill="url(#mp-nevoa-g)"/>' : '') +
+        '</mask></defs><rect class="mp-nevoa-veu" ' + caixa + ' mask="url(#mp-nevoa-m)"/>';
+    }
 
     const mk = (p, html) => `<div class="mp-mk" style="left:${p.x}px;top:${p.y}px">${html}</div>`;
     let h = '';
@@ -414,7 +442,7 @@ function criarMotorMapa(raiz, cfg) {
     traco.forEach((p) => { h += mk(p, `<div class="mp-ponto"></div>`); });
     // os personagens, agrupados por onde estão
     const grupos = new Map();
-    postos().forEach((g) => { const k = g.x + ',' + g.y; grupos.set(k, [...(grupos.get(k) || []), g]); });
+    postos().filter((g) => g.eu || !naNevoa(g)).forEach((g) => { const k = g.x + ',' + g.y; grupos.set(k, [...(grupos.get(k) || []), g]); });
     grupos.forEach((turma) => {
       const meu = turma.some((g) => g.eu), sel = foco.tipo === 'gente' && turma.some((g) => String(g.id) === String(foco.id));
       h += mk(turma[0], (meu ? `<div class="mp-onda"></div><div class="mp-pe"></div>` : '') +
@@ -458,7 +486,7 @@ function criarMotorMapa(raiz, cfg) {
       const com = postos().filter((g) => !g.eu && dist(g, EU) < 4).map((g) => g.nome);
       id = fixo(tr('Você está em', 'You are in'));
       if (J) nums = doisNums(tr('Até o destino', 'To destination'), faltaPelaRota());
-      nota = com.length ? tr(`Com você: ${esc(com.join(', '))}.`, `With you: ${esc(com.join(', '))}.`) : tr('Você está sozinho aqui.', 'You are alone here.');
+      nota = com.length ? tr(`Com você: ${esc(com.join(', '))}.`, `With you: ${esc(com.join(', '))}.`) : '';   // sem o 'Você está sozinho aqui.' (17/11/2026)
     } else if (f.tipo === 'gente') {
       const juntos = postos().filter((g) => String(g.id) !== String(a.id) && dist(g, a) < .06).map((g) => g.nome);
       id = fixo(tr('Personagem', 'Character'));
@@ -532,7 +560,7 @@ function criarMotorMapa(raiz, cfg) {
   function listas() {
     const a = alvo();
     const quadro = (titulo, n, col, linhas, vazio) => `<section class="mp-secao"><div class="mp-quadro-cab"><span class="mp-rotulo">${titulo}</span><span class="mp-conta">${n}</span><span class="mp-rotulo col">${col}</span></div>
-      <ul class="mp-quadro">${linhas || `<li><p class="mp-vazio">${vazio}</p></li>`}</ul></section>`;
+      <ul class="mp-quadro">${linhas || (vazio ? `<li><p class="mp-vazio">${vazio}</p></li>` : '')}</ul></section>`;
     const item = (ico, nome, tipo, num, attrs, atual) => `<li><button type="button" class="mp-linha" ${attrs} aria-current="${!!atual}">
       <span class="mp-ln-ico"><i class="ti ${ico}" aria-hidden="true"></i></span>
       <span class="mp-ln-txt"><span class="mp-ln-nome">${esc(nome)}</span>${tipo ? `<span class="mp-ln-tipo">${tipo}</span>` : ''}</span>
@@ -566,14 +594,14 @@ function criarMotorMapa(raiz, cfg) {
       const p = mesa.gente[g.id];
       return `<li><button type="button" class="mp-linha" data-alvo="gente" data-id="${esc(g.id)}" aria-current="${emFoco('gente', g.id) || (!!p && !!a && (foco.tipo === 'aqui' || foco.tipo === 'lugar' || foco.tipo === 'destino') && dist(a, p) < 4)}">
         ${disco(g)}
-        <span class="mp-ln-txt"><span class="mp-ln-nome">${esc(g.nome)}</span>${g.eu ? `<span class="mp-ln-tipo">${tr('Você', 'You')}</span>` : ''}</span>
+        <span class="mp-ln-txt"><span class="mp-ln-nome">${esc(g.nome)}</span></span>
         <span class="mp-ln-num${p ? '' : ' fora'}">${p ? esc(onde(p)) : (mestre ? tr('Pôr no mapa', 'Place on map') : tr('Fora do mapa', 'Off the map'))}</span></button></li>`;
     }).join(''), mestre ? tr('Esta mesa ainda não tem personagens.', 'This table has no characters yet.') : tr('Ninguém na mesa ainda.', 'Nobody at the table yet.'));
     if (!mestre && cfg.aoMudarMarcas) {
       h += quadro(tr('Marcas', 'Marks'), marcas.length + (J ? 1 : 0), tr('De você', 'From you'),
         (J ? item('ti-flag', J.destino.nome, tr('Destino da mesa', 'Table destination'), fmtKm(km(caminho(J.falta))) + ' km', 'data-alvo="destino"', foco.tipo === 'destino') : '') +
         marcas.map((m) => item('ti-map-pin', m.nome, marcaSolta(m) ? tr('Sua marca', 'Your mark') : tr('Lugar marcado', 'Marked place'), longe(m), `data-alvo="marca" data-id="${esc(m.id)}"`, emFoco('marca', m.id))).join('') +
-        (marcas.length ? '' : `<li><p class="mp-vazio">${tr('Nenhuma marca sua ainda. Use Marcar e toque no mapa, ou escolha um lugar e marque o interesse.', 'No marks yet. Use Mark and tap the map, or pick a place and mark your interest.')}</p></li>`));
+        '');   // sem o texto de 'Nenhuma marca sua ainda…' (17/11/2026)
     }
     $('listas').innerHTML = h;
     achados();
@@ -948,7 +976,9 @@ function criarMotorMapa(raiz, cfg) {
       pronto = true;
       cam.s = sMin; pintar(); EU = referencia(); J = jornada(); foco = focoPadrao(); aviso(); desenhar();
       // abre no mapa inteiro e desce até a jornada (ou até quem está no mapa)
-      const alvoInicial = J ? J.rota.pts : postos();
+      // Com névoa, desce até o círculo do personagem (17/11/2026).
+      const eu = comNevoa ? meuPosto() : null;
+      const alvoInicial = eu ? [{ x: eu.x - raioNevoa, y: eu.y - raioNevoa }, { x: eu.x + raioNevoa, y: eu.y + raioNevoa }] : (J ? J.rota.pts : postos());
       if (alvoInicial.length) setTimeout(() => vivo && enquadrar(alvoInicial, 1500), 450);
     } else pintar();
   });
@@ -1019,6 +1049,7 @@ function mapaApiSupabase() {
        liberou — o mapa não pode revelar a ficha de uma cidade antes da mesa. */
     async catalogo({ mestre, pj }) {
       let entradas = [];
+      const nomesReino = {};
       if (mestre) {
         // Os locais também (15/11/2026): a ferramenta Local põe os cadastrados no mapa.
         const [c, rn, lc] = await Promise.all([sb().rpc('listar_catalogo_global', { p_tipo: 'cidade' }), sb().rpc('listar_catalogo_global', { p_tipo: 'reino' }),
@@ -1026,10 +1057,15 @@ function mapaApiSupabase() {
         entradas = [...((c.data && c.data.entradas) || []).map((e) => ({ ...e, tipo: 'cidade' })), ...((rn.data && rn.data.entradas) || []).map((e) => ({ ...e, tipo: 'reino' })),
           ...((lc.data && lc.data.entradas) || []).map((e) => ({ ...e, tipo: 'local' }))];
       } else if (pj) {
-        const [d, l] = await Promise.all([sb().rpc('listar_diario_disponivel', { p_personagem_id: pj.id }), sb().rpc('listar_diario_lore', { p_personagem_id: pj.id })]);
+        const [d, l, rs] = await Promise.all([sb().rpc('listar_diario_disponivel', { p_personagem_id: pj.id }), sb().rpc('listar_diario_lore', { p_personagem_id: pj.id }),
+          sb().from('reinos').select('slug, nome')]);
         entradas = [...((l.data && l.data.entradas) || []), ...((d.data && d.data.lore) || [])];
+        /* O NOME DO REINO (17/11/2026, usuário: "o reino está todo com letra
+           minúscula"): o passe da cidade mostrava o slug do reino que o
+           personagem ainda não tem no diário. Os nomes vêm da tabela, aberta a todos. */
+        ((rs && rs.data) || []).forEach((r) => { if (r && r.slug && r.nome) nomesReino[r.slug] = r.nome; });
       }
-      const nomes = {}; entradas.forEach((e) => { if (e && e.id) nomes[e.id] = e.nome; });
+      const nomes = { ...nomesReino }; entradas.forEach((e) => { if (e && e.id) nomes[e.id] = e.nome; });
       return { cidades: entradas.filter((e) => e && e.tipo === 'cidade' && e.nome), locais: entradas.filter((e) => e && e.tipo === 'local' && e.nome), nomes, lore: entradas };
     },
     async salvarMesa(historiaId, dados) {
@@ -1194,6 +1230,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
             <div className="mp-mundo" data-el="mundo">
               <div className="mp-arte" data-el="arte" />
               <svg className="mp-linhas" data-el="linhas" viewBox="0 0 1200 2000" aria-hidden="true" />
+              <svg className="mp-nevoa" data-el="nevoa" viewBox="0 0 1200 2000" aria-hidden="true" />
               <div data-el="marcadores" />
             </div>
             <div className="mp-barra livro-trilho" data-el="barra">

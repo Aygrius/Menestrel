@@ -3867,6 +3867,9 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
      20/09 e o porquê dela seguem no comentário. */
   const mostrarSairMesa = false;
 
+  /* SÓ ÍCONES NO PÉ DA FICHA (17/11/2026): lá o CSS esconde os textos (a linha
+     é dividida com Experiência e Peso), então a dica de cada botão leva o valor. */
+  const soIcones = !!(alvoRodape && alvoRodape.classList && alvoRodape.classList.contains('fp3-rodape-dados'));
   const faixa = (
     <div className={'menestrel-ui cdj-root' + (alvoRodape ? ' cdj-root--rodape' : '')}
       ref={alvoRodape ? null : medirCdj}
@@ -3919,7 +3922,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
               aria-label={en ? 'Current in-game date' : 'Data atual do jogo'}
               /* Os balões do trilho do topo dizem O QUE é cada botão (23/10/2026):
                  Calendário, Localização, Horário, Umidade, Vento, Temperatura. */
-              {...propsTip(abrirTip, fecharTip, en ? 'Calendar' : 'Calendário')}
+              {...propsTip(abrirTip, fecharTip, soIcones && dataAtual && dataAtual.dia ? `${en ? 'Calendar' : 'Calendário'} · ${dataAtual.dia}/${dataAtual.mes}/${dataAtual.ano}` : (en ? 'Calendar' : 'Calendário'))}
             >
               <i className="ti ti-calendar-event" aria-hidden="true" />
               {dataAtual && dataAtual.dia ? (
@@ -3961,7 +3964,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                   }}
                   aria-disabled={!podeEditar || undefined}
                   aria-label={en ? 'Current in-game location' : 'Local atual do jogo'}
-                  {...propsTip(abrirTip, fecharTip, en ? 'Location' : 'Localização')}
+                  {...propsTip(abrirTip, fecharTip, soIcones && dataAtual && dataAtual.local ? `${en ? 'Location' : 'Localização'} · ${dataAtual.local}` : (en ? 'Location' : 'Localização'))}
                   aria-haspopup={podeEditar ? 'listbox' : undefined}
                   aria-expanded={podeEditar ? editando === 'local' : undefined}
                 >
@@ -4039,7 +4042,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                       fecharTip();
                       setHoraAberta((v) => !v);
                     }}
-                    {...propsTip(abrirTip, fecharTip, en ? 'Time' : 'Horário')}
+                    {...propsTip(abrirTip, fecharTip, soIcones ? `${en ? 'Time' : 'Horário'} · ${horaPorExtenso(luz.hora, en)}` : (en ? 'Time' : 'Horário'))}
                   >
                     {/* SÓ O ÍCONE. A regra foi e voltou duas vezes: nasceu
                         assim em 20/09/2026 ("no botão de horário, não precisa
@@ -4098,7 +4101,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                         fecharTip();
                         setTempoAberto(aberta ? null : trilha.chave);
                       }}
-                      {...propsTip(abrirTip, fecharTip, trilha.chave === 'agua' ? (en ? 'Humidity' : 'Umidade') : nomeTrilha)}
+                      {...propsTip(abrirTip, fecharTip, (trilha.chave === 'agua' ? (en ? 'Humidity' : 'Umidade') : nomeTrilha) + (soIcones ? ' · ' + (en ? degrau.en : degrau.pt) : ''))}
                     >
                       {/* SÓ O ÍCONE (26/10/2026): a palavra do clima saiu da
                           pílula e foi para o balão, que `texto` já monta como
@@ -4360,7 +4363,7 @@ function contaEfetivaDoPerfil(perfil) {
 /* "A conta Plebeu permite 1 personagem…" — a mesma frase do banco, antes do clique. */
 function avisoLimitePersonagens(conta, lang) {
   const en = lang === 'en';
-  if (conta === 'plebeu') return en ? 'A Commoner account has 1 character. Delete it to create another.' : 'A conta Plebeu permite 1 personagem. Exclua o atual para criar outro.';
+  // O Plebeu não vê aviso (17/11/2026, usuário: "Remova esse texto 'A conta Plebeu permite 1 personagem…' da conta de plebeu").
   if (conta === 'nobre') return en ? 'A Noble account has up to 4 characters. Delete one to create another.' : 'A conta Nobre permite 4 personagens. Exclua um para criar outro.';
   return null;
 }
@@ -4717,7 +4720,25 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         // Jogador: resolve a história do PJ ativo e busca data_nasc para o calendário.
         const { data: prof } = await supabaseClient.from('profiles').select('pj_ativo_id').eq('id', user.id).maybeSingle();
         if (cancel) return;
-        const pjAtivoId = prof && prof.pj_ativo_id;
+        /* SEM ATIVO, O PRIMEIRO DA CONTA (17/11/2026, usuário: "Estou conectado na
+           conta que tem o personagem Aygrius, mas não vejo ele no mapa"). O
+           personagem mudou de conta e o pj_ativo_id da conta nova ficou vazio:
+           sem ativo, não havia mesa nem mapa. Sem ativo (ou com um ativo que
+           não é desta conta), vale o personagem mais antigo dela, e ele é
+           gravado como ativo. */
+        let pjAtivoId = prof && prof.pj_ativo_id;
+        if (pjAtivoId) {
+          const { data: dono } = await supabaseClient.from('personagens').select('id').eq('id', pjAtivoId).eq('user_id', user.id).maybeSingle();
+          if (cancel) return;
+          if (!dono) pjAtivoId = null;
+        }
+        if (!pjAtivoId) {
+          const { data: primeiro } = await supabaseClient.from('personagens').select('id').eq('user_id', user.id)
+            .order('created_at', { ascending: true }).limit(1).maybeSingle();
+          if (cancel) return;
+          pjAtivoId = primeiro ? primeiro.id : null;
+          if (pjAtivoId) supabaseClient.from('profiles').update({ pj_ativo_id: pjAtivoId }).eq('id', user.id).then(() => {}, () => {});
+        }
         if (!pjAtivoId) { setMinhasHistorias([]); setDataNascPjAtivo(null); setPjAtivo(null); return; }
         const [histRes, pjRes] = await Promise.all([
           // O PJ pode estar em mais de uma história: vale a mais nova (como o bridge.ts). Sem o limit, o maybeSingle dava erro e a tela ficava vazia (02/10/2026).

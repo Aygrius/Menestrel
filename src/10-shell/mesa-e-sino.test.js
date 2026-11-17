@@ -140,14 +140,15 @@ describe('o trilho da cena mostra ícone e texto, e o balão diz o que é', () =
     expect(css).toMatch(/\.cdj-bar\.cdj-sino \{\s*width: 32px;/);
   });
   it('o balão do clima diz a categoria (o degrau já está escrito)', () => {
-    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, trilha\.chave === 'agua' \? \(en \? 'Humidity' : 'Umidade'\) : nomeTrilha\)/);
+    // 17/11/2026: só no pé da ficha (soIcones) o balão leva também o degrau.
+    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, \(trilha\.chave === 'agua' \? \(en \? 'Humidity' : 'Umidade'\) : nomeTrilha\) \+ \(soIcones \? ' · ' \+ \(en \? degrau\.en : degrau\.pt\) : ''\)\)/);
     expect(shell).not.toMatch(/propsTip\(abrirTip, fecharTip, texto\)/);
   });
   it('o balão do local diz "Localização" (o lugar já está escrito)', () => {
-    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, en \? 'Location' : 'Localização'\)/);
+    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, soIcones && dataAtual && dataAtual\.local \? [^\n]* : \(en \? 'Location' : 'Localização'\)\)/);
   });
   it('a hora por extenso na pílula: 12h é "Meio-Dia"', () => {
-    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, en \? 'Time' : 'Horário'\)/);
+    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, soIcones \? [^\n]* : \(en \? 'Time' : 'Horário'\)\)/);
     expect(shell).toMatch(/if \(n === 12\) return en \? 'Noon' : 'Meio-Dia';/);
     expect(shell).toMatch(/if \(n === 0\) return en \? 'Midnight' : 'Meia-Noite';/);
     // O resto reusa o vocabulário que o log já usa ("13h da tarde").
@@ -159,5 +160,19 @@ describe('o trilho da cena mostra ícone e texto, e o balão diz o que é', () =
   it('a DATA continua escrita — é a única fora da lista', () => {
     expect(shell).toMatch(/cdj-data-longa|cdj-data/);
     expect(css).toMatch(/\.cdj-data-curta \{ display: none; \}/);
+  });
+});
+
+/* SÓ ÍCONES NO PÉ DA FICHA (17/11/2026, usuário: "quando houver outros trilhos
+   tipo peso e experiência não cabe o nome e os ícones [...] use só ícones"). */
+describe('no pé da ficha, só os ícones', () => {
+  it('o CSS esconde os textos da faixa ao lado de Experiência e Peso', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const css = readFileSync(resolve(__dirname, '../index.css'), 'utf8');
+    expect(css).toMatch(/\.fp3-rodape-tres \.fp3-rodape-dados :is\(\.cdj-data, \.cdj-rotulo, \.cdj-vazio\) \{ display: none; \}/);
+  });
+  it('o trilho sabe quando está lá', () => {
+    expect(shell).toMatch(/const soIcones = !!\(alvoRodape && alvoRodape\.classList && alvoRodape\.classList\.contains\('fp3-rodape-dados'\)\);/);
   });
 });

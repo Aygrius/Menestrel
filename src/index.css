@@ -11955,13 +11955,15 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 }
 #root .entrada-marca, #root .entrada-cena-txt { position: relative; z-index: 2; }
 #root .entrada-marca {
-  display: flex; align-items: center; gap: 12px;
-  font-family: var(--font-title); font-weight: 600; font-size: 22px; letter-spacing: 0.06em;
+  /* A logo maior (17/11/2026): selo de 64px e o nome em 30px. */
+  display: flex; align-items: center; gap: 16px;
+  font-family: var(--font-title); font-weight: 600; font-size: 30px; letter-spacing: 0.06em;
   color: var(--tinta);
 }
 #root .entrada-marca .mn-selo { filter: drop-shadow(0 4px 10px rgba(0,0,0,0.5)); }
 #root .entrada-lema {
-  margin: 0; max-width: 17ch;
+  /* 26ch (17/11/2026): o lema novo cabe em duas linhas, não em quatro. */
+  margin: 0; max-width: 26ch;
   font-family: var(--font-title); font-weight: 600;
   font-size: clamp(30px, 3.4vw, 52px); line-height: 1.14; letter-spacing: 0;
   color: var(--tinta); text-wrap: balance;
@@ -12052,8 +12054,8 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 @media (max-width: 860px) {
   #root .entrada { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
   #root .entrada-cena { min-height: 42vh; gap: 32px; padding: 24px 20px 28px; }
-  #root .entrada-marca { font-size: 19px; }
-  #root .entrada-marca .mn-selo { width: 36px; height: 36px; }
+  #root .entrada-marca { font-size: 24px; gap: 12px; }
+  #root .entrada-marca .mn-selo { width: 48px; height: 48px; }
   #root .entrada-painel {
     border-left: none; border-top: 1px solid var(--regua-forte);
     box-shadow: 0 -24px 60px -20px rgba(0,0,0,0.6); padding: 28px 20px 20px;
@@ -20240,3 +20242,9 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 @media (max-width: 640px) {
   #root .menestrel-ui .diario-form-linha-nome.diario-memoria-vinculo { grid-template-columns: minmax(0, 1fr); }
 }
+/* SÓ ÍCONES AO LADO DE EXPERIÊNCIA E PESO (17/11/2026, usuário: "quando houver
+   outros trilhos tipo peso e experiência não cabe o nome e os ícones em data,
+   localização, etc, por isso use só ícones nesse cenário"). No pé da ficha a
+   faixa da mesa divide a linha com os outros dois trilhos: data, lugar, hora e
+   clima ficam no ícone; o texto segue na dica e no aria-label de cada botão. */
+#root .menestrel-ui .fp3-rodape-tres .fp3-rodape-dados :is(.cdj-data, .cdj-rotulo, .cdj-vazio) { display: none; }

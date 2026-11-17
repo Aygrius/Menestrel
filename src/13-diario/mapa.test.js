@@ -185,11 +185,31 @@ describe('a camada do mundo', () => {
 describe('o jogador só vê cidades e locais que conhece', () => {
   const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
   it('a regra cobre cidade e local, e só vale fora do Mestre', () => {
-    expect(fonte).toMatch(/const oculto = \(l\) => !mestre && \(l\.tipo === 'cidade' \|\| l\.tipo === 'local'\)/);
+    expect(fonte).toMatch(/const oculto = \(l\) => naNevoa\(l\) \|\| \(!mestre && \(l\.tipo === 'cidade' \|\| l\.tipo === 'local'\)/);
   });
   it('o marcador, o toque (perto) e a busca pulam o oculto', () => {
     expect(fonte).toMatch(/mesa\.lugares\.forEach\(\(l\) => \{\s*if \(oculto\(l\)\) return;/);
     expect(fonte).toMatch(/for \(const l of mesa\.lugares\) \{ if \(oculto\(l\)\) continue;/);
     expect(fonte).toMatch(/mesa\.lugares\.filter\(\(l\) => !oculto\(l\)\)\.map\(\(l\) => \[semAcento\(l\.nome\), l\]\)/);
+  });
+});
+
+/* A NÉVOA (17/11/2026): o Jogador numa mesa só enxerga 100 km em volta do
+   personagem; o Mestre e o mapa fora de mesa, tudo. */
+describe('a névoa do jogador', () => {
+  const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+  it('100 km, só para o Jogador numa mesa', () => {
+    expect(fonte).toMatch(/const MAPA_NEVOA_KM = 100;/);
+    expect(fonte).toMatch(/const comNevoa = !mestre && !cfg\.semMesa;/);
+    expect(fonte).toMatch(/const raioNevoa = MAPA_NEVOA_KM \/ MAPA_KM;/);
+  });
+  it('sem posição no mapa, não enxerga nada; fora do raio some', () => {
+    expect(fonte).toMatch(/return !eu \|\| dist\(eu, p\) > raioNevoa;/);
+  });
+  it('os outros personagens fora do raio não aparecem', () => {
+    expect(fonte).toMatch(/postos\(\)\.filter\(\(g\) => g\.eu \|\| !naNevoa\(g\)\)/);
+  });
+  it('a camada da névoa fica entre as linhas e os marcadores', () => {
+    expect(fonte).toMatch(/data-el="linhas"[^\n]*\r?\n\s*<svg className="mp-nevoa" data-el="nevoa"/);
   });
 });

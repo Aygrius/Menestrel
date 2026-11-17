@@ -43,7 +43,7 @@ function CenaDeEntrada({ lang = 'pt', setLang, shader = true, shaderKind = 'mesh
           <ShaderAnimation tint={mode === 'modern' ? 'cool' : 'blood'} opacity={mode === 'modern' ? 0.45 : 0.5} blend="screen" />
         )}
         <div className="entrada-marca">
-          <SeloMenestrel size={44} />
+          <SeloMenestrel size={64} />
           <span>Menestrel</span>
         </div>
         <div className="entrada-cena-txt">{cena}</div>
