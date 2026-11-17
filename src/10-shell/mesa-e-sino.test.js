@@ -126,29 +126,28 @@ describe('a mesa ativa não troca sozinha', () => {
    ícone, e a informação vive no balão. O que quebra fácil aqui é a pílula
    voltar a ter largura automática (sobra de quando havia texto), ou um balão
    dizer só o rótulo — "Umidade" — em vez da informação. */
-describe('o trilho da cena é só de ícones, com a informação no balão', () => {
-  it('as pílulas de ícone voltaram à largura fixa', () => {
-    const i = css.indexOf('.menestrel-ui.cdj-root .cdj-bar.cdj-tempo,');
-    expect(i, 'o bloco de largura das pílulas de ícone').toBeGreaterThan(-1);
-    const regra = css.slice(i, css.indexOf('}', i));
-    expect(regra).toMatch(/width:\s*32px/);
-    expect(regra).toMatch(/padding:\s*0/);
-    // A regra de 22/10 que forçava largura automática não pode voltar.
-    expect(css).not.toMatch(/cdj-hora \{ width: auto !important/);
+/* 16/11/2026, usuário: "No trilho inferior do rodapé, mostre o texto junto com
+   o ícone em localização, temperatura, etc." — o texto volta à pílula (local,
+   hora, clima), e o balão passa a dizer O QUE é o botão, como o do
+   Calendário. O sino continua só ícone. */
+describe('o trilho da cena mostra ícone e texto, e o balão diz o que é', () => {
+  it('local, hora e clima têm o texto na pílula, com largura automática', () => {
+    expect(shell).toMatch(/<span className="cdj-rotulo">\{dataAtual\.local\}<\/span>/);
+    expect(shell).toMatch(/<span className="cdj-rotulo">\{horaPorExtenso\(luz\.hora, en\)\}<\/span>/);
+    expect(shell).toMatch(/<span className="cdj-rotulo">\{en \? degrau\.en : degrau\.pt\}<\/span>/);
+    expect(css).toMatch(/\.cdj-trilho \.cdj-bar:has\(> \.cdj-rotulo\) \{ width: auto;/);
+    // O sino segue redondo.
+    expect(css).toMatch(/\.cdj-bar\.cdj-sino \{\s*width: 32px;/);
   });
-  /* O balão é SÓ O TEXTO (26/10/2026, logo depois): "ao invés de 'Localização
-     Farzelo' será apenas 'Farzelo', ao invés de 'Horário 12h Dia' será
-     'Meio-Dia'." O ícone já diz a categoria; o rótulo no balão era eco. */
-  it('o balão do clima diz só o degrau', () => {
-    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, en \? degrau\.en : degrau\.pt\)/);
+  it('o balão do clima diz a categoria (o degrau já está escrito)', () => {
+    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, trilha\.chave === 'agua' \? \(en \? 'Humidity' : 'Umidade'\) : nomeTrilha\)/);
     expect(shell).not.toMatch(/propsTip\(abrirTip, fecharTip, texto\)/);
   });
-  it('o balão do local diz só o lugar', () => {
-    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, dataAtual\.local\)/);
-    expect(shell).not.toMatch(/'Localização'\) \+ ' · '/);
+  it('o balão do local diz "Localização" (o lugar já está escrito)', () => {
+    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, en \? 'Location' : 'Localização'\)/);
   });
-  it('o balão da hora diz a hora por extenso: 12h é "Meio-Dia"', () => {
-    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, horaPorExtenso\(luz\.hora, en\)\)/);
+  it('a hora por extenso na pílula: 12h é "Meio-Dia"', () => {
+    expect(shell).toMatch(/propsTip\(abrirTip, fecharTip, en \? 'Time' : 'Horário'\)/);
     expect(shell).toMatch(/if \(n === 12\) return en \? 'Noon' : 'Meio-Dia';/);
     expect(shell).toMatch(/if \(n === 0\) return en \? 'Midnight' : 'Meia-Noite';/);
     // O resto reusa o vocabulário que o log já usa ("13h da tarde").

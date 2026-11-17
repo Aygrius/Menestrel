@@ -325,6 +325,10 @@ de projeto `cronista-de-tagmar` (`.claude/skills/`), a partir de `tagmar/*.pdf`.
 subiu e saiu do código; lá ficou só o vocabulário (classes, tipos, contas dos
 feriados). O admin cria, edita e exclui pela tela, numa versão só para todas as
 mesas; lote escrito fora da tela sobe por `scripts/mundo/subir-catalogo.mjs`.
+Reinos, cidades, locais e pessoas (tabelas próprias) sobem em lotes SQL salvos
+em `scripts/sql/lore-*.sql` e aplicados por `scripts/mundo/aplicar-sql-lore.mjs`
+(16/11/2026), que lê o arquivo e grava pela API com a service key — só entende
+`INSERT … ON CONFLICT (slug) DO NOTHING` e `UPDATE … WHERE slug = … [AND col IS NULL]`.
 A cada mudança o calendário refaz os feriados das entidades
 (`refazerFeriadosDoCalendario`, 10-shell). Banco:
 `scripts/sql/catalogo-mundo-2026-11-15.sql`. Carrega antes de `entidades.jsx`.

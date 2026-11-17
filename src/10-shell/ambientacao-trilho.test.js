@@ -39,7 +39,8 @@ describe('a Ambientação do Mestre', () => {
 
   it('no menu lateral é um item só, sem gaveta', () => {
     // A guarda `!bloqueio` (15/11/2026): o Diário do Jogador sem personagem fica inativo.
-    expect(shell).toMatch(/if \(no\.trilho\) \{[\s\S]{0,700}onClick=\{\(\) => \{ if \(!bloqueio\) irPara\(no\); \}\}/);
+    // Desde 17/11/2026 o clique vai à primeira página que não está vazia.
+    expect(shell).toMatch(/if \(no\.trilho\) \{[\s\S]{0,900}onClick=\{\(\) => \{\s*if \(bloqueio\) return;[\s\S]{0,200}irPara\(primeira \|\| no\);/);
   });
 
   /* Dentro da página, não numa faixa acima (04/11/2026, usuário: 'na ficha o

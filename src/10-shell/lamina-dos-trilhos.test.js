@@ -41,7 +41,8 @@ describe('a lâmina dos trilhos', () => {
 
   it('o trilho de ações do shell segue sticky; o da ficha vira referência', () => {
     // 16/11/2026: os menus soltos (mesa, conta) ficam fora — eles se posicionam sozinhos.
-    expect(css).toMatch(/\[data-lamina\]:not\(#mc-acoes-ficha\):not\(\.mc-ident-menu\):not\(\.mc-usermenu\) \{ position: relative; \}/);
+    // E as listas suspensas do rodapé (16/11/2026), que são absolutas sobre o trilho.
+    expect(css).toMatch(/\[data-lamina\]:not\(#mc-acoes-ficha\):not\(\.mc-ident-menu\):not\(\.mc-usermenu\):not\(\.cdj-tempo-lista\):not\(\.cdj-hora-lista\):not\(\.cdj-local-lista\):not\(\.select-pill-drop\) \{ position: relative; \}/);
   });
 
   it('o selo de pontos não recebe a lâmina', () => {
@@ -49,7 +50,8 @@ describe('a lâmina dos trilhos', () => {
   });
   // 15/11/2026: o item esmaecido (menu sem mesa, Loja vazia) também não acende.
   it('o item inativo não recebe a lâmina', () => {
-    expect(shell).toMatch(/b\.classList\.contains\('is-inativo'\)\) return null;/);
+    // 16/11/2026: a opção indisponível das listas dos campos também não acende.
+    expect(shell).toMatch(/b\.classList\.contains\('is-inativo'\) \|\| \(b\.matches\('\.select-pill-drop li'\) && b\.classList\.contains\('disabled'\)\)\) return null;/);
   });
 });
 

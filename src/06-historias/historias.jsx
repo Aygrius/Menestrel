@@ -2192,9 +2192,11 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
                           <li key={r.id ?? `ph-${i}`}
                             className={active ? 'is-active' : ''}
                             onClick={() => { setReino(r.nome); setReinoOpen(false); }}>
-                            {active && <i className="ti ti-check" aria-hidden="true" />}
-                            {!active && <span className="select-pill-drop-spacer" />}
-                            {r.rotulo ?? r.nome}
+                            {/* Como as linhas do SelectPill (16/11/2026): o nome à
+                                esquerda e o ✓ na ponta direita — era o ✓ (ou um
+                                espaçador) antes do nome, e o nome ia para a direita. */}
+                            <span className="select-pill-opt-label">{r.rotulo ?? r.nome}</span>
+                            {active && <i className="ti ti-check select-pill-check" aria-hidden="true" />}
                           </li>
                         );
                       })}
@@ -2246,8 +2248,10 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
 
                 {/* Col direita: label acima; datepicker + botões na mesma linha abaixo */}
                 <div className="hist-cap-date-col">
+                  {/* O rótulo dos outros campos (16/11/2026, usuário: "A fonte
+                      'data (fantasia)' está diferente dos demais, padronize"):
+                      sem o ícone, em versalete como "Título" — ver index.css. */}
                   <span className="hist-cap-date-label">
-                    <i className="ti ti-calendar-event hist-cap-date-icon" aria-hidden="true" />
                     {en ? 'Date (fantasy)' : 'Data (fantasia)'}
                   </span>
                   <div className="hist-cap-picker-row">

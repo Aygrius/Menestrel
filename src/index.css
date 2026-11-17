@@ -11859,13 +11859,15 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
    trilho que não está na lista. As pílulas de ícone voltam à largura fixa
    que as regras-base já davam (32px), e a informação vive no balão — ver
    propsTip no trilho (10-shell/shell.jsx). */
-.menestrel-ui.cdj-root .cdj-bar.cdj-tempo,
-.menestrel-ui.cdj-root .cdj-bar.cdj-hora,
-.menestrel-ui.cdj-root .cdj-bar.cdj-periodo,
-.menestrel-ui.cdj-root .cdj-bar.cdj-sino,
-.menestrel-ui.cdj-root .cdj-local-wrap > .cdj-bar {
+/* O TEXTO VOLTA (16/11/2026, usuário: "No trilho inferior do rodapé, mostre
+   o texto junto com o ícone em localização, temperatura, etc."): local, hora
+   e clima mostram ícone e palavra, com as peças do botão do trilho (o
+   respiro 0 12px 0 10px e 7px entre ícone e texto). Só o sino segue redondo. */
+.menestrel-ui.cdj-root .cdj-bar.cdj-sino {
   width: 32px; padding: 0; justify-content: center;
 }
+#root .menestrel-ui .cdj-trilho .cdj-bar:has(> .cdj-rotulo) { width: auto; gap: 7px; padding: 0 12px 0 10px !important; justify-content: flex-start; }
+#root .menestrel-ui .cdj-trilho .cdj-rotulo { font: 700 15px var(--font-body); }
 .menestrel-ui .cdj-data-curta { display: none; }
 /* Tela média: a data encurta para caber título e cena na mesma faixa. */
 @media (max-width: 1280px) {
@@ -13894,32 +13896,36 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
      o grafite de marrom (11/11/2026, "O fundo continua marrom quente"). */
   --luz-dia-rgb: 196,203,212; --luz-dia2-rgb: 124,133,146;
 }
-/* Ganis — púrpura, azul ciano e azul turquesa (15/11/2026, usuário: "As
-   cores da paleta 'Ganis' será púrpura, azul ciano e azul turquesa"). O chão
-   e as réguas são púrpura; o vivo é ciano, e o botão principal vai do ciano
-   ao turquesa. A magia, que nas outras é azul, aqui é lilás, para não se
-   confundir com o vivo. */
+/* Ganis — NÁCAR E PÚRPURA (16/11/2026, escolhida pelo usuário entre três
+   propostas, preview/paletas.html: "as cores de ganis e maira ficaram muito
+   ruins"). A de 15/11 (púrpura com ciano #4FD8EE) lia como neon. Ganis é a
+   deusa das águas: o chão segue púrpura noturno, e o vivo é a madrepérola —
+   um azul pérola (#9FCFE6) —, com o botão principal indo da pérola à
+   lavanda. A magia segue lilás, longe do vivo. Contraste: tinta-3 5.8:1 na
+   página, sobre-vivo 11:1 no vivo. */
 :root[data-paleta="ganis"], :root[data-paleta="ganis"] .menestrel-ui {
-  --p-pagina: #1C1530; --p-fundo: #140F24; --p-chao-2: #2E2448; --pal-chao: #191329;
-  --pal-tinta: #EEE8F7; --pal-tinta-2: #C3B8D9; --pal-tinta-3: #9A8DB6;
-  --pal-vivo: #4FD8EE; --ouro: #3FC8E4; --ouro-2: #22A99C; --ouro-3: #146A64; --sobre-vivo: #08242A;
-  --pal-alerta: #FF7A8A; --alerta-rgb: 255,122,138; --pal-magia: #C79BFF;
-  --bronze-rgb: 128,108,176; --ouro-rgb: 63,200,228; --vivo-rgb: 79,216,238;
-  --tinta-rgb: 238,232,247; --tinta3-rgb: 154,141,182; --chao-rgb: 20,15,36; --couro-rgb: 40,30,66;
-  --luz-dia-rgb: 79,216,238; --luz-dia2-rgb: 150,100,220;
+  --p-pagina: #191628; --p-fundo: #110F1D; --p-chao-2: #2A2540; --pal-chao: #16131F;
+  --pal-tinta: #EEEBF5; --pal-tinta-2: #C2BDD6; --pal-tinta-3: #9690B0;
+  --pal-vivo: #9FCFE6; --ouro: #8EC0DA; --ouro-2: #6E7FC8; --ouro-3: #3E4A7E; --sobre-vivo: #0E1424;
+  --pal-alerta: #F28B95; --alerta-rgb: 242,139,149; --pal-magia: #C9A6F2;
+  --bronze-rgb: 116,104,150; --ouro-rgb: 142,192,218; --vivo-rgb: 159,207,230;
+  --tinta-rgb: 238,235,245; --tinta3-rgb: 150,144,176; --chao-rgb: 17,15,29; --couro-rgb: 34,30,52;
+  --luz-dia-rgb: 159,207,230; --luz-dia2-rgb: 110,127,200;
 }
-/* Maira — verde escuro, terracota e amarelo ouro (15/11/2026, usuário: "as
-   cores de 'Maira' será verde escuro, terra cota e amarelo ouro"). O chão é
-   verde de mata; o vivo é amarelo ouro, o botão principal vai do ouro à
-   terracota, e as réguas são da cor da terra. */
+/* Maira — MALAQUITA E COBRE (16/11/2026, escolhida pelo usuário entre três
+   propostas, preview/paletas.html). A de 15/11 (verde com amarelo #E8B83A)
+   saía saturada e suja, e o dourado a aproximava de Crezir. Maira é a rainha
+   dos elementos — Maira Mon "comunga entre os minerais" —: o chão é verde
+   pinho, o vivo é a malaquita (#8FD3A6) e o botão principal vai da malaquita
+   ao cobre. Contraste: tinta-3 6.4:1 na página, sobre-vivo 9.6:1 no vivo. */
 :root[data-paleta="maira"], :root[data-paleta="maira"] .menestrel-ui {
-  --p-pagina: #14201A; --p-fundo: #0D1712; --p-chao-2: #25352B; --pal-chao: #111C16;
-  --pal-tinta: #EEF0E4; --pal-tinta-2: #C4CBB6; --pal-tinta-3: #97A28C;
-  --pal-vivo: #E8B83A; --ouro: #D9A93A; --ouro-2: #B85F38; --ouro-3: #6E3A22; --sobre-vivo: #241A04;
-  --pal-alerta: #FF6B5E; --alerta-rgb: 255,107,94; --pal-magia: #8FB4FF;
-  --bronze-rgb: 150,112,82; --ouro-rgb: 217,169,58; --vivo-rgb: 232,184,58;
-  --tinta-rgb: 238,240,228; --tinta3-rgb: 151,162,140; --chao-rgb: 13,23,18; --couro-rgb: 36,40,28;
-  --luz-dia-rgb: 232,184,58; --luz-dia2-rgb: 184,95,56;
+  --p-pagina: #0F1D1A; --p-fundo: #0A1513; --p-chao-2: #1D332E; --pal-chao: #0E1A17;
+  --pal-tinta: #EAF2EC; --pal-tinta-2: #B8CBBF; --pal-tinta-3: #8BA295;
+  --pal-vivo: #8FD3A6; --ouro: #7CC296; --ouro-2: #C27B52; --ouro-3: #6A3F26; --sobre-vivo: #0A2216;
+  --pal-alerta: #F08470; --alerta-rgb: 240,132,112; --pal-magia: #A6B8F2;
+  --bronze-rgb: 110,138,120; --ouro-rgb: 124,194,150; --vivo-rgb: 143,211,166;
+  --tinta-rgb: 234,242,236; --tinta3-rgb: 139,162,149; --chao-rgb: 10,21,19; --couro-rgb: 24,42,37;
+  --luz-dia-rgb: 143,211,166; --luz-dia2-rgb: 194,123,82;
 }
 /* O chão da página acompanha a paleta (a luz do fundo continua por cima). */
 #root .menestrel-ui.mc-root { background-color: var(--p-pagina); }
@@ -16938,35 +16944,78 @@ body:not(:has(.cdj-root:not(.cdj-root--rodape))) #root .menestrel-ui .mc-acoes-f
    quantidade e o botão. A lista rola dentro da janela porque o catálogo tem
    mais de mil itens: sem teto, o rodapé — que é onde se confirma — sairia da
    tela a cada busca larga. */
-#root .menestrel-ui .dar-item-busca { width: 100%; margin: 0 0 14px; }
+/* A fileira do topo (16/11/2026): a busca toma a sobra, o seletor de
+   quantidade mede a si mesmo. Os dois com 40px e o mesmo chão. */
+#root .menestrel-ui .dar-item-topo { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; }
+#root .menestrel-ui .dar-item-busca { flex: 1 1 auto; min-width: 0; }
+#root .menestrel-ui .dar-item-busca input { width: 100%; height: 40px; padding-left: 34px; font-size: var(--fs-md); }
+/* A LISTA COMO UM QUADRO (16/11/2026, repaginação): linhas de 44px com
+   réguas, nome na tinta-2 que clareia na passagem (o padrão do Fórum, sem
+   chão no hover), grupo em tinta-3 à direita. O escolhido é o que está vivo:
+   chão de ouro, nome e ícone em ouro — um sinal só. */
 #root .menestrel-ui .dar-item-lista {
-  list-style: none; margin: 0 0 16px; padding: 0;
-  max-height: 46vh; overflow-y: auto;
+  list-style: none; margin: 0 -4px; padding: 0 4px;
+  max-height: min(46dvh, 440px); overflow-y: auto; overscroll-behavior: contain;
   display: flex; flex-direction: column;
-  border-top: 1px solid var(--regua-forte);
 }
-#root .menestrel-ui .dar-item-lista > li { border-bottom: 1px solid var(--regua-forte); }
+#root .menestrel-ui .dar-item-lista > li + li { border-top: 1px solid var(--regua); }
 #root .menestrel-ui .dar-item-linha {
-  width: 100%; display: flex; align-items: center; gap: 10px;
-  padding: 10px 8px; border: 0; background: none; cursor: pointer;
-  font-family: var(--font-body); font-size: var(--fs-sm); color: var(--tinta-2);
-  text-align: left;
+  width: 100%; min-height: 44px; display: flex; align-items: center; gap: 12px;
+  padding: 0 12px; border: 0; border-radius: 10px; background: none; cursor: pointer;
+  font: 600 var(--fs-md) var(--font-body); color: var(--tinta-2);
+  text-align: left; transition: color .15s ease, background-color .15s ease;
 }
-#root .menestrel-ui .dar-item-linha:hover { background: rgba(var(--bronze-rgb),.12); color: var(--tinta); }
-/* Ouro no ESCOLHIDO, que é o que está vivo na janela. */
-#root .menestrel-ui .dar-item-linha.is-on { background: rgba(var(--ouro-rgb),.10); color: var(--vivo); }
-#root .menestrel-ui .dar-item-linha .ti { font-size: 18px; flex: none; }
-#root .menestrel-ui .dar-item-nome { flex: 1 1 auto; min-width: 0; }
-#root .menestrel-ui .dar-item-grupo { flex: none; font-size: var(--fs-xs); color: var(--tinta-3); }
-#root .menestrel-ui .dar-item-vazio { margin: 24px 0; text-align: center; color: var(--tinta-3); }
-#root .menestrel-ui .dar-item-rodape { display: flex; align-items: center; gap: 12px; }
-/* O rótulo mede a si mesmo (28/10/2026): com `flex: 1 1 auto` ele esticava e
-   empurrava o seletor para o meio do rodapé. */
-#root .menestrel-ui .dar-item-rotulo { flex: 0 0 auto; color: var(--tinta-2); font-size: var(--fs-sm); }
-/* É o BOTÃO que toma a sobra, e por isso ele é o único na direita. */
-#root .menestrel-ui .dar-item-confirmar { margin-left: auto; }
-/* A mesma medida dos outros seletores de número em painel. */
-#root .menestrel-ui .dar-item-qtd { width: 160px; flex: none; }
+#root .menestrel-ui .dar-item-linha:is(:hover, :focus-visible) { background: none; color: var(--tinta); }
+#root .menestrel-ui .dar-item-linha:focus-visible { outline: 2px solid var(--vivo); outline-offset: -2px; }
+#root .menestrel-ui .dar-item-linha .ti { font-size: 18px; flex: none; color: var(--tinta-3); transition: color .15s ease; }
+#root .menestrel-ui .dar-item-linha:hover .ti { color: var(--tinta-2); }
+#root .menestrel-ui .dar-item-linha.is-on,
+#root .menestrel-ui .dar-item-linha.is-on:hover { background: var(--vivo-fundo); color: var(--vivo); }
+#root .menestrel-ui .dar-item-linha.is-on .ti { color: var(--vivo); }
+/* A linha escolhida já separa: as réguas coladas nela somem. */
+#root .menestrel-ui .dar-item-lista > li:has(.is-on),
+#root .menestrel-ui .dar-item-lista > li:has(.is-on) + li { border-top-color: transparent; }
+#root .menestrel-ui .dar-item-nome { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .menestrel-ui .dar-item-grupo { flex: none; font: 500 var(--fs-sm) var(--font-body); color: var(--tinta-3); }
+#root .menestrel-ui .dar-item-vazio { margin: 32px 0; text-align: center; color: var(--tinta-3); }
+
+/* O SELETOR (16/11/2026): 40px como a busca ao lado, sem aro e com o mesmo
+   chão dela; os −/+ em círculos de 32px nas pontas, que acendem com a brasa
+   na passagem. */
+#root .menestrel-ui .dar-item-qtd.fp-pop-stepper {
+  width: 148px; height: 40px; padding: 0 4px; flex: none;
+  border-color: transparent; background: rgba(var(--bronze-rgb),0.12);
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+#root .menestrel-ui .dar-item-qtd .fp-pop-stepper-label { font-size: var(--fs-md); font-weight: 700; color: var(--tinta); }
+#root .menestrel-ui .dar-item-qtd .fp-step-btn {
+  width: 32px; height: 32px; font-size: 17px;
+  transition: background-color .2s ease, color .15s ease, box-shadow .22s ease;
+}
+#root .menestrel-ui .dar-item-qtd .fp-step-btn:not(:disabled):hover { background: var(--vivo-fundo); }
+
+/* O BRILHO PADRÃO NA JANELA (16/11/2026, usuário: "Coloque os efeitos de
+   brilho, padrão"). O topo e a lista são trilhos (10-shell, TRILHO_SELETOR):
+   a lâmina acende sob a busca e sob o −/+, e na lista desce de linha em linha
+   e pousa no item escolhido — o chão de ouro próprio do .is-on sai, quem o
+   marca é a lâmina pousada. Cada peça fica acima da luz; a busca e o seletor
+   guardam o chão deles (a regra geral do trilho deixa a busca transparente,
+   e aqui não há casca de trilho por trás). */
+#root .menestrel-ui .dar-item-lista[data-lamina]::before { border-radius: 10px; }
+/* Na linha larga, o degradê da brasa vira uma faixa esticada (o "bugado" dos
+   botões largos, 16/11/2026): aqui a luz é a sombra de dentro dos botões
+   avulsos, que nasce da base e mede a linha toda. */
+#root .menestrel-ui .dar-item-lista[data-lamina]:is([data-lamina-modo="passagem"], [data-lamina-modo="ativo"])::before {
+  background: var(--vivo-fundo);
+  box-shadow: inset 0 -12px 16px -10px rgba(var(--ouro-rgb), 0.7), 0 6px 16px -10px rgba(var(--ouro-rgb), 0.75);
+}
+#root .menestrel-ui [data-lamina] :is(.dar-item-linha, .dar-item-qtd .fp-step-btn) { position: relative; z-index: 1; }
+#root .menestrel-ui [data-lamina] .dar-item-linha.is-on,
+#root .menestrel-ui [data-lamina] .dar-item-linha.is-on:hover,
+#root .menestrel-ui [data-lamina] .dar-item-qtd .fp-step-btn:not(:disabled):hover { background: transparent; }
+#root .menestrel-ui .dar-item-topo[data-lamina] .best-search input,
+#root .menestrel-ui .dar-item-topo[data-lamina] .best-search input:is(:hover, :focus) { background: rgba(var(--bronze-rgb),0.12); }
+#root .menestrel-ui .dar-item-qtd .fp-step-btn:disabled { color: var(--tinta-3); opacity: .5; }
 
 /* ── A JANELA DO RECIPIENTE (28/10/2026, 2ª volta) ────────────────────────
    A primeira versão mandava a JANELA medir as casas, contando
@@ -17189,6 +17238,30 @@ body:not(:has(.cdj-root:not(.cdj-root--rodape))) #root .menestrel-ui .mc-acoes-f
   border-color: color-mix(in srgb, var(--tinta-3) 45%, var(--p-fundo));
   box-shadow: 0 3px 8px rgba(0,0,0,.35);
 }
+/* ── O LEQUE SEM ARO, COM A BRASA (16/11/2026) ──────────────────────────────
+   Usuário: "Remova a borda dos botões de leque e adicione o efeito de
+   brilho." A bolha se separa da grade pelo chão e pela sombra; na passagem
+   (e no foco) acende a brasa dos botões avulsos — a luz que nasce da base,
+   por dentro, e o halo por fora. Perigo acende em brasa de alerta; a
+   esmaecida não acende; o degrau ativo do Bônus fica com a brasa pousada. */
+/* Espessura zero, não cor transparente (16/11/2026, usuário: "O botão de
+   descartar do leque ainda tem borda"): as regras do perigo e do degrau
+   ativo pintam a COR do aro com especificidade maior; sem largura, não há
+   aro para pintar em estado nenhum. */
+#root .menestrel-ui .inv-leque-bolha { border: 0; }
+#root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha:not([aria-disabled="true"]):is(:hover, :focus-visible),
+#root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha.is-ativo {
+  color: var(--vivo);
+  background: color-mix(in srgb, rgb(var(--vivo-rgb)) 14%, var(--p-fundo));
+  box-shadow: inset 0 -12px 16px -10px rgba(var(--ouro-rgb), 0.7), 0 6px 16px -8px rgba(var(--ouro-rgb), 0.75), 0 6px 14px rgba(0,0,0,.5);
+}
+#root .menestrel-ui .inv-leque-roda.is-aberto .inv-leque-bolha.is-perigo:not([aria-disabled="true"]):is(:hover, :focus-visible) {
+  color: #F6C2BC;
+  background: color-mix(in srgb, rgb(200, 33, 44) 16%, var(--p-fundo));
+  box-shadow: inset 0 -12px 16px -10px rgba(214, 64, 52, 0.8), 0 6px 16px -8px rgba(214, 64, 52, 0.8), 0 6px 14px rgba(0,0,0,.5);
+}
+/* O foco do teclado fica com a brasa: o anel de ouro em volta sai. */
+#root .menestrel-ui .inv-leque-bolha:focus-visible { outline: none; }
 #root .menestrel-ui .inv-leque-bolha.is-batida { animation: invLequeBatida 300ms var(--leque-sai); }
 @keyframes invLequeBatida { 40% { scale: .86; } 100% { scale: 1; } }
 
@@ -17619,7 +17692,7 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
    dele se ancorava no cartão e aparecia solta no canto (visto na prévia). */
 /* Os menus soltos (mesa, conta) se posicionam sozinhos (fixed/absolute): a
    lâmina não os desloca (16/11/2026). */
-#root .menestrel-ui [data-lamina]:not(#mc-acoes-ficha):not(.mc-ident-menu):not(.mc-usermenu) { position: relative; }
+#root .menestrel-ui [data-lamina]:not(#mc-acoes-ficha):not(.mc-ident-menu):not(.mc-usermenu):not(.cdj-tempo-lista):not(.cdj-hora-lista):not(.cdj-local-lista):not(.select-pill-drop) { position: relative; }
 #root .menestrel-ui [data-lamina]::before {
   content: ""; position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none;
   width: var(--lamina-w, 0px); height: var(--lamina-h, 0px);
@@ -18287,6 +18360,15 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
 /* As abas da Estudar como a pílula da Nova batalha (07/11/2026): no topo do
    corpo, na largura toda. */
 #root .menestrel-ui .modal-estudar .nb-paginas.estudar-abas { margin: 0 0 16px; }
+/* O BRILHO DOS TRILHOS, SEM A BORDA (17/11/2026, usuário: "Adicione efeito de
+   brilho e remova a borda do trilho 'magias, técnicas, etc' em livro
+   inicial"). As abas entraram no TRILHO_SELETOR (10-shell): a lâmina acende
+   sob a passagem e pousa na aba aberta, e o chão de ouro do .is-on sai. */
+#root .menestrel-ui .modal-estudar .nb-paginas.estudar-abas { border: none; }
+#root .menestrel-ui [data-lamina] .nb-pagina-op { position: relative; z-index: 1; }
+#root .menestrel-ui [data-lamina] .nb-pagina-op:hover:not(.is-on),
+#root .menestrel-ui [data-lamina] .nb-pagina-op.is-on { background: transparent; border-color: transparent; }
+#root .menestrel-ui [data-lamina] .nb-pagina-op:hover { color: var(--tinta); }
 /* OS DOIS GRUPOS NA MESMA LINHA (07/11/2026, usuário: "No modal de nova
    batalha, os botões podem ficar inline"): Batalha | Treino ao lado de
    Aliados | Inimigos, cada pílula com a sua largura. No celular voltam a
@@ -18317,6 +18399,10 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
   display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 16px; align-items: center; margin-bottom: 16px;
 }
 #root .menestrel-ui .modal-estudar .estudar-topo .estudar-como { margin: 0; }
+/* Sem o card (os pontos foram para as abas, 17/11/2026), a frase ocupa a linha. */
+#root .menestrel-ui .modal-estudar .estudar-topo:not(:has(.estudar-saldo)) { grid-template-columns: minmax(0, 1fr); }
+/* Na aba, a brasa quando o que se escolheu não cabe no saldo. */
+#root .menestrel-ui .modal-estudar .nb-pagina-n.estudar-pontos--excedido { color: var(--alerta); }
 #root .menestrel-ui .modal-estudar .estudar-saldo { margin: 0; }
 #root .menestrel-ui .modal-estudar .estudar-saldo .mn-celula { min-width: 120px; }
 #root .menestrel-ui .modal-estudar .estudar-passe--escolha { margin-bottom: 16px; }
@@ -19886,4 +19972,239 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
   #root .menestrel-ui .mc-sidebar .mc-ident .mc-ident-brasao { background: transparent; }
   #root .menestrel-ui .mc-sidebar .mc-ident .mc-ident-brasao .ti { font-size: 19px; }
   #root .menestrel-ui .mc-sidebar .mc-ident .mc-ident-retrato { margin: 0 auto; }
+}
+
+/* ── SEM BORDA NOS CARTÕES DA FICHA (16/11/2026) ────────────────────────────────
+   Usuário: "Remova a borda dos cards da ficha, identificação, inventário, etc."
+   Como os da Ambientação e os de personagem: o chão separa, a régua não. Vale
+   para os painéis da Ficha e dos Animais (Energias, Condições, Equipamento),
+   os cartões da Identificação e do Conhecimento, o painel do item no
+   Inventário e os blocos antigos (.fp-sec). O cartão da página segue com o
+   contorno; as casas da grade também (são casas, não cartões). */
+#root .menestrel-ui :is(
+  .fp2-columns--duas .fp2-panel,
+  .fp2-equip-wrap,
+  .fp-info-tab .fp-info-grid.fp-info-uma > div,
+  .fp-sec,
+  .bau-painel,
+  .inv-mesa,
+  .inv-summary-bar
+) { border-color: transparent; }
+/* As casas também (16/11/2026, usuário: "As habilidades, técnicas, inventário
+   continuam com borda."): cada habilidade, técnica e item da grade, as casas
+   vazias e o ícone do painel ao lado. Só o repouso perde o filete; a passagem
+   e a casa escolhida seguem acendendo em ouro (regras mais específicas). */
+#root .menestrel-ui :is(.inv-bag-grid--slots, .loja-grid--slots, .det-grade-recipiente) :is(.inv-card, .inv-slot-ghost, .loja-it) { border-color: transparent !important; }
+#root .menestrel-ui .diario-grid--slots .diario-card,
+#root .menestrel-ui .loja-painel-ic { border-color: transparent; }
+/* As casas que ainda tinham filete por regra mais forte: item equipado ou
+   vestido, item mágico e esgotado na Loja. A passagem e a casa escolhida
+   seguem com o ouro. A sombra de 1px escura em volta (um contorno disfarçado)
+   sai junto. */
+#root .menestrel-ui .inv-bag-grid--slots .inv-card:is(:has(.inv-pill.eq), :has(.inv-pill.vst), .inv-card--magico):not(:hover):not(:focus-visible):not(.inv-card--escolhido),
+#root .menestrel-ui .loja-grid--slots .loja-it:is(.loja-it--magico, .is-esgotado):not(:hover):not(.is-sel) { border-color: transparent !important; }
+
+/* A pintura até a beira (16/11/2026, usuário: "Tenho a impressão que ainda há
+   borda nos itens do inventário."): a casa guardava 1px de borda
+   transparente, e a pintura (que cobre a casa por dentro dela) deixava um aro
+   da cor da casa em volta do quadro escuro das pinturas de /equip — lido como
+   filete. Com pintura, a casa fica sem a largura da borda (o tamanho é o
+   mesmo, border-box), e a passagem e a casa escolhida acendem num contorno
+   por dentro, desenhado por cima da pintura. */
+#root .menestrel-ui :is(.inv-bag-grid--slots, .det-grade-recipiente) .inv-card:has(.inv-card-arte) { border-width: 0 !important; }
+#root .menestrel-ui :is(.inv-bag-grid--slots, .det-grade-recipiente) .inv-card:has(.inv-card-arte):is(:focus-visible, .inv-card--escolhido, .is-sel) {
+  outline: 1px solid var(--vivo); outline-offset: -1px;
+}
+/* SEM BORDA NA PASSAGEM (16/11/2026, usuário: "Remova a borda ao passar o
+   mouse."): a casa sob o mouse só clareia o chão — sem filete de ouro, sem o
+   anel escuro nem o halo em volta. A casa escolhida, o foco de teclado e as
+   marcas de arrastar seguem com o seu contorno. */
+#root .menestrel-ui { --pg-casa-passagem: color-mix(in srgb, rgb(var(--bronze-rgb)) 20%, var(--pg-fundo)); }
+#root .menestrel-ui :is(.inv-bag-grid--slots, .det-grade-recipiente) .inv-card:hover:not(:focus-visible):not(.inv-card--escolhido):not(.is-sel):not(.inv-card--guardar):not(.inv-card--drop-target),
+#root .menestrel-ui .loja-grid--slots .loja-it:hover:not(:focus-visible):not(.is-sel) {
+  border-color: transparent !important; box-shadow: none !important; outline: none;
+  background: var(--pg-casa-passagem) !important;
+}
+/* SEM BORDA NA CASA ESCOLHIDA (17/11/2026, usuário: "Remova a borda de item
+   selecionado no inventário, etc."): no inventário, no recipiente, na loja e
+   nas grades de habilidades e técnicas (as mesmas casas), a escolhida perde o
+   filete, o anel e o contorno por cima da pintura. O sinal passa a ser só o
+   chão de ouro. O foco de teclado (:focus-visible) segue com o contorno. */
+#root .menestrel-ui :is(.inv-bag-grid--slots, .det-grade-recipiente) .inv-card:is(.inv-card--escolhido, .is-sel):not(:focus-visible),
+#root .menestrel-ui :is(.inv-bag-grid--slots, .loja-grid--slots) :is(.loja-casa, .loja-it).is-sel:not(:focus-visible) {
+  border-color: transparent !important; box-shadow: none !important; outline: none !important;
+}
+/* Na casa com pintura o chão não aparece (a pintura cobre tudo): o sinal é o
+   brilho de brasa dos trilhos, nascendo da base, por cima da pintura. */
+#root .menestrel-ui :is(.inv-bag-grid--slots, .det-grade-recipiente) .inv-card:has(.inv-card-arte):is(.inv-card--escolhido, .is-sel)::after {
+  content: '' !important; position: absolute; inset: 0; width: auto !important; height: auto !important; z-index: 1; pointer-events: none; border-radius: inherit;
+  background: radial-gradient(85% 70% at 50% 125%, rgba(var(--ouro-rgb), 0.6), transparent 70%);
+}
+
+/* ── OS FUNDOS NUM PADRÃO SÓ (16/11/2026) ──────────────────────────────────────
+   Usuário: "Só depois de você remover a borda é que eu percebi que o fundo está
+   diferente, em vários lugares. Vamos padronizar as cores." Medido numa prévia
+   com o CSS real: os cartões eram três (o chão de célula, a cor da página e o
+   couro a 55%), e as casas eram seis (duas misturas sobre --p-fundo, os
+   degradês do item equipado, da Loja e do Diário, e #17110A cravado no boneco,
+   que só existe na paleta Crezir). Agora, tudo sai do fundo da página:
+     cartão      --pg-cartao-fundo   bronze a 7% (o de Energias, Condições)
+     casa cheia  --pg-casa-fundo     bronze a 12%, opaco
+     casa vazia  --pg-casa-vazia     bronze a 4%, opaco
+   A passagem, a casa escolhida e o esgotado da Loja seguem com o seu sinal. */
+#root .menestrel-ui {
+  --pg-casa-fundo: color-mix(in srgb, rgb(var(--bronze-rgb)) 12%, var(--pg-fundo));
+  --pg-casa-vazia: color-mix(in srgb, rgb(var(--bronze-rgb)) 4%, var(--pg-fundo));
+  --pg-cartao-passagem: rgba(var(--bronze-rgb), 0.11);
+}
+#root .menestrel-ui :is(.cv-card, .cv-pj-card, .hist-card, .batalha-card, .fp-sec, .fp3-status) { background: var(--pg-cartao-fundo); }
+#root .menestrel-ui :is(.cv-pj-card, .batalha-card):hover:not(.selected) { background: var(--pg-cartao-passagem); }
+#root .menestrel-ui :is(.fp3-status, .hist-card) { border-color: transparent; }
+
+#root .menestrel-ui :is(.inv-bag-grid--slots, .det-grade-recipiente) .inv-card,
+#root .menestrel-ui .loja-grid--slots .loja-it,
+#root .menestrel-ui .diario-grid--slots .diario-card { background: var(--pg-casa-fundo) !important; box-shadow: none; }
+#root .menestrel-ui .inv-bag-grid--slots .inv-card:is(:has(.inv-pill.eq), :has(.inv-pill.vst)):not(:hover):not(.inv-card--escolhido) { background: var(--pg-casa-fundo) !important; box-shadow: none; }
+#root .menestrel-ui :is(.inv-bag-grid--slots, .det-grade-recipiente) .inv-slot-ghost { background: var(--pg-casa-vazia) !important; }
+#root .menestrel-ui .fp3-casa > .inv-slot,
+#root .menestrel-ui .loja-painel-ic { background-color: var(--pg-casa-fundo); }
+
+/* ── AS LISTAS SUSPENSAS DO TRILHO DO RODAPÉ NO PADRÃO (16/11/2026) ──────────────
+   Usuário: "A lista suspensa no trilho inferior está fora do padrão." Clima,
+   hora e local abriam numa caixa de couro translúcida, cantos de 6px, linhas
+   de 14px com cores por degrau e um ✓ no escolhido. Agora são os menus soltos
+   do sistema (o da mesa, o "+" do Fórum): chão opaco, borda padrão, cantos de
+   14px, linhas em pílula de 34px com rótulo 700/15px na tinta-2 que clareia,
+   ícone de 17px em ouro, e a lâmina (10-shell, TRILHO_SELETOR) desliza entre
+   as opções e pousa na escolhida — o ✓ e o chão próprio do ativo saem. As
+   horas da noite seguem distinguíveis, num tom abaixo. */
+#root .menestrel-ui.cdj-root :is(.cdj-tempo-lista, .cdj-hora-lista, .cdj-local-lista) {
+  padding: 5px; gap: 2px; border: 1px solid var(--regua-forte); border-radius: 16px;
+  background: var(--chao-celula-opaco); backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+#root .menestrel-ui.cdj-root .cdj-hora-lista { gap: 2px; }
+#root .menestrel-ui.cdj-root :is(.cdj-tempo-lista, .cdj-local-lista) { display: flex; flex-direction: column; min-width: 190px; }
+#root .menestrel-ui.cdj-root.cdj-root--rodape :is(.cdj-tempo-lista, .cdj-hora-lista, .cdj-local-lista) { box-shadow: 0 -14px 36px rgba(0,0,0,.55); }
+#root .menestrel-ui.cdj-root:not(.cdj-root--rodape) :is(.cdj-tempo-lista, .cdj-hora-lista, .cdj-local-lista) { box-shadow: 0 14px 36px rgba(0,0,0,.55); }
+#root .menestrel-ui.cdj-root :is(.cdj-tempo-opcao, .cdj-hora-opcao) {
+  position: relative; z-index: 1; min-height: 34px; padding: 0 12px 0 10px; gap: 7px;
+  border-radius: 999px; background: none; opacity: 1;
+  font: 700 15px var(--font-body); color: var(--tinta-2); transition: color .15s ease;
+}
+#root .menestrel-ui.cdj-root .cdj-hora-opcao { display: flex; align-items: center; justify-content: center; padding: 0 12px; font-variant-numeric: tabular-nums; }
+#root .menestrel-ui.cdj-root .cdj-local-lista .cdj-tempo-opcao { padding-left: 14px; }
+#root .menestrel-ui.cdj-root :is(.cdj-tempo-opcao, .cdj-hora-opcao):is(:hover, .is-ativa) { background: none; color: var(--tinta); opacity: 1; }
+#root .menestrel-ui.cdj-root .cdj-hora-opcao[data-periodo="noite"]:not(:hover):not(.is-ativa) { color: var(--tinta-3); }
+#root .menestrel-ui.cdj-root .cdj-tempo-opcao .cdj-tempo-ic { font-size: 17px; color: var(--vivo); }
+/* O ✓ do escolhido fica, como no seletor de mesa: 17px em ouro, na ponta. */
+#root .menestrel-ui.cdj-root .cdj-tempo-check { font-size: 17px; color: var(--vivo); }
+#root .menestrel-ui.cdj-root .cdj-local-aviso { min-height: 34px; display: flex; align-items: center; padding: 0 14px; font: 600 15px var(--font-body); }
+#root .menestrel-ui :is(.cdj-tempo-lista, .cdj-hora-lista, .cdj-local-lista)[data-lamina]::before { border-radius: 999px; }
+
+/* ── AS LISTAS DOS CAMPOS NAS JANELAS = O SELETOR DE MESA (16/11/2026) ─────────
+   Usuário: "O modal que abre da lista suspensa continua fora do padrão, veja
+   o seletor de mesa. Arrume o estilo nos modais, veja editar mesa." A lista
+   do SelectPill (e a do Reino, em Editar mesa) era uma caixa de 6px sem aro,
+   linhas de 3px de respiro em 14px. Agora é a casca do menu da mesa
+   (.mc-ident-menu--solto): chão opaco, régua padrão, 5px por dentro, cantos
+   de 16px, sombra funda; linhas em pílula de 34px, rótulo 700/15px na tinta-2
+   que clareia, ✓ de 17px em ouro na ponta, e a lâmina (10-shell) desliza
+   entre as opções e pousa na escolhida. As listas do rodapé, acima, foram
+   para os mesmos 16px e o mesmo ✓. */
+#root .menestrel-ui .select-pill-drop-portal > .select-pill-drop,
+#root .menestrel-ui .select-pill-drop {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 5px; border: 1px solid var(--regua-forte); border-radius: 16px;
+  background: var(--chao-celula-opaco); backdrop-filter: none; -webkit-backdrop-filter: none;
+  box-shadow: 0 14px 36px rgba(0,0,0,.55);
+}
+#root .menestrel-ui .select-pill-drop-portal > .select-pill-drop[data-lamina] { position: relative; }
+#root .menestrel-ui .select-pill-drop li {
+  position: relative; z-index: 1; flex: none;
+  min-height: 34px; padding: 0 12px 0 10px; gap: 7px; justify-content: flex-start;
+  border-radius: 999px; background: none;
+  font: 700 15px var(--font-body); color: var(--tinta-2); transition: color .15s ease;
+}
+#root .menestrel-ui .select-pill-drop li .select-pill-opt-label { flex: 1 1 auto; min-width: 0; }
+#root .menestrel-ui .select-pill-drop li:is(:hover, .active, .is-active),
+#root .menestrel-ui .select-pill-drop li.active:hover { background: none; color: var(--tinta); }
+#root .menestrel-ui .select-pill-drop li :is(.select-pill-check, .ti-check) { font-size: 17px; color: var(--vivo); flex-shrink: 0; }
+#root .menestrel-ui .select-pill-drop li.disabled,
+#root .menestrel-ui .select-pill-drop li.disabled:hover { color: var(--tinta-3); font-weight: 600; background: none; }
+#root .menestrel-ui .select-pill-drop[data-lamina]::before { border-radius: 999px; }
+
+/* ── O QUADRO DO CALENDÁRIO E OS CAMPOS DAS JANELAS NO PADRÃO (16/11/2026) ───────
+   Usuário: "O modal que abre da lista suspensa continua fora do padrão, veja
+   o seletor de mesa. Arrume o estilo nos modais, veja editar mesa. Os campos
+   estão com borda, estão desalinhados."
+
+   O QUADRO (.cal-pop, que abre dos campos de data): a casca do menu da mesa
+   — cantos de 16px e a mesma sombra —; o ano sem aro, no chão de campo;
+   "Limpar" e "Hoje" sem aro, com as peças do botão do trilho; e a luz é a
+   lâmina (10-shell): topo, dias, meses e rodapé são trilhos, a luz desliza
+   sob o ponteiro e pousa no dia (ou mês) escolhido. O ouro cheio do
+   escolhido e o aro do dia de hoje saem — hoje é o número em ouro. */
+#root .menestrel-ui .cal-pop { border-radius: 16px; box-shadow: 0 14px 36px rgba(0,0,0,.55); }
+#root .menestrel-ui .cal-ano,
+#root .menestrel-ui .cal-ano:focus { border-color: transparent; border-radius: 999px; background: var(--campo-bg); }
+#root .menestrel-ui .cal-ano:focus { background: var(--campo-bg-hover); }
+#root .menestrel-ui :is(.cal-titulo, .cal-seta, .cal-dia, .cal-mes, .cal-acao) { border-radius: 999px; }
+#root .menestrel-ui [data-lamina] :is(.cal-titulo, .cal-seta, .cal-dia, .cal-mes, .cal-acao) { position: relative; z-index: 1; }
+#root .menestrel-ui [data-lamina] :is(.cal-titulo, .cal-seta, .cal-dia, .cal-mes):is(:hover, .is-escolhido),
+#root .menestrel-ui [data-lamina] .cal-acao:hover { background: none; }
+#root .menestrel-ui [data-lamina] :is(.cal-dia, .cal-mes).is-escolhido { color: var(--tinta); font-weight: 700; }
+#root .menestrel-ui .cal-dia.is-hoje { box-shadow: none; color: var(--vivo); font-weight: 700; }
+#root .menestrel-ui .cal-dia.is-escolhido.tem-marca::after { background: var(--vivo); }
+#root .menestrel-ui .cal-titulo { font: 700 15px var(--font-body); padding: 0 12px 0 10px; }
+#root .menestrel-ui .cal-titulo i { font-size: 17px; }
+#root .menestrel-ui .cal-acao {
+  height: 34px; padding: 0 14px; border-color: transparent; background: none;
+  font: 700 15px var(--font-body); color: var(--tinta-2); transition: color .15s ease;
+}
+#root .menestrel-ui .cal-acao:hover { color: var(--tinta); border-color: transparent; }
+#root .menestrel-ui .cal-acao--forte { color: var(--vivo); border-color: transparent; }
+#root .menestrel-ui :is(.cal-grade, .cal-meses, .cal-topo, .cal-rodape)[data-lamina]::before { border-radius: 999px; }
+
+/* OS CAMPOS (as janelas): sem borda, inclusive o de data — que tinha a régua
+   inteira em volta e o aro de ouro aberto —; acendem pelo chão, como os
+   outros. Todos com o mesmo aro invisível de 1px, para o texto começar no
+   mesmo x (16px + 1px): o Reino não tinha aro e começava 1px antes, a
+   Introdução tinha 12px de respiro e começava 4px antes. E o ícone da ponta
+   direita no mesmo recuo e no mesmo tamanho (17px) nos três: o calendário,
+   o calendário do mundo e o chevron do Reino. A data inválida segue com o
+   aro de brasa: é o sinal do erro. */
+#root .menestrel-ui .cal-campo,
+#root .menestrel-ui .cal-campo:is(:focus-within, .is-aberto) { border-color: transparent; }
+#root .menestrel-ui .cal-campo:is(:focus-within, .is-aberto) { background: var(--campo-bg-hover); }
+#root .menestrel-ui .cal-campo.is-invalido { border-color: var(--alerta); }
+#root .menestrel-ui .cal-campo:not(.cal-campo--botao) { padding-right: 6px; }
+/* O Reino não tem aro (uma regra antiga zera a borda com !important): o 1px
+   que falta entra no respiro, e o texto começa junto dos outros. */
+#root .menestrel-ui .ms-body button.select-pill-btn { padding-left: 17px; padding-right: 13px; }
+#root .menestrel-ui .ms-body :is(.select-pill-btn-ic, .select-pill-btn-chevron) { font-size: 17px; opacity: 1; }
+#root .menestrel-ui .ms-body textarea { padding-left: 16px; padding-right: 16px; }
+
+/* ── EDITAR MESA, CAPÍTULOS: A DATA NO PADRÃO DOS CAMPOS (16/11/2026) ──────────
+   Usuário: "O modal de 'editar mesa' continua com os campos desalinhados. A
+   fonte 'data (fantasia)' está diferente dos demais, padronize."
+   - O rótulo da data é o dos campos (.wiz-field > span): 12px, 800, caixa
+     alta espaçada, tinta-3, na mesma altura de linha — era 15px corrido com
+     um ícone na frente.
+   - A coluna da data tem LARGURA FIXA: medindo o texto ("5 de Mês da Paz,
+     ano 1499" contra "1 de Mês do Conflito, ano 0"), ela empurrava o campo
+     Título para larguras diferentes a cada capítulo.
+   - Os botões de ordem e de excluir medem 32px, a altura do campo: com 34px
+     a fileira crescia e o campo de data descia 6px abaixo do Título. */
+#root .menestrel-ui .hist-cap-date-label {
+  display: block; font: 800 12px/1.6 var(--font-body); letter-spacing: .08em;
+  text-transform: uppercase; color: var(--tinta-3);
+}
+#root .menestrel-ui .hist-cap-date-col { flex: 0 0 408px; min-width: 0; }
+#root .menestrel-ui .hist-cap-picker-row { align-items: center; }
+#root .menestrel-ui .hist-cap-picker-row > .fdp-campo-wrap { flex: 1 1 auto; min-width: 0; }
+#root .menestrel-ui .hist-cap-date-btns .btn-icon { width: 32px; height: 32px; min-width: 32px; }
+@media (max-width: 640px) {
+  #root .menestrel-ui .hist-cap-row { flex-wrap: wrap; }
+  #root .menestrel-ui .hist-cap-row > .wiz-field,
+  #root .menestrel-ui .hist-cap-date-col { flex: 1 1 100%; }
 }

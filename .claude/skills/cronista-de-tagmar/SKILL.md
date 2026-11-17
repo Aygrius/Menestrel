@@ -66,6 +66,14 @@ sobe com `node scripts/mundo/subir-catalogo.mjs <lote>`. O mesmo slug
 substitui a entrada inteira — para mexer em uma que já existe, parta da
 versão do banco, não de memória.
 
+Reinos, cidades, locais e pessoas ficam em tabelas próprias (`reinos`,
+`cidades`, `locais`, `npcs`). Texto novo para elas vai num lote SQL em
+`scripts/sql/lore-*-AAAA-MM-DD.sql` (`INSERT … ON CONFLICT (slug) DO NOTHING`,
+texto entre `$t$…$t$`) e sobe com `node scripts/mundo/aplicar-sql-lore.mjs
+<lote>`. A capital do reino aponta para uma cidade: insira o reino sem ela e
+faça `UPDATE … SET capital = … WHERE slug = … AND capital IS NULL` depois das
+cidades. Ficha que já existe só ganha os campos vazios (`AND col IS NULL`).
+
 ## 5. Antes de entregar
 
 1. Cada fato confere com a página do livro?

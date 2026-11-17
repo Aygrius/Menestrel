@@ -5664,6 +5664,14 @@ function DarItemModal({ catalogo, lang, onDar, onClose }) {
   }, [catalogo, termo]);
   const escolhido = (catalogo || []).find((c) => c.slug === slug) || null;
 
+  /* O RODAPÉ DE JANELA DE VERDADE (16/11/2026, usuário: "Melhore a página de
+     'dar item', arrume o rodapé, o seletor de quantidade"): o .ms-footer do
+     ModalShell, com a ação primária sozinha na direita.
+
+     A QUANTIDADE NO TOPO, AO LADO DA BUSCA (16/11/2026, usuário: "o seletor
+     de quantidade fica no topo ao lado do botão de buscar, o botão de buscar
+     fica um pouco mais alto, padronizado com o seletor de quantidade"). Os
+     dois medem 40px de altura e dividem a mesma fileira. */
   return (
     <ModalShell
       title={<><i className="ti ti-gift det-title-ic" aria-hidden="true" /> {en ? 'Give item' : 'Dar item'}</>}
@@ -5671,12 +5679,19 @@ function DarItemModal({ catalogo, lang, onDar, onClose }) {
       size="md"
       extraClass="modal-detalhes modal-dar-item"
       onClose={onClose}
+      onConfirm={() => escolhido && onDar(escolhido.slug, qtd)}
+      confirmLabel={en ? 'Give' : 'Dar'}
+      confirmDisabled={!escolhido}
     >
-      <div className="best-search dar-item-busca">
-        <i className="ti ti-eye busca-ic" aria-hidden="true" />
-        <Input type="search" value={busca} autoFocus
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder={en ? 'Search the catalogue' : 'Buscar no catálogo'} />
+      <div className="dar-item-topo">
+        <div className="best-search dar-item-busca">
+          <i className="ti ti-eye busca-ic" aria-hidden="true" />
+          <Input type="search" value={busca} autoFocus
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder={en ? 'Search the catalogue' : 'Buscar no catálogo'} />
+        </div>
+        <QuantidadeStepper className="dar-item-qtd" value={qtd} min={1} onChange={setQtd}
+          label={en ? 'Quantity' : 'Quantidade'} />
       </div>
 
       {achados.length === 0 ? (
@@ -5697,21 +5712,6 @@ function DarItemModal({ catalogo, lang, onDar, onClose }) {
           ))}
         </ul>
       )}
-
-      {/* A QUANTIDADE À ESQUERDA (28/10/2026, pedido do usuário: "o seletor de
-          quantidade no rodapé poderia ficar à esquerda"). O rótulo não empurra
-          mais o seletor para o meio: os dois andam juntos na ponta esquerda e
-          a ação primária fica sozinha na direita, como em todo rodapé de
-          janela do sistema. */}
-      <div className="dar-item-rodape">
-        <span className="dar-item-rotulo">{en ? 'Quantity' : 'Quantidade'}</span>
-        <QuantidadeStepper className="dar-item-qtd" value={qtd} min={1} onChange={setQtd}
-          label={en ? 'Quantity' : 'Quantidade'} />
-        <button type="button" className="btn-primary dar-item-confirmar" disabled={!escolhido}
-          onClick={() => escolhido && onDar(escolhido.slug, qtd)}>
-          {en ? 'Give' : 'Dar'}
-        </button>
-      </div>
     </ModalShell>
   );
 }
@@ -5964,8 +5964,12 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, habilidades, pj, magiasDb
     if (!sel || sel.bloqueio || enviando) return;
     setEnviando(true); setErro(null);
     const r = await onAprender({ tipo: sel.tipo, key: sel.m.key });
-    if (r && r.ok) { onClose(); return; }
+    /* A JANELA FICA ABERTA (17/11/2026, usuário: "Ao escolher uma técnica, ou
+       magia, etc para aprender, não precisa fechar o modal"). O `pj` que chega
+       já vem com o aprendido, e as abas e o quadro se refazem com o saldo novo;
+       a mesma linha segue escolhida, pronta para o próximo nível. */
     setEnviando(false);
+    if (r && r.ok) return;
     setErro(motivoAprenderLabel(r && r.motivo, en, { tipo: sel.tipo }));
   };
 
@@ -6000,8 +6004,8 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, habilidades, pj, magiasDb
        HORAS_TREINO, para a frase acompanhar a regra. */
     if (aba === 'magia') {
       return en
-        ? `Learning a new spell takes ${HORAS.magia} hours of theory and practice. To learn a new feitiço, you must study. For a miracle, prayer. With meditation you can learn a transmutation, and for enchantments, just practice.`
-        : `Aprender uma magia nova requer ${HORAS.magia} horas de teoria e prática. Para aprender um feitiço novo, é necessário estudar. Se for um milagre, oração. Com meditação você poderá aprender uma transmutação, e no caso de encantos, basta praticar.`;
+        ? `Learning a new spell takes ${HORAS.magia} hours of theory and practice.`
+        : `Aprender uma magia nova requer ${HORAS.magia} horas de teoria e prática.`;   // só a primeira frase (17/11/2026, usuário)
     }
     return (en
       ? `A new ${aba === 'tecnica' ? 'technique' : 'skill'} takes ${HORAS[aba]} hours of ${nomeAtividade('treinando')}.`
@@ -6106,24 +6110,32 @@ function EstudarMagiaModal({ titulo, magias, tecnicas, habilidades, pj, magiasDb
           <div className="nb-paginas estudar-abas" role="tablist" aria-label={en ? 'What this item teaches' : 'O que este item ensina'}
             style={{ gridTemplateColumns: `repeat(${tiposPresentes.length}, minmax(0, 1fr))` }}>
             {tiposPresentes.map((t) => {
-              const n = linhas.filter((l) => l.tipo === t).length;
+              /* OS PONTOS NA ABA (17/11/2026, usuário: "mostre a quantidade de
+                 pontos ao invés de 10, 'Magias 2/2'. E remova o card logo
+                 abaixo"). Saldo/total do tipo; com uma linha escolhida nesta
+                 aba, o saldo depois de aprender, em brasa se não couber. */
+              const p = pontosDo(t), saldo = p.total - p.gasto;
+              const depois = sel && sel.tipo === t && !semNivel(sel) && sel.custoPasso != null ? saldo - sel.custoPasso : null;
+              const falta = (depois != null ? depois : saldo) < 0;
               return (
                 <button key={t} type="button" role="tab" aria-selected={aba === t} data-aba={t}
                   className={'nb-pagina-op' + (aba === t ? ' is-on' : '')}
                   onClick={() => trocarAba(t)}>
                   <i className={'ti ' + ICONE_ABA[t]} aria-hidden="true" />
                   <span className="nb-pagina-nome">{NOME_ABA[t]}</span>
-                  <span className={'nb-pagina-n' + (n ? ' is-vivo' : '')}>{n}</span>
+                  <span className={'nb-pagina-n estudar-pontos' + (saldo > 0 ? ' is-vivo' : '') + (falta ? ' estudar-pontos--excedido' : '')} aria-live="polite">
+                    {depois != null ? <>{saldo} → {depois}</> : saldo}/{p.total}
+                  </span>
                 </button>
               );
             })}
           </div>
         )}
-        {/* O SALDO À ESQUERDA, A REGRA À DIREITA (07/11/2026, usuário: "O card
-            magias 36/99 fica à esquerda e o texto 'Aprender uma magia nova
-            requer 24 hor...' à direita"). */}
+        {/* O SALDO À ESQUERDA, A REGRA À DIREITA (07/11/2026). Com abas, o saldo
+            mora nelas e o card sai (17/11/2026); com um tipo só, sem abas, ele
+            continua — é o único lugar dos pontos. */}
         <div className="estudar-topo">
-          <div className="mn-passe estudar-saldo" aria-live="polite">{celulaPontos(aba)}</div>
+          {tiposPresentes.length <= 1 && <div className="mn-passe estudar-saldo" aria-live="polite">{celulaPontos(aba)}</div>}
           <p className="mn-janela-frase estudar-como">{fraseDaAba}</p>
         </div>
         {/* A escolha embaixo: nome, nível, custo e o tempo de aprender ("Escolha

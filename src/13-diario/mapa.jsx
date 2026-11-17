@@ -331,8 +331,9 @@ function criarMotorMapa(raiz, cfg) {
   const focoPadrao = () => (mestre && J ? { tipo: 'linha', id: J.rota.id } : J ? { tipo: 'destino' }
     : (!mestre && EU && EU.eu) ? { tipo: 'aqui' } : { tipo: 'nada' });
   let foco = { tipo: 'nada' };
-  let modo = null;                 // null | 'medir' | 'marcar' | 'cidade' | 'ponto' | 'caminho' | 'rota' | 'por'
+  let modo = null;                 // null | 'medir' | 'marcar' | 'cidade' | 'ponto' | 'caminho' | 'rota' | 'por' | 'mover'
   let medida = [], traco = [], continua = null, pondo = null, pondoCidade = null;   // pondoCidade: a ficha escolhida na ferramenta Cidade
+  let movendo = null;              // id do lugar que o próximo toque no mapa leva para outro ponto (modo 'mover')
   let vsel = null, passa = null, recado = null, busca = '';
 
   const marcaEm = (l) => marcas.find((m) => m.lugar === l.id);
@@ -489,6 +490,10 @@ function criarMotorMapa(raiz, cfg) {
         // O lugar do mundo só o Imperador move ou tira; o Mestre usa como está.
         const doMundo = f.tipo === 'lugar' && a.mundo;
         // O "Arraste no mapa para mudar de lugar" saiu (15/11/2026, a pedido do usuário).
+        /* MOVER POR BOTÃO (17/11/2026, usuário: "Adicione um botão para mover a
+           cidade/reino/local no mapa"). Arrastar continua valendo; o botão é o
+           caminho que se vê: liga o modo 'mover' e o próximo toque leva o lugar. */
+        if (f.tipo === 'lugar' && (!doMundo || imperador)) acoes += bt('mover', 'ti-arrows-move', tr('Mover no mapa', 'Move on the map'));
         if (!doMundo || imperador) acoes += bt('remover', 'ti-trash', tr('Remover', 'Remove'), true);
       } else if (quem.length) nota = tr(`${esc(quem.join(', '))} ${quem.length > 1 ? 'estão' : 'está'} aqui.`, `${esc(quem.join(', '))} ${quem.length > 1 ? 'are' : 'is'} here.`);
     }
@@ -625,6 +630,8 @@ function criarMotorMapa(raiz, cfg) {
     else if (modo === 'por') { const g = gente.find((x) => String(x.id) === String(pondo));
       h = pondo === 'todos' ? tr('Toque no mapa onde a comitiva está.', 'Tap the map where the party is.')
         : tr(`Toque no mapa onde ${esc(g ? g.nome : '')} está.`, `Tap the map where ${esc(g ? g.nome : '')} is.`); }
+    else if (modo === 'mover') { const l = lugarId(movendo);
+      h = `<span>${tr(`Toque no mapa no novo lugar de ${esc(l ? l.nome : '')}.`, `Tap the map at the new spot for ${esc(l ? l.nome : '')}.`)}</span>` + botoes(['cancelar-mover', tr('Cancelar', 'Cancel')]); }
     else if (modo === 'medir') {
       const k = km(caminho(medida));
       h = medida.length < 2 ? (medida.length ? tr('Toque no próximo ponto.', 'Tap the next point.') : tr('Toque nos pontos do caminho que quer medir.', 'Tap the points of the path you want to measure.'))
@@ -640,8 +647,18 @@ function criarMotorMapa(raiz, cfg) {
   function trocarModo(m) {
     modo = modo === m ? null : m;
     if (modo !== 'medir') medida = [];
-    traco = []; continua = null; pondo = null; pondoCidade = null; recado = null; passa = null; vsel = null;
+    traco = []; continua = null; pondo = null; pondoCidade = null; movendo = null; recado = null; passa = null; vsel = null;
     aviso(); desenhar();
+  }
+  /* Leva o lugar a p; os traçados e os personagens que estavam nele vão junto,
+     como no arrasto. Fica o Desfazer. */
+  function moverLugar(l, p) {
+    const antes = JSON.stringify(mesa);
+    mesa.linhas.forEach((ln) => ln.pts.forEach((v) => { if (dist(v, l) < .06) { v.x = p.x; v.y = p.y; } }));
+    Object.values(mesa.gente).forEach((v) => { if (dist(v, l) < .06) { v.x = p.x; v.y = p.y; } });
+    l.x = p.x; l.y = p.y;
+    guardarMesa(); recado = { txt: tr(`${l.nome}: movido.`, `${l.nome}: moved.`), antes };
+    EU = referencia(); J = jornada();
   }
   const escreverNome = () => { const c = $('nome-foco'); if (c) { c.focus(); c.select(); } };
   function concluir() {
@@ -741,7 +758,7 @@ function criarMotorMapa(raiz, cfg) {
       return;
     }
     if (e.pointerType === 'mouse' && !e.target.closest('button')) {
-      const l = modo === 'marcar' || modo === 'cidade' || modo === 'local' || modo === 'ponto' ? null : maisPerto(noMundo(px, py));
+      const l = modo === 'marcar' || modo === 'cidade' || modo === 'local' || modo === 'ponto' || modo === 'mover' ? null : maisPerto(noMundo(px, py));
       if (l !== passa) { passa = l; elMapa.classList.toggle('aponta', !!l && !modo); desenhar(); }
     }
   });
@@ -757,6 +774,11 @@ function criarMotorMapa(raiz, cfg) {
     if (era.andou || e.type !== 'pointerup') return;
     const { px, py } = local(e), w = noMundo(px, py), p = { x: r1(w.x), y: r1(w.y) };
     if (p.x < 0 || p.y < 0 || p.x > L || p.y > A) return;
+    if (modo === 'mover') {          // o ponto exato do toque, sem grudar em outro lugar
+      const lg = lugarId(movendo); modo = null; movendo = null;
+      if (lg) { moverLugar(lg, p); aviso(); focar({ tipo: 'lugar', id: lg.id }, false); } else { aviso(); desenhar(); }
+      return;
+    }
     const l = maisPerto(p), aqui = l ? { x: l.x, y: l.y } : p;
     if (modo === 'medir') { medida.push(aqui); aviso(); desenhar(); return; }
     if (modo === 'caminho' || modo === 'rota') { traco.push(aqui); aviso(); desenhar(); return; }
@@ -860,6 +882,8 @@ function criarMotorMapa(raiz, cfg) {
     else if (acao === 'ativar') { mesa.rota = a.id; guardarMesa(); desenhar(); }
     else if (acao === 'tirar-ponto') { a.pts.splice(vsel, 1); vsel = null; guardarMesa(); desenhar(); }
     else if (acao === 'trazer') { porGente('todos', a); desenhar(); }
+    else if (acao === 'mover') { if (modo === 'mover') trocarModo('mover'); else { modo = 'mover'; movendo = a.id; medida = []; traco = []; continua = null; pondo = null; recado = null; vsel = null; aviso(); desenhar(); } }
+    else if (acao === 'cancelar-mover') trocarModo('mover');
     else if (acao === 'repor') { modo = 'por'; pondo = a.id; medida = []; traco = []; continua = null; recado = null; aviso(); desenhar(); }
     else if (acao === 'tirar-gente' || acao === 'remover') remover();
     else if (acao === 'desfazer') { mesa = mapaNormalizar(JSON.parse(recado.antes)); guardarMesa(); recado = null; aviso(); desenhar(); }

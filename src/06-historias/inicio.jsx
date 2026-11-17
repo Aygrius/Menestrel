@@ -33,8 +33,8 @@ const AREAS_NOTICIA = {
 
 const NOTICIAS_DO_SISTEMA = [
   { id: 'paletas-deuses', data: '2026-11-15', area: 'aparencia',
-    pt: ['Quatro paletas com nomes de deuses', 'Crezir, Crizagom, Ganis e Maira: as cores do sistema mudam nas Configurações. Crizagom é cinza e prata; Ganis, púrpura, ciano e turquesa; Maira, verde escuro, terracota e amarelo ouro.'],
-    en: ['Four palettes named after gods', 'Crezir, Crizagom, Ganis and Maira: the system colors change in Settings. Crizagom is grey and silver; Ganis, purple, cyan and turquoise; Maira, dark green, terracotta and golden yellow.'] },
+    pt: ['Quatro paletas com nomes de deuses', 'Crezir, Crizagom, Ganis e Maira: as cores do sistema mudam nas Configurações. Crizagom é cinza e prata; Ganis, púrpura e nácar; Maira, malaquita e cobre.'],
+    en: ['Four palettes named after gods', 'Crezir, Crizagom, Ganis and Maira: the system colors change in Settings. Crizagom is grey and silver; Ganis, purple and mother-of-pearl; Maira, malachite and copper.'] },
   { id: 'mapa-da-mesa', data: '2026-11-15', area: 'mapa',
     pt: ['O mapa da mesa', 'A pintura de Tagmar oriental em alta resolução, para arrastar e aproximar. O Mestre põe as cidades cadastradas, marca pontos, traça caminhos e a rota da mesa; o jogador vê onde o personagem está, quanto falta até o destino e marca os seus interesses.'],
     en: ['The table map', 'The painting of eastern Tagmar in high resolution, to drag and zoom. The Game Master places registered cities, marks points, draws paths and the table route; players see where their character is, how far the destination is and mark their own interests.'] },

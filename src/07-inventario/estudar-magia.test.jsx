@@ -83,7 +83,8 @@ describe('EstudarMagiaModal', () => {
     expect(confirmar().disabled).toBe(true);
   });
 
-  it('escolher e confirmar chama onAprender com a key e fecha no ok', async () => {
+  // Desde 17/11/2026 a janela fica aberta depois de aprender.
+  it('escolher e confirmar chama onAprender com a key e continua aberta no ok', async () => {
     const onAprender = vi.fn(async () => ({ ok: true }));
     const onClose = vi.fn();
     abrir({ onAprender, onClose });
@@ -91,7 +92,9 @@ describe('EstudarMagiaModal', () => {
     expect(confirmar().disabled).toBe(false);
     expect(confirmar().textContent).toMatch(/Bola de Fogo 1/);
     fireEvent.click(confirmar());
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
+    await waitFor(() => expect(onAprender).toHaveBeenCalled());
+    await waitFor(() => expect(confirmar().textContent).not.toMatch(/Aprendendo/));
+    expect(onClose).not.toHaveBeenCalled();
     expect(onAprender).toHaveBeenCalledWith({ tipo: 'magia', key: 'bola_de_fogo' });
   });
 
@@ -122,9 +125,8 @@ describe('EstudarMagiaModal', () => {
   /* Como e quanto tempo (07/11/2026): a frase da aba e a célula da escolha. */
   it('explica o aprendizado: magia nova leva 24 h na atividade da classe', () => {
     abrir();
-    // O texto é o do usuário (07/11/2026), com as horas de HORAS_TREINO.
-    expect(document.querySelector('.estudar-como').textContent).toMatch(/^Aprender uma magia nova requer 24 horas de teoria e prática./);
-    expect(document.querySelector('.estudar-como').textContent).toMatch(/feitiço novo, é necessário estudar. Se for um milagre, oração./);
+    // O texto é o do usuário, com as horas de HORAS_TREINO; desde 17/11/2026, só a primeira frase.
+    expect(document.querySelector('.estudar-como').textContent).toBe('Aprender uma magia nova requer 24 horas de teoria e prática.');
     fireEvent.click(linhas()[0]);   // Bola de Fogo, Feitiço, ainda não sabida
     expect(document.querySelector('.estudar-aprendizado').textContent).toBe('24 h em Estudar');
   });
@@ -155,7 +157,9 @@ describe('EstudarMagiaModal', () => {
     expect(linhas()).toHaveLength(2);
     fireEvent.click(abas[2]);
     expect(linhas().map((l) => l.querySelector('.estudar-nome').textContent)).toEqual(['Medicina']);
-    expect(document.querySelector('.estudar-celula-pontos .mn-rotulo').textContent).toBe('Habilidades');
+    // Desde 17/11/2026 os pontos moram na aba ("Habilidades 3/3") e o card saiu.
+    expect(document.querySelector('.estudar-celula-pontos')).toBeNull();
+    expect(abas[2].querySelector('.estudar-pontos').textContent).toMatch(/^\d+\/\d+$/);
     expect(document.querySelector('.estudar-como').textContent).toMatch(/Habilidade nova leva 12 horas em Treinar/);
     fireEvent.click(abas[1]);
     expect(document.querySelector('.estudar-como').textContent).toMatch(/Técnica nova leva 36 horas em Treinar/);

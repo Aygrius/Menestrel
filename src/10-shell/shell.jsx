@@ -799,8 +799,9 @@ function MenuRow({ children, onClick, disabled, danger, extraStyle, title }) {
 const PALETAS = [
   { id: 'couro', pt: 'Crezir', en: 'Crezir', amostra: ['#120D06', '#17110A', '#F1E6CF', '#E0BE68'] },
   { id: 'ferro', pt: 'Crizagom', en: 'Crizagom', amostra: ['#181A1D', '#202326', '#8E8B85', '#C9D3DE'] },
-  { id: 'ganis', pt: 'Ganis', en: 'Ganis', amostra: ['#140F24', '#2E2448', '#22A99C', '#4FD8EE'] },
-  { id: 'maira', pt: 'Maira', en: 'Maira', amostra: ['#0D1712', '#25352B', '#B85F38', '#E8B83A'] },
+  // Nácar e Malaquita (16/11/2026): as cores novas das duas — ver index.css.
+  { id: 'ganis', pt: 'Ganis', en: 'Ganis', amostra: ['#110F1D', '#2A2540', '#6E7FC8', '#9FCFE6'] },
+  { id: 'maira', pt: 'Maira', en: 'Maira', amostra: ['#0A1513', '#1D332E', '#C27B52', '#8FD3A6'] },
 ];
 const PALETA_PADRAO = 'couro';
 function aplicarPaleta(id) {
@@ -3960,16 +3961,17 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                   }}
                   aria-disabled={!podeEditar || undefined}
                   aria-label={en ? 'Current in-game location' : 'Local atual do jogo'}
-                  {...propsTip(abrirTip, fecharTip, dataAtual.local)}
+                  {...propsTip(abrirTip, fecharTip, en ? 'Location' : 'Localização')}
                   aria-haspopup={podeEditar ? 'listbox' : undefined}
                   aria-expanded={podeEditar ? editando === 'local' : undefined}
                 >
-                  {/* SÓ O ÍCONE, e o balão com SÓ O TEXTO (26/10/2026):
-                      "Localização, Horário, Umidade, Vento, Temperatura,
-                      Notificações vão ser somente ícones, e o tooltip será a
-                      informação dele" e, logo depois, "ao invés de
-                      'Localização Farzelo' será apenas 'Farzelo'". */}
+                  {/* O TEXTO JUNTO DO ÍCONE (16/11/2026, usuário: "No trilho
+                      inferior do rodapé, mostre o texto junto com o ícone em
+                      localização, temperatura, etc."). Desfaz o "só o ícone"
+                      de 26/10/2026: a informação volta à pílula, e o balão
+                      passa a dizer O QUE é o botão, como o do Calendário. */}
                   <i className="ti ti-map-pin" aria-hidden="true" />
+                  <span className="cdj-rotulo">{dataAtual.local}</span>
                 </button>
                 {/* Os lugares do catálogo (26/09/2026), na pele da lista do
                     clima. ESCOLHER JÁ GRAVA (27/09/2026); clicar fora ou Esc
@@ -4037,7 +4039,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                       fecharTip();
                       setHoraAberta((v) => !v);
                     }}
-                    {...propsTip(abrirTip, fecharTip, horaPorExtenso(luz.hora, en))}
+                    {...propsTip(abrirTip, fecharTip, en ? 'Time' : 'Horário')}
                   >
                     {/* SÓ O ÍCONE. A regra foi e voltou duas vezes: nasceu
                         assim em 20/09/2026 ("no botão de horário, não precisa
@@ -4048,6 +4050,8 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                         tooltip será a informação dele". O sol e a lua dizem o
                         período; a hora exata vive no balão. */}
                     <i className={'ti ' + periodo.ic} aria-hidden="true" />
+                    {/* O texto ao lado (16/11/2026): a hora por extenso, "Meio-Dia". */}
+                    <span className="cdj-rotulo">{horaPorExtenso(luz.hora, en)}</span>
                   </button>
                   {horaAberta && (
                     <ul className="cdj-hora-lista" role="listbox" aria-label={en ? 'In-game hour' : 'Hora do jogo'}>
@@ -4094,12 +4098,14 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
                         fecharTip();
                         setTempoAberto(aberta ? null : trilha.chave);
                       }}
-                      {...propsTip(abrirTip, fecharTip, en ? degrau.en : degrau.pt)}
+                      {...propsTip(abrirTip, fecharTip, trilha.chave === 'agua' ? (en ? 'Humidity' : 'Umidade') : nomeTrilha)}
                     >
                       {/* SÓ O ÍCONE (26/10/2026): a palavra do clima saiu da
                           pílula e foi para o balão, que `texto` já monta como
                           "Umidade · Seco". */}
                       <i className={'ti ' + degrau.ic} aria-hidden="true" />
+                      {/* O texto ao lado (16/11/2026): o degrau, "Fresco". */}
+                      <span className="cdj-rotulo">{en ? degrau.en : degrau.pt}</span>
                     </button>
                     {aberta && (
                       <ul className="cdj-tempo-lista" role="listbox" aria-label={nomeTrilha}>
@@ -4745,7 +4751,9 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     const carregar = (typeof carregarCatalogoMundo === 'function' ? carregarCatalogoMundo : window.carregarCatalogoMundo);
     if (carregar) carregar();
   }, [user]);
-  const [acessoJogador, setAcessoJogador] = useState(null);   // { temPj, temMesa }
+  /* `capitulos` (17/11/2026): quantos capítulos tem cada mesa do Jogador, por
+     id — a Mesa esmaece quando a dele ainda não tem nenhum (ver bloqueioJogador). */
+  const [acessoJogador, setAcessoJogador] = useState(null);   // { temPj, temMesa, capitulos: {id: n} }
   useEffect(() => {
     if (profile !== 'player' || !user || !user.id) { setAcessoJogador(null); return undefined; }
     let cancel = false;
@@ -4753,13 +4761,77 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
       const { data: pjs, error } = await supabaseClient.from('personagens').select('id').eq('user_id', user.id);
       if (cancel || error) return;                  // erro não apaga o menu
       const ids = (pjs || []).map((p) => p.id);
-      if (!ids.length) { setAcessoJogador({ temPj: false, temMesa: false }); return; }
-      const { data: hs, error: e2 } = await supabaseClient.from('historias').select('id').overlaps('protagonista_ids', ids).limit(1);
+      if (!ids.length) { setAcessoJogador({ temPj: false, temMesa: false, capitulos: {} }); return; }
+      const { data: hs, error: e2 } = await supabaseClient.from('historias').select('id, capitulos').overlaps('protagonista_ids', ids);
       if (cancel || e2) return;
-      setAcessoJogador({ temPj: true, temMesa: (hs || []).length > 0 });
+      const capitulos = {};
+      (hs || []).forEach((h) => { capitulos[h.id] = Array.isArray(h.capitulos) ? h.capitulos.length : 0; });
+      setAcessoJogador({ temPj: true, temMesa: (hs || []).length > 0, capitulos });
     })();
     return () => { cancel = true; };
   }, [user, profile, currentId, aventurasReloadToken]);
+  /* AS PÁGINAS VAZIAS ESMAECEM (17/11/2026, usuário: "Quando não houver nenhum
+     reino, capítulo, itens, magias que o personagem conheça, o menu fica
+     esmaecido e não abre"). Para o Jogador, cada página do Diário e do
+     Compêndio que não tem nada para o personagem ativo fica apagada no trilho.
+     Memórias fica sempre aberta: é o Jogador quem as escreve ("O jogador não
+     criará reinos, cidades, etc, apenas memórias"). Entidades, Grupos e Mapa
+     são o catálogo do mundo e nunca estão vazios.
+
+     As contas são as mesmas das páginas: o Compêndio pela regra de
+     conhecidoDoJogador/criaturasLiberadas (09-bestiario), o Diário pelos
+     dois RPCs do DiarioView (o que o personagem tem e o que o Mestre
+     liberou). null = ainda não sabe: nada apaga. */
+  const [paginasVazias, setPaginasVazias] = useState(null);   // Set de seções
+  const pjAtivoIdMenu = pjAtivo && pjAtivo.id;
+  useEffect(() => {
+    if (profile !== 'player' || !user || !user.id) { setPaginasVazias(null); return undefined; }
+    if (!pjAtivoIdMenu) { setPaginasVazias(new Set(['lugares', 'cidades', 'locais', 'npcs', 'criaturas', 'itens', 'magias', 'tecnicas', 'habilidades'])); return undefined; }
+    let cancel = false;
+    (async () => {
+      const [{ data: pjs, error: e1 }, { data: hs, error: e2 }, { data: lore, error: e3 }, { data: disp, error: e4 }] = await Promise.all([
+        supabaseClient.from('personagens').select('id, magias, tecnicas, habilidades, inventario').eq('id', pjAtivoIdMenu),
+        supabaseClient.from('historias').select('id, criatura_ids, lore_acesso_pj').overlaps('protagonista_ids', [pjAtivoIdMenu]),
+        supabaseClient.rpc('listar_diario_lore', { p_personagem_id: pjAtivoIdMenu }),
+        supabaseClient.rpc('listar_diario_disponivel', { p_personagem_id: pjAtivoIdMenu }),
+      ]);
+      if (cancel) return;
+      const vazias = new Set();
+      // Uma consulta que falhou não apaga nada: na dúvida, a página abre.
+      if (!e1 && !e2 && window.conhecidoDoJogador && window.criaturasLiberadas) {
+        const c = window.conhecidoDoJogador(pjs || []);
+        if (!c.magias.size) vazias.add('magias');
+        if (!c.tecnicas.size) vazias.add('tecnicas');
+        if (!c.habilidades.size) vazias.add('habilidades');
+        if (!c.itens.size) vazias.add('itens');
+        if (!window.criaturasLiberadas(hs || [], [pjAtivoIdMenu]).size) vazias.add('criaturas');
+      }
+      if (!e3 && !e4 && lore && lore.ok !== false && disp && disp.ok !== false) {
+        const tipos = [...(lore.entradas || []), ...(disp.lore || [])].map((e) => e && e.tipo);
+        [['reino', 'lugares'], ['cidade', 'cidades'], ['local', 'locais'], ['npc', 'npcs']]
+          .forEach(([tipo, secao]) => { if (!tipos.includes(tipo)) vazias.add(secao); });
+      }
+      setPaginasVazias(vazias);
+    })();
+    return () => { cancel = true; };
+  }, [user, profile, pjAtivoIdMenu, currentId]);
+  /* O porquê da página apagada, no balão. */
+  const motivoPaginaVazia = (secao) => {
+    if (profile !== 'player' || !paginasVazias || !paginasVazias.has(secao)) return null;
+    const en = lang === 'en';
+    const M = {
+      lugares: ['Your character does not know any kingdom yet.', 'Seu personagem ainda não conhece nenhum reino.'],
+      cidades: ['Your character does not know any city yet.', 'Seu personagem ainda não conhece nenhuma cidade.'],
+      locais: ['Your character does not know any place yet.', 'Seu personagem ainda não conhece nenhum local.'],
+      npcs: ['Your character does not know anyone yet.', 'Seu personagem ainda não conhece ninguém.'],
+      criaturas: ['No creature has been revealed to your character yet.', 'Nenhuma criatura foi revelada ao seu personagem.'],
+      itens: ['Your character has no items yet.', 'Seu personagem ainda não tem nenhum item.'],
+      magias: ['Your character does not know any spell yet.', 'Seu personagem ainda não conhece nenhuma magia.'],
+      tecnicas: ['Your character does not know any technique yet.', 'Seu personagem ainda não conhece nenhuma técnica.'],
+      habilidades: ['Your character has no skills yet.', 'Seu personagem ainda não tem nenhuma habilidade.'],
+    }[secao];
+    return M ? M[en ? 0 : 1] : null;
+  };
   /* O porquê do item apagado, no balão do menu. */
   const bloqueioJogador = (no) => {
     if (profile !== 'player' || !acessoJogador) return null;
@@ -4769,7 +4841,18 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         ? (en ? 'None of your characters is at a table yet. Accept an invitation to join one.' : 'Nenhum personagem seu está numa mesa. Aceite um convite para entrar em uma.')
         : (en ? 'Create a character and join a table to open it.' : 'Crie um personagem e entre numa mesa para abrir.');
     }
+    /* Mesa sem capítulo (17/11/2026): a mesa que a página mostraria é a ativa,
+       ou a primeira (AventurasJogador, 05-convites). */
+    if (no.secao === 'aventuras' && acessoJogador.capitulos) {
+      const caps = acessoJogador.capitulos, ids = Object.keys(caps);
+      const daMesa = mesaAtivaId != null && caps[mesaAtivaId] != null ? caps[mesaAtivaId] : (ids.length ? caps[ids[0]] : 0);
+      if (!daMesa) return en ? 'The table has no chapter yet.' : 'A mesa ainda não tem nenhum capítulo.';
+    }
     if (no.id === 'diario' && !acessoJogador.temPj) return en ? 'Create a character to open the journal.' : 'Crie um personagem para abrir o diário.';
+    // Grupo de trilho com TODAS as páginas vazias (o Compêndio de quem não sabe nada).
+    if (no.trilho && no.filhos && no.filhos.every((f) => motivoPaginaVazia(f.secao))) {
+      return en ? 'Your character does not know anything here yet.' : 'Seu personagem ainda não conhece nada daqui.';
+    }
     return null;
   };
   /* ENTRAR NUMA MESA É GESTO DO MESTRE (20/09/2026). Este efeito ESCOLHIA uma
@@ -5056,9 +5139,13 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
     <nav className="mc-acao-grupo trilho-paginas" aria-label={rotuloDe(grupoDoTrilho)}>
       {grupoDoTrilho.filhos.map((f) => {
         const ativo = f.secao === secaoMarcada;
+        // Página vazia para o personagem: esmaecida, não abre (17/11/2026).
+        const vazia = !ativo && motivoPaginaVazia(f.secao);
         return (
-          <button key={f.secao} type="button" data-secao={f.secao} className={'mc-acao' + (ativo ? ' is-ativo' : '')}
-            aria-current={ativo ? 'page' : undefined} onClick={() => irPara(f)}>
+          <button key={f.secao} type="button" data-secao={f.secao} className={'mc-acao' + (ativo ? ' is-ativo' : '') + (vazia ? ' is-inativo' : '')}
+            aria-current={ativo ? 'page' : undefined} aria-disabled={vazia ? true : undefined}
+            {...(vazia ? propsTip(abrirNavTip, fecharNavTip, vazia) : {})}
+            onClick={() => { if (!vazia) irPara(f); }}>
             <i className={'ti ' + iconeDe(f)} aria-hidden="true" />
             <span className="mc-acao-rotulo">{rotuloDe(f)}</span>
           </button>
@@ -5185,7 +5272,12 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
           aria-current={contem ? 'page' : undefined}
           aria-disabled={bloqueio ? true : undefined}
           {...propsTip(abrirNavTip, fecharNavTip, bloqueio)}
-          onClick={() => { if (!bloqueio) irPara(no); }}>
+          onClick={() => {
+            if (bloqueio) return;
+            // A primeira página que tem o que mostrar (as vazias não abrem, 17/11/2026).
+            const primeira = no.filhos.find((f) => !motivoPaginaVazia(f.secao));
+            irPara(primeira || no);
+          }}>
           <i className={'ti ' + iconeDe(no)} aria-hidden="true" />
           <span>{rotuloDe(no)}</span>
         </button>
@@ -6296,13 +6388,23 @@ Object.assign(window, {
    e botão ao mesmo tempo (15/11/2026, usuário: "Use o mesmo estilo de botão
    com brilho no seletor de aventura, no botão da conta inferior esquerdo"). */
 // A paginação também (.best-pag, 16/11/2026: "Aplique o efeito de brilho nos botões de navegação das páginas").
-const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu, .trilho-solto, .batalha-zoom';
+// O quadro do calendário dos campos de data (.cal-pop, 16/11/2026, usuário: "O modal que abre da lista suspensa
+// continua fora do padrão, veja o seletor de mesa"): o topo, a grade dos dias, a dos meses e o rodapé são trilhos.
+// As listas dos campos nas janelas (.select-pill-drop, 16/11/2026, usuário: "Arrume o estilo nos modais, veja
+// editar mesa"): o mesmo menu solto do seletor de mesa, com a lâmina pousando na opção escolhida.
+// As listas suspensas do trilho do rodapé (16/11/2026, usuário: "A lista suspensa no trilho inferior está fora do
+// padrão"): clima, hora e local são menus soltos — a lâmina desliza entre as opções e pousa na escolhida (.is-ativa).
+// A janela Dar item (16/11/2026, usuário: "Coloque os efeitos de brilho, padrão"): o topo (busca e o −/+ da
+// quantidade) e a lista, um trilho em pé — a lâmina desce de linha em linha e pousa no item escolhido (.is-on).
+const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu, .trilho-solto, .batalha-zoom, .dar-item-topo, .dar-item-lista, .cdj-tempo-lista, .cdj-hora-lista, .cdj-local-lista, .select-pill-drop, .cal-topo, .cal-grade, .cal-meses, .cal-rodape, .estudar-abas';
 // O "+" também (15/11/2026, usuário: "O botão de '+' nos trilhos também precisam entrar no padrão com brilho, cor, etc.").
-const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho', '.mc-navitem', '.mc-navbusca', '.wiz-fase', '.mc-ident', '.mc-user', '.best-page-btn', '.mc-menu-item', '.mc-usermenu [role="menuitem"]', '.batalha-zoom-btn'];
+const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho', '.mc-navitem', '.mc-navbusca', '.wiz-fase', '.mc-ident', '.mc-user', '.best-page-btn', '.mc-menu-item', '.mc-usermenu [role="menuitem"]', '.batalha-zoom-btn', '.dar-item-linha', '.dar-item-qtd .fp-step-btn', '.cdj-tempo-opcao', '.cdj-hora-opcao', '.select-pill-drop li', '.cal-titulo', '.cal-seta', '.cal-dia', '.cal-mes', '.cal-acao', '.nb-pagina-op'];
 const TRILHO_BOTAO = TRILHO_BOTOES.join(', ');
 // O marcado de cada família: .is-ativo nos trilhos, .is-on nas pílulas de escolha, .is-active no menu, .is-ativa nas fases.
 // .is-atual: a mesa escolhida no menu da mesa (16/11/2026: 'Os botões internos de selecionar aventura também terão brilho, assim como os botões no menu da conta').
-const TRILHO_MARCAS = ['is-ativo', 'is-on', 'is-active', 'is-ativa', 'is-atual'];
+// .active: a opção escolhida das listas dos campos (SelectPill), 16/11/2026 — "veja o seletor de mesa".
+// .is-escolhido: o dia e o mês escolhidos no quadro do calendário (16/11/2026).
+const TRILHO_MARCAS = ['is-ativo', 'is-on', 'is-active', 'is-ativa', 'is-atual', 'active', 'is-escolhido'];
 const TRILHO_ATIVO = TRILHO_BOTOES.flatMap((b) => TRILHO_MARCAS.map((m) => b + '.' + m)).join(', ');
 const _laminaEhAtivo = (b) => TRILHO_MARCAS.some((m) => b.classList.contains(m));
 function _laminaPousar(trilho, alvo, modo) {
@@ -6345,7 +6447,7 @@ function instalarLaminaDosTrilhos() {
     const b = alvo && alvo.closest ? alvo.closest(TRILHO_BOTAO) : null;
     // O selo de pontos (Técnicas, Magias) tem a pele de botão, mas é só leitura.
     // .is-inativo: o item do menu sem mesa e a Loja vazia — esmaecidos, não acendem.
-    if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('pc-pontos') || b.classList.contains('is-inativo')) return null;
+    if (!b || b.disabled || b.getAttribute('aria-disabled') === 'true' || b.classList.contains('pc-pontos') || b.classList.contains('is-inativo') || (b.matches('.select-pill-drop li') && b.classList.contains('disabled'))) return null;
     const trilho = b.closest(TRILHO_SELETOR);
     return trilho ? { b, trilho } : null;
   };
