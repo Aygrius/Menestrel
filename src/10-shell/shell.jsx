@@ -2655,16 +2655,18 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
               ) : (
                 <span className="cal-nav-ano-num is-leitura">{anoFoco}</span>
               )}
+              {/* Fora do mês da data atual, o caminho de volta — ao lado do ano,
+                  como um botão do trilho (17/11/2026, usuário: "O botão hoje está
+                  fora do padrão também, ele pode ficar ao lado do seletor de ano"). */}
+              {hoje && (hoje.mes !== mesFoco || hoje.ano !== anoFoco) && (
+                <button type="button" className="cal-nav-hoje" onClick={() => { setEscolhendoMes(false); irParaMes(hoje.mes, hoje.ano); }}>
+                  <i className="ti ti-calendar-event" aria-hidden="true" />
+                  <span>{en ? 'Today' : 'Hoje'}</span>
+                </button>
+              )}
             </div>
           </div>
-          {/* Fora do mês da data atual, o caminho de volta. */}
-          {hoje && (hoje.mes !== mesFoco || hoje.ano !== anoFoco) && (
-            <button type="button" className="cal-nav-hoje" onClick={() => { setEscolhendoMes(false); irParaMes(hoje.mes, hoje.ano); }}>
-              <i className="ti ti-calendar-event" aria-hidden="true" />
-              <span>{en ? 'Today' : 'Hoje'}</span>
-            </button>
-          )}
-          <button className="cal-header-close" onClick={onClose} aria-label={en ? 'Close' : 'Fechar'}>
+          <button type="button" className="cal-header-close ms-close" onClick={onClose} aria-label={en ? 'Close' : 'Fechar'}>
             <i className="ti ti-x" aria-hidden="true" />
           </button>
         </div>
@@ -2885,7 +2887,9 @@ function CalendarioFantasyModal({ dataAtual, dataNasc, lang, historiaId, podeEdi
       </div>{/* menestrel-ui */}
       <NavTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>,
-    document.body
+    /* Dentro do #root (17/11/2026): o CSS da lâmina e do padrão novo mora em
+       `#root .menestrel-ui`; aberta no body, a janela ficava fora dele. */
+    document.getElementById('root') || document.body
   );
 }
 
@@ -6434,15 +6438,16 @@ Object.assign(window, {
 // padrão"): clima, hora e local são menus soltos — a lâmina desliza entre as opções e pousa na escolhida (.is-ativa).
 // A janela Dar item (16/11/2026, usuário: "Coloque os efeitos de brilho, padrão"): o topo (busca e o −/+ da
 // quantidade) e a lista, um trilho em pé — a lâmina desce de linha em linha e pousa no item escolhido (.is-on).
-const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu, .trilho-solto, .batalha-zoom, .dar-item-topo, .dar-item-lista, .cdj-tempo-lista, .cdj-hora-lista, .cdj-local-lista, .select-pill-drop, .cal-topo, .cal-grade, .cal-meses, .cal-rodape, .estudar-abas, .venda-moeda';
+const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu, .trilho-solto, .batalha-zoom, .dar-item-topo, .dar-item-lista, .cdj-tempo-lista, .cdj-hora-lista, .cdj-local-lista, .select-pill-drop, .cal-topo, .cal-grade, .cal-meses, .cal-rodape, .estudar-abas, .venda-moeda, .cal-nav-mes, .cal-nav-ano, .cal-grid, .cal-meses-grade, .cal-legenda';
 // O "+" também (15/11/2026, usuário: "O botão de '+' nos trilhos também precisam entrar no padrão com brilho, cor, etc.").
-const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho', '.mc-navitem', '.mc-navbusca', '.wiz-fase', '.mc-ident', '.mc-user', '.best-page-btn', '.mc-menu-item', '.mc-usermenu [role="menuitem"]', '.batalha-zoom-btn', '.dar-item-linha', '.dar-item-qtd .fp-step-btn', '.cdj-tempo-opcao', '.cdj-hora-opcao', '.select-pill-drop li', '.cal-titulo', '.cal-seta', '.cal-dia', '.cal-mes', '.cal-acao', '.nb-pagina-op', '.venda-moeda .fp-step-btn'];
+const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho', '.mc-navitem', '.mc-navbusca', '.wiz-fase', '.mc-ident', '.mc-user', '.best-page-btn', '.mc-menu-item', '.mc-usermenu [role="menuitem"]', '.batalha-zoom-btn', '.dar-item-linha', '.dar-item-qtd .fp-step-btn', '.cdj-tempo-opcao', '.cdj-hora-opcao', '.select-pill-drop li', '.cal-titulo', '.cal-seta', '.cal-dia', '.cal-mes', '.cal-acao', '.nb-pagina-op', '.venda-moeda .fp-step-btn', '.cal-nav-seta', '.cal-nav-titulo', '.cal-nav-hoje', '.cal-meses-casa', '.cal-legenda-row'];
 const TRILHO_BOTAO = TRILHO_BOTOES.join(', ');
 // O marcado de cada família: .is-ativo nos trilhos, .is-on nas pílulas de escolha, .is-active no menu, .is-ativa nas fases.
 // .is-atual: a mesa escolhida no menu da mesa (16/11/2026: 'Os botões internos de selecionar aventura também terão brilho, assim como os botões no menu da conta').
 // .active: a opção escolhida das listas dos campos (SelectPill), 16/11/2026 — "veja o seletor de mesa".
 // .is-escolhido: o dia e o mês escolhidos no quadro do calendário (16/11/2026).
-const TRILHO_MARCAS = ['is-ativo', 'is-on', 'is-active', 'is-ativa', 'is-atual', 'active', 'is-escolhido'];
+// .is-focado / .is-visto: o dia e o mês escolhidos na janela do calendário (17/11/2026).
+const TRILHO_MARCAS = ['is-ativo', 'is-on', 'is-active', 'is-ativa', 'is-atual', 'active', 'is-escolhido', 'is-focado', 'is-visto'];
 const TRILHO_ATIVO = TRILHO_BOTOES.flatMap((b) => TRILHO_MARCAS.map((m) => b + '.' + m)).join(', ');
 const _laminaEhAtivo = (b) => TRILHO_MARCAS.some((m) => b.classList.contains(m));
 function _laminaPousar(trilho, alvo, modo) {
@@ -6497,10 +6502,23 @@ function instalarLaminaDosTrilhos() {
   const saiu = (e) => {
     const trilho = e.target && e.target.closest ? e.target.closest(TRILHO_SELETOR) : null;
     if (!trilho) return;
-    if (e.relatedTarget && trilho.contains(e.relatedTarget)) return;   // ainda dentro do trilho
+    /* Ainda no trilho: noutro botão dele, ou no vão entre os botões. Fora disso
+       — as casas vazias antes do dia 1 do calendário, por exemplo — a luz volta
+       ao lugar dela (17/11/2026, usuário: "ao selecionar um outro mês e passar
+       o mouse, o brilho fica preso no meio dos dias"). */
+    const rt = e.relatedTarget;
+    if (rt && trilho.contains(rt)) {
+      const noBotao = botaoNoTrilho(rt);
+      if (rt === trilho || (noBotao && noBotao.trilho === trilho)) return;
+    }
     // O ponteiro saiu, mas o foco ficou (quem digita na busca): a luz fica nele.
     if (e.type === 'pointerout') {
-      const f = botaoNoTrilho(document.activeElement);
+      /* Só o foco de teclado ou de digitação (:focus-visible) segura a luz
+         (17/11/2026): o dia clicado no calendário guardava o foco do clique, e a
+         luz ficava nele depois de desmarcado, como se seguisse escolhido. */
+      const ae = document.activeElement;
+      const visivel = !!(ae && ae.matches && (() => { try { return ae.matches(':focus-visible'); } catch (_) { return true; } })());
+      const f = visivel ? botaoNoTrilho(ae) : null;
       if (f && f.trilho === trilho) { _laminaPousar(trilho, f.b, _laminaEhAtivo(f.b) ? 'ativo' : 'passagem'); return; }
     }
     _laminaRepousar(trilho);

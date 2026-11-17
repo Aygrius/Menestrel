@@ -20248,3 +20248,203 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
    faixa da mesa divide a linha com os outros dois trilhos: data, lugar, hora e
    clima ficam no ícone; o texto segue na dica e no aria-label de cada botão. */
 #root .menestrel-ui .fp3-rodape-tres .fp3-rodape-dados :is(.cdj-data, .cdj-rotulo, .cdj-vazio) { display: none; }
+
+/* ── O CALENDÁRIO NO PADRÃO COM BRILHO (17/11/2026) ─────────────────────────
+   Usuário: "Redesenhe o calendário usando impeccable. Use nosso padrão novo
+   com brilho. Sem borda interna. Faça algo bonito, bem formatado, funcional."
+   A estrutura fica (mês e ano no alto, a grade à esquerda, a agenda à
+   direita); o que muda é a pele:
+     · nenhum aro por dentro — os dias, os meses, as linhas da agenda e os
+       números dela eram ladrilhos com régua; agora são texto sobre o chão, e
+       a agenda deixa de ter a régua vertical: é um chão mais claro, à parte;
+     · a LÂMINA (10-shell): setas e título do mês, setas do ano, a grade de
+       dias, a dos meses e a agenda são trilhos — a luz desliza sob o
+       ponteiro e pousa, em brasa, no dia (ou mês) escolhido;
+     · a data atual é o número em ouro com um traço embaixo; o aniversário,
+       o número em violeta.
+   Só o aro de fora da janela continua, na régua padrão. A janela abre dentro
+   do #root (CalendarioFantasyModal), onde mora o CSS da lâmina. */
+#root .cal-overlay .menestrel-ui .cal-modal {
+  width: min(880px, calc(100vw - 32px)); max-width: none;
+  background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte); border-radius: 18px;
+  box-shadow: 0 30px 80px -24px rgba(0,0,0,.9);
+}
+/* O cabeçalho em três colunas (17/11/2026, usuário: "Porque as informações de
+   mês e ano no calendário não estão centralizadas? O x não está
+   padronizado."): mês e ano no centro (o Hoje na linha do ano), o × padrão
+   das janelas (.ms-close) à direita; a coluna da esquerda equilibra. */
+#root .cal-overlay .menestrel-ui .cal-header {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: start;
+  gap: 12px; padding: 18px 18px 16px; border: 0;
+}
+#root .cal-overlay .menestrel-ui .cal-header > .cal-nav { grid-column: 2; grid-row: 1; margin: 0; align-items: center; }
+#root .cal-overlay .menestrel-ui .cal-header > .cal-header-close { grid-column: 3; grid-row: 1; justify-self: end; margin: 0; }
+
+/* O mês: título em Cinzel entre as setas, num trilho. */
+#root .cal-overlay .menestrel-ui .cal-nav { gap: 6px; }
+#root .cal-overlay .menestrel-ui .cal-nav-mes { gap: 2px; padding: 3px; border-radius: 999px; }
+#root .cal-overlay .menestrel-ui .cal-nav-titulo {
+  position: relative; z-index: 1; height: 44px; padding: 0 14px; gap: 10px; border-radius: 999px; background: none;
+}
+#root .cal-overlay .menestrel-ui .cal-titulo-mes { font: 600 26px/1 var(--font-title); color: var(--tinta); letter-spacing: .01em; }
+#root .cal-overlay .menestrel-ui .cal-nav-titulo-ic { font-size: 17px; color: var(--tinta-3); }
+#root .cal-overlay .menestrel-ui :is(.cal-nav-seta, .cal-nav-titulo):is(:hover, .is-aberto) { background: none; }
+#root .cal-overlay .menestrel-ui .cal-nav-seta {
+  position: relative; z-index: 1; width: 38px; height: 38px; border-radius: 999px; font-size: 18px; color: var(--tinta-2);
+}
+#root .cal-overlay .menestrel-ui .cal-nav-seta:hover:not(:disabled) { color: var(--tinta); }
+#root .cal-overlay .menestrel-ui .cal-nav-seta:disabled { opacity: .28; }
+/* O ano: a linha de baixo, alinhada ao texto do mês. */
+#root .cal-overlay .menestrel-ui .cal-nav-ano { justify-content: center; gap: 2px; padding: 0 3px; border-radius: 999px; }
+#root .cal-overlay .menestrel-ui .cal-nav-ano-rotulo { margin-right: 4px; font: 700 12px var(--font-body); letter-spacing: .1em; color: var(--tinta-3); }
+#root .cal-overlay .menestrel-ui .cal-nav-seta--ano { width: 30px; height: 30px; font-size: 15px; }
+#root .cal-overlay .menestrel-ui .cal-nav-ano-num {
+  position: relative; z-index: 1; height: 30px; padding: 0 10px; border-radius: 999px;
+  font: 700 17px var(--font-body); font-variant-numeric: lining-nums tabular-nums; color: var(--tinta);
+}
+#root .cal-overlay .menestrel-ui input.cal-nav-ano-num { background: var(--campo-bg); }
+#root .cal-overlay .menestrel-ui input.cal-nav-ano-num:is(:hover, :focus) { background: var(--campo-bg-hover); outline: 0; }
+#root .cal-overlay .menestrel-ui .cal-nav-ano-num.is-leitura { background: none; padding-left: 6px; display: inline-flex; align-items: center; }
+/* "Hoje": um botão do trilho do ano, sem aro e sem chão; a lâmina acende nele. */
+#root .cal-overlay .menestrel-ui .cal-nav-hoje {
+  position: relative; z-index: 1; height: 30px; margin: 0 0 0 4px; padding: 0 12px 0 10px; gap: 6px;
+  border: 0; border-radius: 999px; background: none; box-shadow: none;
+  color: var(--tinta-2); font: 700 15px var(--font-body); transition: color .15s ease;
+}
+#root .cal-overlay .menestrel-ui .cal-nav-hoje:hover { background: none; color: var(--tinta); }
+#root .cal-overlay .menestrel-ui .cal-nav-hoje i { font-size: 17px; color: var(--vivo); }
+
+/* O corpo: grade e agenda lado a lado, sem régua entre elas. */
+#root .cal-overlay .menestrel-ui .cal-corpo { grid-template-columns: minmax(0, 1fr) 280px; gap: 14px; padding: 0 14px 14px 20px; }
+#root .cal-overlay .menestrel-ui .cal-mes-quadro { padding: 0 0 6px; }
+
+/* Os dias da semana: rótulos pequenos, no x do número de cada dia. */
+#root .cal-overlay .menestrel-ui .cal-weekdays { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; margin-bottom: 4px; }
+#root .cal-overlay .menestrel-ui .cal-weekday {
+  padding: 4px 0 4px 12px; text-align: left; font: 700 12px var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-3);
+}
+
+/* A grade: trilho de dias. Cada dia é número + marcas, sem ladrilho; a
+   lâmina (cantos de 12px, a forma da casa) acende sob o ponteiro e pousa no
+   escolhido. */
+#root .cal-overlay .menestrel-ui .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-auto-rows: auto; gap: 4px; }
+#root .cal-overlay .menestrel-ui .cal-grid[data-lamina]::before { border-radius: 12px; }
+#root .cal-overlay .menestrel-ui .cal-dia,
+#root .cal-overlay .menestrel-ui .cal-dia-vazio { aspect-ratio: 1.45; }
+#root .cal-overlay .menestrel-ui .cal-dia {
+  position: relative; z-index: 1; width: 100%; height: auto; min-height: 0; justify-self: stretch;
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between;
+  padding: 9px 12px 10px; border: 0; border-radius: 12px; box-shadow: none;
+  background: none; color: var(--tinta-2);
+  font: 600 18px var(--font-body); font-variant-numeric: lining-nums tabular-nums; text-align: left;
+  transition: color .15s ease;
+}
+#root .cal-overlay .menestrel-ui .cal-dia:hover { background: none; color: var(--tinta); }
+#root .cal-overlay .menestrel-ui .cal-dia:focus-visible { outline: 2px solid var(--vivo); outline-offset: -2px; }
+#root .cal-overlay .menestrel-ui .cal-dia.is-focado { background: none; box-shadow: none; color: var(--tinta); font-weight: 800; }
+/* Sem o motor (sem data-lamina), o escolhido ainda se vê: o véu de ouro. */
+#root .cal-overlay .menestrel-ui .cal-grid:not([data-lamina]) .cal-dia.is-focado { background: var(--vivo-fundo); }
+/* A data atual: o número em ouro e um traço de ouro embaixo dele. */
+#root .cal-overlay .menestrel-ui .cal-dia.is-hoje,
+#root .cal-overlay .menestrel-ui .cal-dia.is-hoje:hover,
+#root .cal-overlay .menestrel-ui .cal-dia.is-hoje.is-focado { background: none; color: var(--vivo); font-weight: 800; }
+#root .cal-overlay .menestrel-ui .cal-dia.is-hoje .cal-dia-num { position: relative; }
+#root .cal-overlay .menestrel-ui .cal-dia.is-hoje .cal-dia-num::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -5px; height: 2px; border-radius: 2px; background: var(--vivo);
+}
+#root .cal-overlay .menestrel-ui .cal-dia.is-aniversario:not(.is-hoje) { background: none; color: #D4B0F0; }
+#root .cal-overlay .menestrel-ui .cal-dia-dots { display: flex; gap: 4px; height: 6px; }
+#root .cal-overlay .menestrel-ui .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
+#root .cal-overlay .menestrel-ui .cal-dia.is-hoje .cal-dot-feriado { background: var(--vivo); }
+
+/* Os treze meses: trilho também, casas sem aro. */
+#root .cal-overlay .menestrel-ui .cal-meses-grade { gap: 4px; }
+#root .cal-overlay .menestrel-ui .cal-meses-grade[data-lamina]::before { border-radius: 12px; }
+#root .cal-overlay .menestrel-ui .cal-meses-casa {
+  z-index: 1; height: 46px; padding: 0 14px; border: 0; border-radius: 12px; box-shadow: none;
+  background: none; color: var(--tinta-2);
+}
+#root .cal-overlay .menestrel-ui .cal-meses-casa:is(:hover, .is-visto) { background: none; box-shadow: none; color: var(--tinta); }
+#root .cal-overlay .menestrel-ui .cal-meses-grade:not([data-lamina]) .cal-meses-casa.is-visto { background: var(--vivo-fundo); }
+#root .cal-overlay .menestrel-ui .cal-meses-nome { font: 700 16px var(--font-body); }
+#root .cal-overlay .menestrel-ui .cal-meses-ponto { top: 50%; right: 14px; margin-top: -3px; }
+
+/* A agenda: um chão à parte, sem régua; as linhas dela num trilho. */
+#root .cal-overlay .menestrel-ui .cal-agenda {
+  border: 0; border-radius: 14px; padding: 16px 12px 14px;
+  background: rgba(var(--bronze-rgb), .07);
+}
+#root .cal-overlay .menestrel-ui .cal-agenda-rotulo {
+  margin: 0 0 8px 6px; font: 700 12px var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-3);
+}
+#root .cal-overlay .menestrel-ui .cal-agenda-vazio { margin: 0 6px; font-size: 15px; color: var(--tinta-3); }
+#root .cal-overlay .menestrel-ui .cal-legenda { display: flex; flex-direction: column; gap: 2px; border-radius: 12px; }
+#root .cal-overlay .menestrel-ui .cal-legenda[data-lamina]::before { border-radius: 12px; }
+#root .cal-overlay .menestrel-ui .cal-legenda-row {
+  position: relative; z-index: 1; margin: 0; padding: 9px 10px; gap: 12px; align-items: baseline;
+  border: 0; border-radius: 12px; background: none;
+}
+#root .cal-overlay .menestrel-ui .cal-legenda-row:hover { background: none; }
+#root .cal-overlay .menestrel-ui .cal-legenda-num {
+  flex: none; min-width: 26px; height: auto; display: block; border: 0; border-radius: 0; background: none;
+  font: 800 17px var(--font-body); font-variant-numeric: lining-nums tabular-nums; text-align: right; color: var(--vivo);
+}
+#root .cal-overlay .menestrel-ui .cal-legenda-row.is-aniv .cal-legenda-num { color: #D4B0F0; border: 0; }
+#root .cal-overlay .menestrel-ui .cal-legenda-row.is-nota .cal-legenda-num { color: #8ABFA0; border: 0; }
+#root .cal-overlay .menestrel-ui .cal-legenda-nome { font-size: 15px; line-height: 1.35; color: var(--tinta-2); }
+#root .cal-overlay .menestrel-ui .cal-legenda-row:hover .cal-legenda-nome { color: var(--tinta); }
+
+/* O dia escolhido, na agenda: número grande, dia da semana embaixo. */
+#root .cal-overlay .menestrel-ui .cal-painel { padding: 0 4px; }
+#root .cal-overlay .menestrel-ui .cal-painel-eyebrow { margin-bottom: 14px; }
+/* Algarismos do corpo: em Cinzel o 1 vira I ("I2"). */
+#root .cal-overlay .menestrel-ui .cal-painel-dia-num { font: 800 40px/1 var(--font-body); font-variant-numeric: lining-nums tabular-nums; color: var(--tinta); }
+#root .cal-overlay .menestrel-ui .cal-painel-dia-semana { margin: 4px 0 0; font: 700 12px var(--font-body); letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-3); }
+#root .cal-overlay .menestrel-ui .cal-painel .cal-nota-del {
+  width: 36px; height: 36px; border: 0; border-radius: 999px; background: var(--campo-bg); color: var(--tinta-2); font-size: 17px;
+}
+#root .cal-overlay .menestrel-ui .cal-painel .cal-nota-del:hover { background: var(--campo-bg-hover); color: var(--tinta); }
+#root .cal-overlay .menestrel-ui .cal-painel .cal-nota-row .cal-nota-del { width: 30px; height: 30px; background: none; }
+#root .cal-overlay .menestrel-ui .cal-painel .cal-nota-row .cal-nota-del:hover { background: rgba(201,85,59,.14); color: #E07A5F; }
+#root .cal-overlay .menestrel-ui .cal-evento,
+#root .cal-overlay .menestrel-ui .cal-nota-row {
+  margin: 0 0 4px; padding: 10px 12px; gap: 10px; border: 0; border-radius: 12px; background: rgba(var(--bronze-rgb), .08);
+}
+#root .cal-overlay .menestrel-ui .cal-evento i,
+#root .cal-overlay .menestrel-ui .cal-nota-row > i { font-size: 17px; }
+#root .cal-overlay .menestrel-ui .cal-evento-feriado i { color: var(--vivo); }
+#root .cal-overlay .menestrel-ui .cal-evento span,
+#root .cal-overlay .menestrel-ui .cal-nota-texto { font-size: 15px; line-height: 1.35; color: var(--tinta); }
+/* Definir como data atual: a ação primária, com a brasa. */
+#root .cal-overlay .menestrel-ui .cal-definir-data-btn {
+  width: 100%; height: 40px; margin: 0 0 12px; gap: 8px; border: 0; border-radius: 999px;
+  background: radial-gradient(70% 120% at 50% 135%, rgba(var(--ouro-rgb), .5), transparent 70%), var(--vivo-fundo);
+  color: var(--tinta); font: 700 15px var(--font-body);
+  box-shadow: 0 6px 16px -10px rgba(var(--ouro-rgb), .75);
+}
+#root .cal-overlay .menestrel-ui .cal-definir-data-btn:hover:not(:disabled) {
+  background: radial-gradient(70% 120% at 50% 135%, rgba(var(--ouro-rgb), .7), transparent 70%), var(--vivo-fundo);
+}
+#root .cal-overlay .menestrel-ui .cal-definir-data-btn i { color: var(--vivo); }
+#root .cal-overlay .menestrel-ui .cal-data-atual-tag { display: inline-flex; align-items: center; gap: 6px; margin: 0 0 12px 2px; font: 700 15px var(--font-body); color: var(--vivo); }
+/* A nota: campo sem aro, no chão de campo. */
+#root .cal-overlay .menestrel-ui .cal-input-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+#root .cal-overlay .menestrel-ui .cal-input {
+  flex: 1 1 auto; min-width: 0; height: 38px; padding: 0 14px; border: 0; border-radius: 999px;
+  background: var(--campo-bg); color: var(--tinta); font: 500 15px var(--font-body);
+}
+#root .cal-overlay .menestrel-ui .cal-input:focus { background: var(--campo-bg-hover); outline: 0; }
+#root .cal-overlay .menestrel-ui .cal-input-ok {
+  height: 38px; padding: 0 16px; border: 0; border-radius: 999px; background: var(--vivo-fundo); color: var(--tinta); font: 700 15px var(--font-body);
+}
+#root .cal-overlay .menestrel-ui .cal-input-ok:hover:not(:disabled) { background: radial-gradient(70% 120% at 50% 135%, rgba(var(--ouro-rgb), .45), transparent 70%), var(--vivo-fundo); }
+#root .cal-overlay .menestrel-ui .cal-input-cancel { width: 34px; height: 34px; border: 0; background: none; }
+
+/* Tela estreita: a agenda desce, ainda sem régua. */
+@media (max-width: 760px) {
+  #root .cal-overlay .menestrel-ui .cal-corpo { grid-template-columns: minmax(0, 1fr); padding: 0 12px 12px; }
+  #root .cal-overlay .menestrel-ui .cal-agenda { border: 0; padding: 14px 10px; }
+  #root .cal-overlay .menestrel-ui .cal-weekday { padding-left: 0; text-align: center; letter-spacing: .04em; }
+  #root .cal-overlay .menestrel-ui .cal-dia { align-items: center; padding: 6px 4px; font-size: 16px; }
+  #root .cal-overlay .menestrel-ui .cal-titulo-mes { font-size: 22px; }
+}
