@@ -29,7 +29,7 @@
 
 const CORTINA_CAMPOS = ['ef', 'eh', 'res', 'karma', 'ef_max', 'eh_max', 'res_max', 'karma_max', 'status', 'status_temp'];
 const FX_INTERVALO_MS = 1000;   // um efeito por segundo: dá para o Mestre narrar cada um
-const FX_DURACAO_MS = 1500;
+const FX_DURACAO_MS = 2200;   // o efeito mais longo (a morte, o desmaio) cabe aqui
 const FX_MAX = 12;
 
 function chaveFx(p) {
@@ -102,10 +102,45 @@ function logNaCortina(log, cortina, ehMeu) {
 
 /* ── Os efeitos de uma revelação ──────────────────────────────────
    Do trecho do log (o que aconteceu) e da diferença entre a vista de antes
-   e a de agora (quem caiu, quem chegou, quem se curou). Puro. */
-const GOLPES = { CORTE: 'corte', PERFURACAO: 'perfuracao', ESMAGAMENTO: 'esmagamento', DESARMADO: 'esmagamento' };
-const ELEMENTOS_FX = ['fogo', 'agua', 'ar', 'terra', 'celestial', 'infernal'];
+   e a de agora (quem caiu, quem chegou, quem se curou). Puro.
 
+   17/11/2026 — o catálogo aprovado (efeitos-catalogo.jsx) distingue o que o
+   alvo fez com o golpe. O log traz, por alvo, `fx_alvos[chave]` (gravado por
+   fxDoGolpeNoAlvo em batalha.jsx): esquivou, a defesa que reduziu (aparar,
+   desviar, escudo), quanto saiu da EH e da EF, se a armadura ou uma proteção
+   segurou tudo e que peça quebrou. Entrada antiga, sem o campo, toca como
+   antes: o golpe e o número. */
+const GOLPES = { CORTE: 'corte', PERFURACAO: 'perfuracao', ESMAGAMENTO: 'esmagamento', DESARMADO: 'desarmado' };
+const ELEMENTOS_FX = ['fogo', 'agua', 'ar', 'terra', 'celestial', 'infernal'];
+/* O desenho de cada magia. O ELEMENTO do jogo continua sendo um dos seis
+   (decisão de 12/09/2026, magias-efeito.jsx); isto é só a imagem: Dardos de
+   Gelo é dano de água, mas a mesa vê gelo; Relâmpago é ar, mas a mesa vê o
+   raio. Magia fora da lista usa a imagem do elemento; sem elemento, arcano. */
+const VISUAL_DO_ELEMENTO = { fogo: 'fogo', agua: 'agua', ar: 'vento', terra: 'terra', celestial: 'celestial', luz: 'celestial', infernal: 'infernal' };
+const VISUAL_DA_MAGIA = {
+  dardos_de_gelo: 'gelo',
+  aeroataque: 'vento', aeromanipulacao: 'vento',
+  raio_eletrico: 'raio', relampago: 'raio',
+  bastao_de_luz: 'luz', dardos_de_luz: 'luz', lamina_de_luz: 'luz', fotoataque: 'luz', fotomanipulacao: 'luz', verdade_ofuscante: 'luz',
+  nictoataque: 'trevas', nictomanipulacao: 'trevas', degeneracao_fisica: 'trevas',
+  nevoa_caustica: 'veneno', putrefacao: 'veneno', carne_em_vermes: 'veneno',
+  covardia: 'mente', terror_fantasma: 'mente', paradoxo: 'mente', narrativa_real: 'mente', cancao_do_tormento: 'mente',
+  armadilha_natural: 'natureza', auxilio_natural: 'natureza', enxame_de_espinhos: 'natureza',
+  elo_vital: 'dreno', toque_gelido: 'dreno',
+  garras: 'garra',
+};
+/* Arma natural de criatura (Presas, Garras…: itens do catálogo como as
+   outras armas) risca como garra. O projétil usa a perfuração (usuário,
+   17/11/2026), que já vem do grupo da arma. */
+const RE_ARMA_NATURAL = /\b(garras?|presas?|mordidas?|unhas?)\b/i;
+
+function visualDaMagia(e) {
+  return VISUAL_DA_MAGIA[e.magia_key] || VISUAL_DO_ELEMENTO[e.elemento] || 'arcano';
+}
+function varianteDoGolpe(e) {
+  if (RE_ARMA_NATURAL.test(String(e.arma_nome || ''))) return 'garra';
+  return GOLPES[e.golpe_tipo] || 'corte';
+}
 function chaveDoAlvoNaEntrada(e, vista) {
   if (e.alvo_inst_id) return e.alvo_inst_id;
   if (!e.alvo_tipo) return null;
@@ -126,6 +161,28 @@ function lado(v) {
   if (v && (v.lado === 'aliados' || v.lado === 'inimigos')) return v.lado;
   return v && (v.tipo === 'pj' || v.dono_pj != null) ? 'aliados' : 'inimigos';
 }
+function derrubado(v) {
+  if (!v) return false;
+  if (v.status === 'caido') return true;
+  return Array.isArray(v.status_temp) && v.status_temp.some((s) => s && s.efeito && s.efeito.tipo === 'derrubado');
+}
+/* Um golpe (arma ou magia) num alvo, com o desfecho do log quando há. */
+function efeitoDoGolpe(base, e, ch, k, autor, erro) {
+  const det = (e.fx_alvos && e.fx_alvos[ch]) || null;
+  if (det && det.esquivou) return [{ tipo: 'esquiva', alvo: ch, autor }];
+  const um = { ...base, alvo: ch, autor, erro, critico: !!e.critico && k === 0, valor: null };
+  if (det && !erro) {
+    const perdeu = (Number(det.eh) || 0) + (Number(det.ef) || 0);
+    um.valor = perdeu > 0 ? perdeu : null;
+    if (det.segurou) um.pool = det.segurou === 'armadura' ? 'ar' : 'protecao';
+    else if (Number(det.ef) > 0) { um.pool = 'ef'; if (Number(det.eh) > 0) um.furou_eh = true; }
+    else if (Number(det.eh) > 0) um.pool = 'eh';
+    if (det.defesa) um.defesa = det.defesa;
+  } else if (!erro && k === 0 && Number(e.dano) > 0) um.valor = Number(e.dano);
+  const out = [um];
+  if (det && Array.isArray(det.quebrou)) det.quebrou.forEach((nome) => out.push({ tipo: 'quebrou', alvo: ch, nome }));
+  return out;
+}
 function efeitosDaRevelacao(log, revelado, vistaDepois) {
   if (!revelado) return [];
   const antes = revelado.antes || [];
@@ -145,13 +202,18 @@ function efeitosDaRevelacao(log, revelado, vistaDepois) {
     const autor = chaveDoAutorNaEntrada(e, depois);
     const extras = Array.isArray(e.alvos_extras_inst_ids) ? e.alvos_extras_inst_ids : [];
     if (e.acao === 'arma' || e.acao === 'magia') {
+      // Falha crítica: o golpe volta contra quem atacou (dano_self no log).
+      if (e.resultado === 'FC' && autor) {
+        fx.push({ tipo: 'falha_critica', alvo: alvo || autor, autor, valor: Number(e.dano_self) > 0 ? Number(e.dano_self) : null });
+        return;
+      }
       const erro = errou(e);
-      const base = e.acao === 'arma'
-        ? { tipo: 'golpe', variante: GOLPES[e.golpe_tipo] || 'corte' }
-        : { tipo: 'magia', elemento: ELEMENTOS_FX.includes(e.elemento) ? e.elemento : 'arcano' };
+      const visual = e.acao === 'magia' ? visualDaMagia(e) : null;
+      const base = (e.acao === 'arma' || visual === 'garra')
+        ? { tipo: 'golpe', variante: visual === 'garra' ? 'garra' : varianteDoGolpe(e) }
+        : { tipo: 'magia', elemento: ELEMENTOS_FX.includes(e.elemento) ? e.elemento : 'arcano', visual };
       [alvo, ...extras].filter(Boolean).forEach((ch, k) => {
-        fx.push({ ...base, alvo: ch, autor, erro, critico: !!e.critico && k === 0,
-          valor: !erro && k === 0 && Number(e.dano) > 0 ? Number(e.dano) : null });
+        efeitoDoGolpe(base, e, ch, k, autor, erro).forEach((f) => fx.push(f));
       });
       return;
     }
@@ -162,7 +224,7 @@ function efeitosDaRevelacao(log, revelado, vistaDepois) {
     if (e.acao === 'perdeu') { if (autor) fx.push({ tipo: 'dissipa', alvo: autor }); return; }
     if (e.acao === 'apoio') {
       if (!alvo) return;
-      if (e.resistiu) { fx.push({ tipo: 'resistiu', alvo }); return; }
+      if (e.resistiu) { fx.push({ tipo: 'resistiu', alvo, autor: autor !== alvo ? autor : null }); return; }
       // "Até N alvos" (10/11/2026): cada um recebe o seu efeito.
       [alvo, ...extras].forEach((ch) => {
         const cura = ganho(ch);
@@ -177,14 +239,27 @@ function efeitosDaRevelacao(log, revelado, vistaDepois) {
       if (ch) fx.push({ tipo: 'item', alvo: ch, valor: ganho(ch) || null });
       return;
     }
-    if (e.acao === 'teste') { if (autor) fx.push({ tipo: 'tecnica', alvo: autor }); return; }
+    if (e.acao === 'teste') {
+      if (!autor) return;
+      const furia = /f[uú]ria/i.test(String(e.chave || '') + ' ' + String(e.nome || ''));
+      fx.push({ tipo: furia ? 'furia' : 'tecnica', alvo: autor, nome: e.nome || null });
+      return;
+    }
+    // O veneno e o sangramento cobrando na virada da rodada (fx_virada).
+    if (e.acao === 'sistema' && Array.isArray(e.fx_virada)) {
+      e.fx_virada.forEach((v) => {
+        const ch = v && (v.inst_id || (v.tipo + ':' + v.ref_id));
+        if (ch && Number(v.total) > 0) fx.push({ tipo: v.sangra ? 'sangramento' : 'veneno_tick', alvo: ch, valor: Number(v.total) });
+      });
+    }
   });
-  // Quem chegou (invocado, convocado) e quem caiu.
+  // Quem chegou (invocado, convocado), quem caiu e quem foi ao chão.
   depois.forEach((d) => {
     const a = vAntes.get(d.chave);
     if (!a) { if (antes.length) fx.push({ tipo: 'invocacao', alvo: d.chave }); return; }
     const caiu = (a.status || 'ativo') === 'ativo' && (d.status === 'morto' || d.status === 'desmaiado');
     if (caiu) fx.push({ tipo: 'queda', alvo: d.chave, morto: d.status === 'morto' });
+    else if (derrubado(d) && !derrubado(a)) fx.push({ tipo: 'caido', alvo: d.chave });
   });
   return fx.slice(0, FX_MAX);
 }
@@ -192,29 +267,32 @@ function efeitosDaRevelacao(log, revelado, vistaDepois) {
 /* ── O tocador ─────────────────────────────────────────────────────
    Uma camada fixa sobre a tela; cada efeito nasce no centro do avatar do
    alvo (o token marca `data-fx-chave`). Sem o token à vista (batalha sem
-   tabuleiro, alvo fora da tela), o efeito sai no meio da tela. */
+   tabuleiro, alvo fora da tela), o efeito sai no meio da tela. O desenho
+   mora em efeitos-catalogo.jsx (tocarEfeitoFx). */
 const BATALHAS_COM_CORTINA = (typeof window !== 'undefined')
   ? (window.__menestrelCortinas = window.__menestrelCortinas || new Set())
   : new Set();
 
-function rectDoAlvo(chave) {
+function tokenDoAlvo(chave) {
   if (typeof document === 'undefined' || !chave) return null;
-  let el = null;
-  try { el = document.querySelector('[data-fx-chave="' + String(chave).replace(/"/g, '\\"') + '"]'); } catch (e) { el = null; }
+  try { return document.querySelector('[data-fx-chave="' + String(chave).replace(/"/g, '\\"') + '"]'); } catch (e) { return null; }
+}
+function rectDoAlvo(chave) {
+  const el = tokenDoAlvo(chave);
   if (!el) return null;
   const r = el.getBoundingClientRect();
   if (!r.width) return null;
   return { x: r.left + r.width / 2, y: r.top + r.height / 2, tam: r.width };
 }
-
-function tremer(chave) {
-  let el = null;
-  try { el = document.querySelector('[data-fx-chave="' + String(chave).replace(/"/g, '\\"') + '"]'); } catch (e) { el = null; }
-  if (!el) return;
-  el.classList.remove('fx-tremor');
-  void el.offsetWidth;   // reinicia a animação no golpe seguido
-  el.classList.add('fx-tremor');
-  setTimeout(() => el.classList.remove('fx-tremor'), 520);
+function camadaDosEfeitos() {
+  let c = document.querySelector('body > .fx-camada');
+  if (!c) {
+    c = document.createElement('div');
+    c.className = 'fx-camada';
+    c.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(c);
+  }
+  return c;
 }
 
 /* O raio: um zigue-zague do alto da tela até o alvo, novo a cada golpe. */
@@ -231,20 +309,24 @@ function caminhoDoRaio(x, y, semente) {
   return pontos.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
 }
 
+/* O texto mínimo de um efeito — o que sobra sem o catálogo carregado. */
 function textoDoValor(f, isEn) {
   if (f.tipo === 'golpe' || f.tipo === 'magia') {
     if (f.erro) return isEn ? 'Miss' : 'Errou';
+    if (f.pool === 'ar' || f.pool === 'protecao') return '0';
     return f.valor != null ? '−' + f.valor : null;
   }
   if ((f.tipo === 'cura' || f.tipo === 'item') && f.valor) return '+' + f.valor;
   if (f.tipo === 'resistiu') return isEn ? 'Resisted' : 'Resistiu';
-  if (f.tipo === 'queda') return f.morto ? (isEn ? 'Dead' : 'Morto') : (isEn ? 'Down' : 'Caído');
+  if (f.tipo === 'esquiva') return isEn ? 'Dodged' : 'Esquivou';
+  if (f.tipo === 'queda') return f.morto ? (isEn ? 'Dead' : 'Morto') : (isEn ? 'Down' : 'Desmaiado');
+  if ((f.tipo === 'veneno_tick' || f.tipo === 'sangramento' || f.tipo === 'falha_critica') && f.valor) return '−' + f.valor;
   return null;
 }
 
 function classeDoEfeito(f) {
   const c = ['fx'];
-  if (f.tipo === 'magia') c.push('fx--' + f.elemento);
+  if (f.tipo === 'magia') { c.push('fx--' + f.elemento); if (f.visual && f.visual !== f.elemento) c.push('fx--' + f.visual); }
   else if (f.tipo === 'golpe') c.push('fx--golpe', 'fx--golpe-' + f.variante);
   else c.push('fx--' + f.tipo);
   if (f.erro) c.push('is-erro');
@@ -252,41 +334,28 @@ function classeDoEfeito(f) {
   return c.join(' ');
 }
 
-/* As camadas de cada efeito: spans que o CSS anima (efeitos-da-vez.css). */
-const CAMADAS = {
-  fogo: ['brilho', 'chama', 'chama', 'chama', 'chama', 'chama', 'brasa', 'brasa', 'brasa', 'brasa', 'brasa', 'brasa'],
-  agua: ['brilho', 'onda', 'onda', 'onda', 'gota', 'gota', 'gota', 'gota', 'gota', 'gota', 'gota', 'gota'],
-  ar: ['brilho', 'faisca', 'faisca', 'faisca', 'faisca', 'faisca', 'faisca'],
-  terra: ['poeira', 'pedra', 'pedra', 'pedra', 'pedra', 'pedra', 'pedra', 'fenda'],
-  celestial: ['coluna', 'brilho', 'halo', 'luz', 'luz', 'luz', 'luz', 'luz', 'luz'],
-  infernal: ['brilho', 'fumo', 'fumo', 'fumo', 'labareda', 'labareda', 'labareda', 'labareda', 'brasa', 'brasa', 'brasa', 'brasa'],
-  arcano: ['brilho', 'runa', 'runa-dentro', 'estilhaco', 'estilhaco', 'estilhaco', 'estilhaco', 'estilhaco', 'estilhaco'],
-  golpe: ['rastro', 'impacto', 'faisca', 'faisca', 'faisca', 'faisca'],
-  evocacao: ['espiral', 'espiral'],
-  dissipa: ['brilho', 'fumo', 'fumo'],
-  resistiu: ['escudo'],
-  cura: ['brilho', 'luz', 'luz', 'luz', 'luz', 'luz', 'luz', 'luz'],
-  item: ['brilho', 'luz', 'luz', 'luz', 'luz'],
-  bencao: ['halo', 'halo', 'luz', 'luz', 'luz', 'luz'],
-  maldicao: ['halo', 'gota', 'gota', 'gota', 'gota', 'brilho'],
-  tecnica: ['rastro', 'rastro'],
-  invocacao: ['circulo', 'coluna', 'luz', 'luz', 'luz', 'luz'],
-  queda: ['afundar'],
-};
-
-function UmEfeito({ f, isEn }) {
-  const pos = f.pos;
-  const chave = f.tipo === 'magia' ? f.elemento : (f.tipo === 'golpe' ? 'golpe' : f.tipo);
-  const camadas = CAMADAS[chave] || ['brilho'];
-  const valor = textoDoValor(f, isEn);
-  const tam = Math.max(44, Math.min(140, pos.tam || 56));
-  return React.createElement('div', {
-    className: classeDoEfeito(f),
-    style: { left: pos.x, top: pos.y, '--fx-tam': tam + 'px' },
-  },
-    camadas.map((c, i) => React.createElement('span', { key: i, className: 'fx-' + c, style: { '--i': i } })),
-    valor && React.createElement('b', { className: 'fx-valor' }, valor),
-  );
+/* Toca um efeito: um invólucro `.fx` na camada, com o desenho do catálogo
+   dentro, removido inteiro quando o efeito termina. */
+function tocarUmEfeito(f, isEn, semMovimento) {
+  const camada = camadaDosEfeitos();
+  const fxEl = document.createElement('div');
+  fxEl.className = classeDoEfeito(f);
+  camada.appendChild(fxEl);
+  const tocar = typeof tocarEfeitoFx === 'function' ? tocarEfeitoFx : window.tocarEfeitoFx;
+  if (typeof tocar === 'function') {
+    tocar(f, { layer: fxEl, isEn, reduzido: semMovimento, centro: rectDoAlvo, token: tokenDoAlvo });
+  } else {
+    const valor = textoDoValor(f, isEn);
+    const r = rectDoAlvo(f.alvo) || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    if (valor) {
+      const b = document.createElement('b');
+      b.className = 'fx-valor';
+      b.style.left = r.x + 'px'; b.style.top = (r.y - 64) + 'px';
+      b.textContent = valor;
+      fxEl.appendChild(b);
+    }
+  }
+  return fxEl;
 }
 
 /* A tela que monta a batalha põe isto uma vez. `cortina` vem da linha da
@@ -294,7 +363,6 @@ function UmEfeito({ f, isEn }) {
    com uma revelação antiga não toca nada). Também avisa o 10-shell, que
    segura as notificações da batalha até aqui (ver o card da mesa). */
 function EfeitosDaVez({ batalhaId, cortina, log, isEn, seguraCards = true }) {
-  const [vivos, setVivos] = useState([]);
   const visto = useRef(null);
   const timers = useRef([]);
   const n = cortina && cortina.revelado ? cortina.revelado.n : 0;
@@ -346,43 +414,14 @@ function EfeitosDaVez({ batalhaId, cortina, log, isEn, seguraCards = true }) {
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     lista.forEach((f, i) => {
       timers.current.push(setTimeout(() => {
-        const r = rectDoAlvo(f.alvo) || { x: window.innerWidth / 2, y: window.innerHeight / 2, tam: 64 };
-        const id = n + ':' + i;
-        const novo = { ...f, id, pos: r };
-        if (f.tipo === 'magia' && f.elemento === 'ar' && !f.erro) novo.raio = caminhoDoRaio(r.x, r.y, n * 31 + i);
-        setVivos((v) => [...v, novo]);
-        // O raio clareia a tela; o crítico escurece as bordas. Com movimento
-        // reduzido, só o efeito sobre o alvo.
-        if (!semMovimento) {
-          const tela = (f.tipo === 'magia' && f.elemento === 'ar' && !f.erro) ? 'raio' : (f.critico ? 'critico' : null);
-          if (tela) {
-            const el = document.documentElement;
-            el.setAttribute('data-fx-tela', tela);
-            timers.current.push(setTimeout(() => {
-              if (el.getAttribute('data-fx-tela') === tela) el.removeAttribute('data-fx-tela');
-            }, 700));
-          }
-        }
-        if (!semMovimento && !f.erro && ((f.tipo === 'magia' && f.elemento === 'terra') || f.critico)) tremer(f.alvo);
-        timers.current.push(setTimeout(() => setVivos((v) => v.filter((x) => x.id !== id)), FX_DURACAO_MS));
+        const el = tocarUmEfeito(f, isEn, semMovimento);
+        timers.current.push(setTimeout(() => el.remove(), FX_DURACAO_MS));
       }, i * FX_INTERVALO_MS));
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [n]);
 
-  if (!vivos.length || typeof ReactDOM === 'undefined') return null;
-  return ReactDOM.createPortal(
-    React.createElement('div', { className: 'fx-camada', 'aria-hidden': 'true' },
-      vivos.filter((f) => f.raio).map((f) => React.createElement('svg', {
-        key: 'raio-' + f.id, className: 'fx-raio', width: '100%', height: '100%',
-      },
-        React.createElement('path', { d: f.raio, className: 'fx-raio-halo' }),
-        React.createElement('path', { d: f.raio, className: 'fx-raio-nucleo' }),
-      )),
-      vivos.map((f) => React.createElement(UmEfeito, { key: f.id, f, isEn })),
-    ),
-    document.body,
-  );
+  return null;
 }
 
 /* O botão do Mestre: a vez de X terminou, revelar. Fica no trilho, onde o

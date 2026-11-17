@@ -45,6 +45,8 @@ function GrupoDetalhe({ grupo: g, lang, onClose, onEditar = null }) {
         <div className={'grp-epigrafe' + (g.imagem ? ' grp-epigrafe--com-imagem' : '')}>
           {g.imagem && <div className="grp-epigrafe-arte"><img src={g.imagem} alt={g.nome} /></div>}
           <div className="grp-epigrafe-texto">
+            {/* Com imagem, o título da aba mora na coluna do texto (17/11/2026). */}
+            {g.imagem && <h4 className="best-secao-titulo ent-titulo-na-coluna">{en ? 'Epigraph' : 'Epígrafe'}</h4>}
             {g.epigrafe && paragrafos(g.epigrafe.texto)}
             {g.epigrafe && g.epigrafe.autor && <p className="ent-fonte">{g.epigrafe.autor}</p>}
           </div>

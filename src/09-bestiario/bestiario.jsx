@@ -329,6 +329,106 @@ function BarraDeAcoes({ acoes, lang, compacta = false }) {
 /* `arte` (26/10/2026, pedido do usuário): a pintura do item em tamanho grande
    ANTES do título, no card que abre ao lado da grade do Inventário e da Loja.
    Só no painel — na janela modal o passe já ocupa o topo. */
+/* ── AS PÁGINAS DA JANELA DE LEITURA (17/11/2026) ──────────────────────────
+   Usuário: "Ao invés do uso de barra de rolagem vertical, vamos adicionar um
+   botão de navegação de páginas nos modais de ambientação e compêndio" — só
+   nas janelas de leitura (escolha dele). O texto da aba aberta corre em
+   colunas do tamanho exato do corpo (CSS columns), e cada coluna é uma
+   página: a quebra cai entre linhas, nunca no meio de uma. Trocar de página
+   é rolar de lado o corpo, uma coluna por vez; a roda do mouse e as setas
+   ← → também viram a página.
+
+   O que pagina é o corpo da janela; no Prefácio (ou na Epígrafe) com
+   imagem, é a coluna do texto — a imagem fica parada ao lado. */
+const PAGINA_VAO = 48;   // o vão entre uma página e a seguinte (column-gap)
+function usePaginasDoCorpo(corpoRef, ligado, chave) {
+  const [pagina, setPagina] = React.useState(0);
+  const [total, setTotal] = React.useState(1);
+  const alvoRef = React.useRef(null);
+  const paginaRef = React.useRef(0);
+  paginaRef.current = pagina;
+  /* Mede do zero a cada vez: tira as colunas, vê se o texto cabe; se não
+     cabe, prende a altura que o corpo tem (a janela já está no teto da tela)
+     e reparte em colunas. Tudo no mesmo quadro — nada pisca. Janela curta
+     fica do tamanho dela, sem páginas. */
+  const soltar = (el) => { if (!el) return; el.classList.remove('em-paginas'); el.style.columnWidth = ''; el.style.columnGap = ''; el.style.height = ''; };
+  const medir = React.useCallback(() => {
+    const corpo = corpoRef.current;
+    if (!ligado || !corpo) return;
+    const alvo = corpo.querySelector('.best-secao:not([hidden]) .grp-epigrafe--com-imagem .grp-epigrafe-texto') || corpo;
+    if (alvoRef.current && alvoRef.current !== alvo) soltar(alvoRef.current);
+    alvoRef.current = alvo;
+    soltar(alvo);
+    if (alvo.scrollHeight <= alvo.clientHeight + 2) { setTotal(1); setPagina(0); return; }
+    if (alvo === corpo) alvo.style.height = alvo.getBoundingClientRect().height + 'px';
+    /* A largura é medida DEPOIS de a rolagem sair (17/11/2026): com a barra, a
+       medida dava 10px a menos que a coluna de verdade, e cada página andava
+       10px a menos — a terceira já cortava a borda do texto (o autor da
+       epígrafe sumia). */
+    alvo.classList.add('em-paginas');
+    const cs = getComputedStyle(alvo);
+    const padX = parseFloat(cs.paddingLeft || 0) + parseFloat(cs.paddingRight || 0);
+    const largura = alvo.clientWidth - padX;
+    if (largura <= 0) { soltar(alvo); return; }
+    alvo.style.columnWidth = largura + 'px';
+    alvo.style.columnGap = PAGINA_VAO + 'px';
+    const passo = largura + PAGINA_VAO;
+    const n = Math.max(1, Math.round((alvo.scrollWidth - padX + PAGINA_VAO) / passo));
+    const p = Math.min(paginaRef.current, n - 1);
+    alvo.scrollLeft = p * passo;
+    setTotal(n);
+    setPagina(p);
+  }, [corpoRef, ligado]);
+  // Nova aba (ou novo conteúdo): volta à primeira página e mede de novo.
+  React.useLayoutEffect(() => { paginaRef.current = 0; setPagina(0); medir(); }, [medir, chave]);
+  React.useEffect(() => {
+    if (!ligado) return undefined;
+    const corpo = corpoRef.current;
+    if (!corpo) return undefined;
+    let pedido = 0;
+    const agendar = () => { cancelAnimationFrame(pedido); pedido = requestAnimationFrame(medir); };
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(agendar) : null;
+    if (ro) ro.observe(corpo);
+    const mo = typeof MutationObserver === 'function' ? new MutationObserver(agendar) : null;
+    if (mo) mo.observe(corpo, { subtree: true, childList: true, attributes: true, attributeFilter: ['hidden', 'src'] });
+    corpo.addEventListener('load', agendar, true);   // imagens que chegam depois mudam a medida
+    return () => { cancelAnimationFrame(pedido); if (ro) ro.disconnect(); if (mo) mo.disconnect(); corpo.removeEventListener('load', agendar, true); };
+  }, [corpoRef, ligado, medir]);
+  // A página na tela: rola de lado o que pagina.
+  React.useEffect(() => {
+    const alvo = alvoRef.current;
+    if (!ligado || !alvo) return;
+    const cs = getComputedStyle(alvo);
+    const largura = alvo.clientWidth - parseFloat(cs.paddingLeft || 0) - parseFloat(cs.paddingRight || 0);
+    const reduz = typeof window.matchMedia === 'function' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (typeof alvo.scrollTo === 'function') alvo.scrollTo({ left: pagina * (largura + PAGINA_VAO), behavior: reduz ? 'auto' : 'smooth' });
+  }, [pagina, total, ligado]);
+  // A roda do mouse e as setas viram a página.
+  React.useEffect(() => {
+    const corpo = corpoRef.current;
+    if (!ligado || !corpo) return undefined;
+    let trava = 0;
+    const roda = (e) => {
+      if (Math.abs(e.deltaY) < 4 || total < 2) return;
+      e.preventDefault();
+      const agora = Date.now();
+      if (agora - trava < 350) return;
+      trava = agora;
+      setPagina((p) => Math.max(0, Math.min(total - 1, p + (e.deltaY > 0 ? 1 : -1))));
+    };
+    const tecla = (e) => {
+      if (total < 2 || /input|textarea|select/i.test((e.target && e.target.tagName) || '')) return;
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') { e.preventDefault(); setPagina((p) => Math.min(total - 1, p + 1)); }
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') { e.preventDefault(); setPagina((p) => Math.max(0, p - 1)); }
+    };
+    corpo.addEventListener('wheel', roda, { passive: false });
+    const janela = corpo.closest('.ms-modal');
+    if (janela) janela.addEventListener('keydown', tecla);
+    return () => { corpo.removeEventListener('wheel', roda); if (janela) janela.removeEventListener('keydown', tecla); };
+  }, [corpoRef, ligado, total]);
+  return { pagina, total, setPagina };
+}
+
 function BestDetalheModal({ title, lang, onClose, acoes, rodape, children, topo, semAbas, acoesEmBarra, extraClass, arte = null, alvoPainel: alvoPainelProp = null }) {
   const en = lang === 'en';
   /* No Livro de Regras, a ficha abre no painel ao lado da lista (23/10/2026).
@@ -339,6 +439,8 @@ function BestDetalheModal({ title, lang, onClose, acoes, rodape, children, topo,
   const [tipAcao, abrirTipAcao, fecharTipAcao, manterTipAcao] = useTooltip(60);
   const corpoRef = React.useRef(null);
   const abas = useAbasDoCorpo(corpoRef, !semAbas);
+  const paginar = !alvoPainelProp && !!extraClass && extraClass.split(' ').includes('modal-ambientacao');
+  const paginas = usePaginasDoCorpo(corpoRef, paginar && !alvoPainel, abas.ativa + ':' + abas.titulos.length);
   const fecharRef = React.useRef(onClose);
   React.useEffect(() => { fecharRef.current = onClose; }, [onClose]);
   const fundoRef = React.useRef(null);
@@ -426,17 +528,31 @@ function BestDetalheModal({ title, lang, onClose, acoes, rodape, children, topo,
         {topo && <div className="best-topo">{topo}</div>}
         {acoesEmBarra && <BarraDeAcoes acoes={acoes} lang={lang} compacta={!!alvoPainel} />}
         {abas.titulos.length > 1 && (
-          <div className="hist-modal-tabs best-abas" role="tablist">
-            {abas.titulos.map((t, i) => (
-              <button key={t + i} type="button" role="tab" aria-selected={i === abas.ativa}
-                className={'hist-modal-tab' + (i === abas.ativa ? ' is-active' : '')}
-                onClick={() => abas.setAtiva(i)}>
-                {t}
-              </button>
-            ))}
+          /* O trilho de toda janela (17/11/2026): a mesma pílula dos editores
+             (AbasDoFormulario), não mais a faixa sublinhada. */
+          <div className="form-abas-barra">
+            <div className="trilho-solto livro-trilho form-abas best-abas" role="tablist">
+              {abas.titulos.map((t, i) => (
+                <button key={t + i} type="button" role="tab" aria-selected={i === abas.ativa}
+                  className={'mc-acao' + (i === abas.ativa ? ' is-ativo' : '')}
+                  onClick={() => abas.setAtiva(i)}>
+                  <span className="mc-acao-rotulo">{t}</span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
-        <div className="ms-body best-detail" ref={corpoRef}>{conteudoMarcado(children)}</div>
+        <div className={'ms-body best-detail' + (paginar && !alvoPainel ? ' best-paginado' : '')} ref={corpoRef} tabIndex={paginar && !alvoPainel ? -1 : undefined}>{conteudoMarcado(children)}</div>
+        {paginar && !alvoPainel && paginas.total > 1 && (
+          <div className="ms-footer ms-footer--centro best-paginas-rodape">
+            <div className="ms-footer-left" />
+            <div className="ms-footer-center">
+              <BestPagination page={paginas.pagina + 1} safePage={paginas.pagina + 1} totalPages={paginas.total}
+                setPage={(v) => paginas.setPagina((p) => (typeof v === 'function' ? v(p + 1) : v) - 1)} lang={lang} />
+            </div>
+            <div className="ms-footer-right" />
+          </div>
+        )}
         {rodape && (!rodape.aba || abas.titulos.length < 2 || abas.titulos[abas.ativa] === rodape.aba) && (
           <div className={'ms-footer' + (rodape.centro ? ' ms-footer--centro' : '')}>
             <div className="ms-footer-left">{rodape.esquerda}</div>

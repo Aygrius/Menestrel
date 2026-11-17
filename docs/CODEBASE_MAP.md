@@ -76,12 +76,12 @@ graph TB
 01-core/select-pill · abas-formulario · supabase · clima-desgaste · game-data
 01-core/tecnicas-efeito · magias-efeito · status-efeito
 09-bestiario/ataques-criatura · criatura-formulas · catalogo-descritores · catalogo-editor
-02-shell/shaders · dado-d20 · dado-d10 · tweaks-panel
+02-shell/shaders · dado-3d · dado-d20 · dado-d10 · tweaks-panel
 04-auth/auth · 05-convites/convites · 06-historias/historias · inicio
 07-inventario/inventario · loja · fabricar · 06-historias/estoque-mestre
 08-personagens/personagens · guia_personagem
 09-bestiario/conhecido-jogador · painel-modal · bestiario · sugestoes-magias · itens-campanha
-10-shell/shell · galeria-imagens · testes-combate
+10-shell/shell · galeria-imagens · testes-combate · contas · assinatura
 11-ficha/atalhos-ficha · paginas-ficha · amigos-fab · ficha   →   ../app.jsx (raiz do repo)
 12-batalha/batalha · tabuleiro               →   13-diario/diario
 data/bridge   →   mount com <QueryClientProvider><App/></QueryClientProvider>
@@ -98,7 +98,7 @@ e `inventario-casas` entram por `import` ES de dentro de `inventario-helpers`, e
 | Caminho | O que é |
 |---|---|
 | `src/01-core/` | Dados de Tagmar e **todas** as regras puras. Sem React, sem telas. |
-| `src/02-shell/` | Shaders de fundo, dados d20/d10, painel de tweaks. |
+| `src/02-shell/` | Shaders de fundo, dados d20/d10, painel de tweaks. `dado-3d.jsx` (17/11/2026): o d20 e o d10 em 3D (three + cannon-es, este baixado sob demanda) que rola por cima da tela e pousa no valor pedido; o `DadoD20` e o `DadoD10` o chamam e caem no 2D sem WebGL, com "reduzir movimento", nos testes e com a mesa no automático. |
 | `src/04-auth/` | Login por Google e a primeira entrada ("vou mestrar"/"vou jogar"). |
 | `src/05-convites/` | Convite de mesa (códigos, aceite, aventuras do jogador). |
 | `src/06-historias/` | Histórias/mesas do Mestre, loja por cidade, estoque; `inicio.jsx` é a página do Mestre sem mesa (novidades do sistema, no lugar dos cards). |
@@ -271,15 +271,33 @@ ninguém age até ele clicar "Revelar". O jogador vê os outros pela `vista` (po
 e status de quando a vez abriu) e recebe as notificações da batalha só na
 revelação (o 10-shell as segura via `window.__menestrelCortinas`); o Mestre as
 lê na hora. Na revelação, cada tela toca um efeito por ação sobre o avatar do
-alvo (`data-fx-chave` no token): um por elemento (fogo, água, ar/raio, terra,
-celestial, infernal, arcano), golpe por tipo de arma, cura, bênção, maldição,
-invocação, queda. Sem a coluna, a aprovação se desliga sozinha.
+alvo (`data-fx-chave` no token). Sem a coluna, a aprovação se desliga sozinha.
+
+`efeitos-catalogo.jsx` (17/11/2026) é o **desenho** de cada efeito
+(`window.tocarEfeitoFx`, Web Animations), portado do protótipo aprovado:
+golpe por tipo (corte, perfuração — o projétil também —, esmagamento,
+desarmado, garra), o desfecho (errou, falha crítica, esquivou, aparou,
+desviou, escudo, EH, armadura, furou até a EF, peça quebrou, crítico), uma
+imagem por escola de magia (`VISUAL_DA_MAGIA` em efeitos-da-vez: gelo, vento,
+raio, luz, trevas, veneno, mente, natureza, dreno, além dos seis elementos —
+o elemento do jogo não muda), apoio e condições (veneno e sangramento na
+virada, caído, desmaiado, morto). O desfecho vem do log: `fx_alvos[chave]`,
+gravado por `fxDoGolpeNoAlvo` (batalha.jsx) logo depois de
+`aplicarGolpeEmAlvo`, e `fx_virada` em `entradaLogViradaRodada`. O token só
+se mexe por `translate`/`rotate`/`scale` soltos, nunca `transform`. Todo texto
+do efeito tem uma fonte e um tamanho (`--fx-texto`); só o tom muda.
 
 ### 10-shell — o console e o relógio
 
 `AdminConsole` monta a barra lateral a partir de `NAV_MESA` (mesa ativa em cima,
 Livro de Regras abaixo da régua) e escolhe a página num `if/else` longo por
 seção. O Mestre navega pela **mesa ativa**; o Jogador, pelo **personagem ativo**.
+
+`assinatura.jsx` (17/11/2026) é a janela **Assinatura** do menu da conta: monta o
+BR Code do Pix estático (`payloadPix`, CRC16) para a conta simples (Nobre,
+R$ 5,99/mês) e a de fundador (Conselheiro, R$ 199,00), com QR pela lib `qrcode`.
+Recebedor em `VITE_PIX_CHAVE`/`VITE_PIX_NOME`/`VITE_PIX_CIDADE`. Não confirma
+pagamento: o Imperador confere o extrato e promove em Configurações → Contas.
 
 `CardDataJogoAtual` é o trilho do topo: data, local, clima, sino. Mexer nele
 cobra horas:

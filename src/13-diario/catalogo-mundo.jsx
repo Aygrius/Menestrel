@@ -262,11 +262,21 @@ function CampoImagemMundo({ id, rotulo, valor, onMudar, pasta, en }) {
       <span className="diario-field-label" id={id + '-rot'}>{rotulo}</span>
       <div className="mundo-imagem-linha">
         {valor && <img className="mundo-imagem-mini" src={valor} alt="" />}
-        <button type="button" className="btn-ghost btn-sm mundo-imagem-enviar" aria-describedby={id + '-rot'}
-          disabled={enviando} onClick={() => entradaRef.current && entradaRef.current.click()}>
-          <i className={'ti ' + (enviando ? 'ti-loader-2' : 'ti-upload')} aria-hidden="true" />
-          {enviando ? (en ? 'Uploading…' : 'Enviando…') : valor ? (en ? 'Replace' : 'Trocar') : (en ? 'Upload' : 'Enviar')}
-        </button>
+        {/* Trocar: só o ícone (17/11/2026, usuário: "No botão 'Trocar' deixe só o
+            ícone"). O Enviar da primeira imagem segue com o texto. */}
+        {valor ? (
+          <button type="button" className="btn-icon btn-sm mundo-imagem-enviar" aria-describedby={id + '-rot'}
+            aria-label={enviando ? (en ? 'Uploading…' : 'Enviando…') : (en ? 'Replace image' : 'Trocar a imagem')}
+            disabled={enviando} onClick={() => entradaRef.current && entradaRef.current.click()}>
+            <i className={'ti ' + (enviando ? 'ti-loader-2' : 'ti-upload')} aria-hidden="true" />
+          </button>
+        ) : (
+          <button type="button" className="btn-ghost btn-sm mundo-imagem-enviar" aria-describedby={id + '-rot'}
+            disabled={enviando} onClick={() => entradaRef.current && entradaRef.current.click()}>
+            <i className={'ti ' + (enviando ? 'ti-loader-2' : 'ti-upload')} aria-hidden="true" />
+            {enviando ? (en ? 'Uploading…' : 'Enviando…') : (en ? 'Upload' : 'Enviar')}
+          </button>
+        )}
         {valor && !enviando && (
           <button type="button" className="btn-icon btn-sm" aria-label={en ? 'Remove image' : 'Tirar a imagem'} onClick={() => onMudar('')}>
             <i className="ti ti-x" aria-hidden="true" />
@@ -513,7 +523,7 @@ function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
         return Abas && def ? <Abas ativa={abaAberta} onTrocar={setAbaAberta} rotulo={en ? 'Sections' : 'Seções'}
           abas={def.abas.map(([id, pt, ing]) => ({ id, rotulo: en ? ing : pt, alerta: id === 'geral' && !nomeOk }))} /> : null;
       })()}
-      <div className="mundo-form">
+      <div className="mundo-form" data-aba-aberta={ABAS_MUNDO[tipo] ? abaAberta : undefined}>
         {campos.filter((c) => !ABAS_MUNDO[tipo] || abaDoCampoMundo(tipo, c) === abaAberta)
           .map((c) => (c.tipo === 'lista' ? campoLista(c) : campoSimples(c)))}
       </div>

@@ -834,7 +834,7 @@ function aplicarFonte(id) {
   return v;
 }
 
-function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, profile, conta = null, contaValidaAte = null, onConfiguracoes = null, onHelp, onConvites, onLogout, onClose }) {
+function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, profile, conta = null, contaValidaAte = null, onConfiguracoes = null, onAssinatura = null, onHelp, onConvites, onLogout, onClose }) {
   const ref = React.useRef(null);
   const [pos, setPos] = useState(null);
 
@@ -949,7 +949,15 @@ function UserMenu({ anchorRef, email, fullName, avatarUrl, firstName, lang, prof
 
       <hr />
 
-      {/* O item Plano saiu em 23/10/2026: não há mais plano gratuito nem Premium. */}
+      {/* O item Plano saiu em 23/10/2026: não há mais plano gratuito nem Premium.
+          Assinatura (17/11/2026): o Pix das contas Nobre e Conselheiro, por QR
+          estático (ver 10-shell/assinatura.jsx). O Conselheiro já é vitalício. */}
+      {onAssinatura && conta !== 'conselheiro' && (
+        <MenuRow onClick={() => { onAssinatura(); onClose(); }}>
+          <i className="ti ti-qrcode" style={{ fontSize: 16, lineHeight: 1 }} aria-hidden="true" />
+          {lang === 'en' ? 'Subscription' : 'Assinatura'}
+        </MenuRow>
+      )}
       <MenuRow onClick={() => { onClose(); if (onHelp) onHelp(); }}>
         <Icon.Help style={{ fontSize: 16, lineHeight: 1 }} />
         {t.help}
@@ -4642,6 +4650,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
   // A galeria das pinturas (26/10/2026) — abre pelo menu do usuário, Mestre.
   const [imagensAberto, setImagensAberto] = useState(false);
   const [contasAberto, setContasAberto] = useState(false);
+  const [assinaturaAberta, setAssinaturaAberta] = useState(false);
   const [testesCombateAberto, setTestesCombateAberto] = useState(false);
   // Token que incrementa quando um convite é aceito — força AventurasJogador a recarregar.
   const [aventurasReloadToken, setAventurasReloadToken] = useState(0);
@@ -5712,6 +5721,7 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
                 conta={contaEfetiva}
                 contaValidaAte={contaEfetiva === 'nobre' && userProfile ? userProfile.conta_valida_ate : null}
                 onConfiguracoes={() => { setUserMenuOpen(false); setConfigAberto(true); }}
+                onAssinatura={typeof AssinaturaModal !== 'undefined' ? () => { setUserMenuOpen(false); setAssinaturaAberta(true); } : null}
                 profile={profile}
                 lang={lang}
                 onHelp={() => { setUserMenuOpen(false); setCurrentId('guia_personagem'); }}
@@ -6053,6 +6063,11 @@ function AdminConsole({ user, userProfile, onLogout, t, lang, setLang }) {
         {/* As contas — "Contas", nas Configurações, só o Imperador (15/11/2026) */}
         {contasAberto && ehAdmin && typeof ContasModal !== 'undefined' && (
           <ContasModal lang={lang} onClose={() => setContasAberto(false)} />
+        )}
+
+        {/* A assinatura — o Pix das contas, no menu da conta (17/11/2026) */}
+        {assinaturaAberta && typeof AssinaturaModal !== 'undefined' && (
+          <AssinaturaModal lang={lang} userId={user && user.id} onClose={() => setAssinaturaAberta(false)} />
         )}
 
         {/* A simulação de batalha — "Testes de combate", nas Configurações (06/11/2026) */}

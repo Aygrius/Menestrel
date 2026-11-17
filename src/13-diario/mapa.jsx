@@ -255,7 +255,7 @@ function criarMotorMapa(raiz, cfg) {
   /* OS LOCAIS NO MAPA (15/11/2026, usuário: "Quero uma opção de inserir locais
      no mapa, além de cidades"). O mesmo trato das cidades: só os cadastrados
      na aba Locais, ligados pelo id da ficha. */
-  let locaisCad = null, fichasLocalId = new Map();
+  let locaisCad = null, fichasLocalId = new Map(), capitais = new Set();
   const chave = (nome) => semAcento(nome).trim();
   const porFichas = (c) => {
     cadastradas = c ? (c.cidades || []) : null;       // null = o catálogo ainda não chegou
@@ -264,6 +264,7 @@ function criarMotorMapa(raiz, cfg) {
     locaisCad = c ? (c.locais || []) : null;
     fichasLocalId = new Map((locaisCad || []).map((e) => [String(e.id), e]));
     nomesLore = (c && c.nomes) || {};
+    capitais = new Set(((c && c.capitais) || []).map(String));
   };
   porFichas(cfg.catalogo);
   const fichaDe = (p) => { const l = p && (p.tipo === 'cidade' || p.tipo === 'local' ? p : perto(p));
@@ -271,6 +272,25 @@ function criarMotorMapa(raiz, cfg) {
     return (l && l.tipo === 'cidade' && ((l.ficha && fichasId.get(String(l.ficha))) || fichas.get(chave(l.nome)))) || null; };
   // O sinal de cada lugar no mapa e nas listas.
   const ICONE_LUGAR = { cidade: 'ti-building-castle', local: 'ti-mountain', ponto: 'ti-star' };
+  /* UM SINAL POR TIPO DE LUGAR (17/11/2026, usuário: "Cidades menores vão usar
+     o ícone ti-tower e capitais vão usar o ícone ti-building-castle, florestas
+     ti-christmas-tree, farol ti-building-lighthouse, mar, lago, rio
+     ti-sailboat"). Capital é a cidade que algum reino tem como capital
+     (reinos.capital, o slug = id da ficha); a cidade sem ficha conhecida vale
+     menor. O Local não tem campo de tipo: o nome diz ("Floresta de Laudis",
+     "Farol Estrela Eterna", "Rio Aura"); o resto continua montanha. */
+  const iconeLugar = (l) => {
+    if (!l) return 'ti-star';
+    if (l.tipo === 'cidade') { const f = fichaDe(l); return f && capitais.has(String(f.id)) ? 'ti-building-castle' : 'ti-tower'; }
+    if (l.tipo === 'local') {
+      const n = semAcento(l.nome || '').trim();
+      if (/^floresta\b/.test(n)) return 'ti-christmas-tree';
+      if (/^farol\b/.test(n)) return 'ti-building-lighthouse';
+      if (/^(mar|lago|rio)\b/.test(n)) return 'ti-sailboat';
+      return 'ti-mountain';
+    }
+    return ICONE_LUGAR[l.tipo] || 'ti-star';
+  };
   /* CIDADE NOVA NÃO NASCE NO MAPA (15/11/2026). Usuário: "não será criado uma
      'nova cidade' clicando no mapa, a cidade será criada na aba cidades da
      ambientação." A ferramenta Cidade só POSICIONA: o Mestre escolhe uma
@@ -486,7 +506,7 @@ function criarMotorMapa(raiz, cfg) {
        etiqueta — de perto, todas falam igual; de longe, nenhuma (.longe). */
     mesa.lugares.forEach((l) => {
       if (oculto(l)) return;
-      h += mk(l, `<button type="button" class="mp-marca${l.tipo === 'cidade' ? ' vila' : l.tipo === 'local' ? ' local' : ''}" data-alvo="lugar" data-id="${esc(l.id)}" aria-label="${esc(l.nome)}"><i class="ti ${ICONE_LUGAR[l.tipo] || 'ti-star'}" aria-hidden="true"></i></button>` +
+      h += mk(l, `<button type="button" class="mp-marca${l.tipo === 'cidade' ? ' vila' : l.tipo === 'local' ? ' local' : ''}" data-alvo="lugar" data-id="${esc(l.id)}" aria-label="${esc(l.nome)}"><i class="ti ${iconeLugar(l)}" aria-hidden="true"></i></button>` +
         `<span class="mp-etiqueta">${esc(l.nome)}</span>`);
     });
     if (J) h += mk(J.destino, `<button type="button" class="mp-marca destino" data-alvo="${mestre ? 'linha' : 'destino'}" data-id="${esc(J.rota.id)}" aria-label="${tr('Destino', 'Destination')}: ${esc(J.destino.nome)}"><i class="ti ti-flag" aria-hidden="true"></i></button>`);
@@ -629,7 +649,7 @@ function criarMotorMapa(raiz, cfg) {
     let h = '';
     if (mestre) {
       const pontos = mesa.lugares.filter((l) => l.tipo === 'ponto'), novas = mesa.lugares.filter((l) => l.tipo === 'cidade' && !l.p);
-      const doLugar = (l) => item(ICONE_LUGAR[l.tipo] || 'ti-star', l.nome, '', longe(l), `data-alvo="lugar" data-id="${esc(l.id)}"`, emFoco('lugar', l.id));
+      const doLugar = (l) => item(iconeLugar(l), l.nome, '', longe(l), `data-alvo="lugar" data-id="${esc(l.id)}"`, emFoco('lugar', l.id));
       const colLonge = EU ? tr('De ' + esc(EU.nome), 'From ' + esc(EU.nome)) : '';
       /* CADA QUADRO COM A SUA FERRAMENTA (15/11/2026, usuário: "As informações
          de 'rotas', 'caminhos', 'pontos' e 'cidades novas' só aparecem no menu
@@ -1106,6 +1126,7 @@ function mapaApiSupabase() {
     async catalogo({ mestre, pj }) {
       let entradas = [];
       const nomesReino = {};
+      const capitais = new Set();
       if (mestre) {
         // Os locais também (15/11/2026): a ferramenta Local põe os cadastrados no mapa.
         const [c, rn, lc] = await Promise.all([sb().rpc('listar_catalogo_global', { p_tipo: 'cidade' }), sb().rpc('listar_catalogo_global', { p_tipo: 'reino' }),
@@ -1114,15 +1135,17 @@ function mapaApiSupabase() {
           ...((lc.data && lc.data.entradas) || []).map((e) => ({ ...e, tipo: 'local' }))];
       } else if (pj) {
         const [d, l, rs] = await Promise.all([sb().rpc('listar_diario_disponivel', { p_personagem_id: pj.id }), sb().rpc('listar_diario_lore', { p_personagem_id: pj.id }),
-          sb().from('reinos').select('slug, nome')]);
+          sb().from('reinos').select('slug, nome, capital')]);
         entradas = [...((l.data && l.data.entradas) || []), ...((d.data && d.data.lore) || [])];
         /* O NOME DO REINO (17/11/2026, usuário: "o reino está todo com letra
            minúscula"): o passe da cidade mostrava o slug do reino que o
            personagem ainda não tem no diário. Os nomes vêm da tabela, aberta a todos. */
-        ((rs && rs.data) || []).forEach((r) => { if (r && r.slug && r.nome) nomesReino[r.slug] = r.nome; });
+        ((rs && rs.data) || []).forEach((r) => { if (r && r.slug && r.nome) nomesReino[r.slug] = r.nome; if (r && r.capital) capitais.add(r.capital); });
       }
       const nomes = { ...nomesReino }; entradas.forEach((e) => { if (e && e.id) nomes[e.id] = e.nome; });
-      return { cidades: entradas.filter((e) => e && e.tipo === 'cidade' && e.nome), locais: entradas.filter((e) => e && e.tipo === 'local' && e.nome), nomes, lore: entradas };
+      // A capital de cada reino (slug da cidade), para o sinal da cidade no mapa.
+      entradas.forEach((e) => { const cap = e && e.tipo === 'reino' && (e.capital_cidade || (e.atributos && e.atributos.capital_cidade)); if (cap) capitais.add(cap); });
+      return { capitais: [...capitais], cidades: entradas.filter((e) => e && e.tipo === 'cidade' && e.nome), locais: entradas.filter((e) => e && e.tipo === 'local' && e.nome), nomes, lore: entradas };
     },
     async salvarMesa(historiaId, dados) {
       const { error } = await sb().from('mapas_mesa').upsert({ historia_id: historiaId, dados, updated_at: new Date().toISOString() });
@@ -1326,6 +1349,9 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
                 </div>
               )}
               <div className="mp-grupo" data-el="ferramentas" />
+            </div>
+            {/* O zoom fica no canto inferior direito (17/11/2026, usuário). */}
+            <div className="mp-barra mp-barra-zoom livro-trilho">
               <div className="mp-grupo">
                 {zoom('menos', 'ti-minus', en ? 'Zoom out' : 'Afastar')}
                 {zoom('mais', 'ti-plus', en ? 'Zoom in' : 'Aproximar')}

@@ -2135,25 +2135,26 @@ function NovaHistoriaModal({ t, lang, personagens, currentUserId, onClose, onSav
       confirmLabel={saving ? tn.salvando : (isEdit ? tn.salvar : tn.criar)}
       confirmDisabled={saving || !valido}
     >
-      {/* ── Tabs de navegação ── */}
-      <div className="hist-modal-tabs">
-        <button
-          type="button"
-          className={'hist-modal-tab' + (pagina === 'historia' ? ' is-active' : '')}
-          onClick={() => setPagina('historia')}>
-          {en ? 'Story' : 'História'}
-        </button>
-        <button
-          type="button"
-          className={'hist-modal-tab' + (pagina === 'capitulos' ? ' is-active' : '')}
-          onClick={() => setPagina('capitulos')}>
-          {en ? 'Chapters' : 'Capítulos'}
-          {capitulos.length > 0 && (
-            <span className="hist-modal-tab-badge">{capitulos.length}</span>
-          )}
-        </button>
+      {/* ── Tabs de navegação. O trilho de toda janela (17/11/2026): a pílula dos editores
+          (AbasDoFormulario), com o Adicionar capítulo na ponta direita. */}
+      <div className="form-abas-barra">
+        <div className="trilho-solto livro-trilho form-abas" role="tablist">
+          <button type="button" role="tab" aria-selected={pagina === 'historia'}
+            className={'mc-acao' + (pagina === 'historia' ? ' is-ativo' : '')}
+            onClick={() => setPagina('historia')}>
+            <span className="mc-acao-rotulo">{en ? 'Story' : 'História'}</span>
+          </button>
+          <button type="button" role="tab" aria-selected={pagina === 'capitulos'}
+            className={'mc-acao' + (pagina === 'capitulos' ? ' is-ativo' : '')}
+            onClick={() => setPagina('capitulos')}>
+            <span className="mc-acao-rotulo">{en ? 'Chapters' : 'Capítulos'}</span>
+            {capitulos.length > 0 && (
+              <span className="form-aba-contador">{capitulos.length}</span>
+            )}
+          </button>
+        </div>
         {pagina === 'capitulos' && (
-          <button type="button" className="btn-ghost btn-sm hist-cap-add-btn hist-modal-tab-add" onClick={addCapitulo}>
+          <button type="button" className="btn-ghost btn-sm hist-cap-add-btn form-abas-acao" onClick={addCapitulo}>
             <i className="ti ti-plus" aria-hidden="true" />
             {en ? 'Add chapter' : 'Adicionar capítulo'}
           </button>

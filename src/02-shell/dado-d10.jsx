@@ -79,11 +79,27 @@ var DadoD10 = React.forwardRef(function DadoD10(props, ref) {
     document.head.appendChild(el);
   }, []);
 
-  // limpa timers ao desmontar
+  /* O DADO 3D (17/11/2026, 02-shell/dado-3d.jsx; usuário: "Pode aplicar a
+     animação do dado de 10 faces também"): o mesmo contrato do DadoD20 — quando
+     dá, quem rola é o d10 3D por cima da tela, este 2D deixa o lugar vazio
+     (já nasce escondido, para não piscar) e só entrega o valor quando o
+     jogador segue depois do zoom. Sem 3D, tudo como antes. */
+  var usando3DState = useState(function () { return !!(window.Dado3D && window.Dado3D.disponivel()); });
+  var usando3D = usando3DState[0];
+  var setUsando3D = usando3DState[1];
+  var vivoRef = useRef(true);
+  var usou3DRef = useRef(false);
+  useEffect(function () {
+    if (window.Dado3D && window.Dado3D.disponivel()) window.Dado3D.preparar();
+  }, []);
+
+  // limpa timers ao desmontar (e tira o dado 3D da tela)
   useEffect(function () {
     return function () {
+      vivoRef.current = false;
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (usou3DRef.current && window.Dado3D) window.Dado3D.limpar();
     };
   }, []);
 
@@ -93,6 +109,38 @@ var DadoD10 = React.forwardRef(function DadoD10(props, ref) {
     rollingRef.current = true;
     setRolling(true);
 
+    var D3 = window.Dado3D;
+    if (D3 && D3.disponivel()) {
+      var valor3D =
+        typeof forcado === "number"
+          ? Math.max(1, Math.min(10, Math.round(forcado)))
+          : 1 + Math.floor(Math.random() * 10);
+      usou3DRef.current = true;
+      setUsando3D(true);
+      D3.rolar({ valor: valor3D, faces: 10 }).then(function (r) {
+        if (!vivoRef.current) return;
+        if (r == null) {
+          // O 3D não veio (falhou ao carregar): rola o 2D com o mesmo valor.
+          setUsando3D(false);
+          rollingRef.current = false;
+          api.current.roll2D(valor3D);
+          return;
+        }
+        setValue(valor3D);
+        setRolling(false);
+        rollingRef.current = false;
+        if (onRollRef.current) onRollRef.current(valor3D);
+      });
+      return;
+    }
+    api.current.roll2D(forcado, true);
+  };
+  api.current.roll2D = function (forcado, jaMarcado) {
+    if (!jaMarcado) {
+      if (rollingRef.current) return;
+      rollingRef.current = true;
+      setRolling(true);
+    }
     var reduz =
       window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -170,8 +218,8 @@ var DadoD10 = React.forwardRef(function DadoD10(props, ref) {
 
   return (
     <span
-      className={"menestrel-ui ms-d10 " + className}
-      style={{ display: "inline-block", width: dim, height: dim, lineHeight: 0 }}
+      className={"menestrel-ui ms-d10 " + className + (usando3D ? " is-3d" : "")}
+      style={{ display: "inline-block", width: dim, height: dim, lineHeight: 0, visibility: usando3D ? "hidden" : undefined }}
     >
       <span
         className="ms-d10-hit"
@@ -316,6 +364,12 @@ function RolagemD10Overlay(props) {
     if (props.onResultado) props.onResultado(r);
   }
 
+  // Os textos só aparecem quando o dado para (17/11/2026, usuário): enquanto
+  // ele rola, a janela é só o dado; o lugar deles continua reservado.
+  var estiloTexto = resultado
+    ? { opacity: 1, visibility: "visible", transition: "opacity .35s ease" }
+    : { opacity: 0, visibility: "hidden" };
+
   return (
     <div
       className="menestrel-ui"
@@ -338,20 +392,20 @@ function RolagemD10Overlay(props) {
       >
         {/* Título */}
         {nome && (
-          <div style={{
+          <div style={Object.assign({
             fontFamily: "var(--font-title)", fontWeight: 700,
             fontSize: "clamp(24px, 4.5vw, 38px)",
             color: "var(--foreground)", letterSpacing: ".01em", marginBottom: 4,
-          }}>
+          }, estiloTexto)}>
             {nome}
           </div>
         )}
 
         {/* Badge "D10" — diferencia visualmente do overlay D20 */}
-        <div style={{
+        <div style={Object.assign({
           fontSize: "clamp(11px, 2.5vw, 13px)", color: "var(--muted-foreground)",
           letterSpacing: ".06em", textTransform: "uppercase", marginBottom: 4,
-        }}>
+        }, estiloTexto)}>
           d10
         </div>
 
@@ -392,10 +446,10 @@ function RolagemD10Overlay(props) {
         </div>
 
         {/* Botões */}
-        <div style={{
+        <div style={Object.assign({
           display: "flex", gap: "clamp(8px, 2vw, 12px)",
           flexWrap: "wrap", justifyContent: "center", marginTop: 10,
-        }}>
+        }, estiloTexto)}>
           {/* "Rolar de novo" saiu em 26/09/2026 ("remova os botões rolar de novo dos
               dados animados"): a rolagem vale a primeira vez. */}
           <button type="button" className="btn-primary" onClick={onClose}>

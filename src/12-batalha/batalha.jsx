@@ -6159,7 +6159,7 @@ function montarNovaRodada(participantes) {
     ...partiram.map(({ nome, parte }) => ({ nome, partiu: parte }))];
   const processados = base.map((p) => {
     const r = processarViradaDeRodada(p);
-    if (r.eventos.length) eventosRodada.push({ nome: p.nome, eventos: r.eventos, total: r.total });
+    if (r.eventos.length) eventosRodada.push({ nome: p.nome, eventos: r.eventos, total: r.total, inst_id: p.inst_id || null, tipo: p.tipo, ref_id: p.ref_id });
     if (r.curas && r.curas.length) {
       eventosRodada.push({ nome: p.nome, curou: r.curas.reduce((a, e) => a + e.valor, 0), eventos: r.curas });
     }
@@ -6210,7 +6210,11 @@ function entradaLogViradaRodada(eventos, rodadaNova) {
       : e.curou ? (e.nome + ' recuperou ' + e.curou + ' (' + e.eventos.map((x) => x.nome + ' ' + x.valor).join(' + ') + ')')
       : `${e.nome} sofreu ${e.total} de dano (${e.eventos.map((x) => `${x.nome} ${x.valor}`).join(' + ')})`))
     .join('; ');
-  return { rodada: rodadaNova, ts: Date.now(), acao: 'sistema', texto };
+  // Quem sangrou ou foi envenenado, para os efeitos da revelação (17/11/2026).
+  const fxVirada = eventos.filter((e) => e.total > 0 && !e.curou && !e.entrou && !e.partiu)
+    .map((e) => ({ inst_id: e.inst_id || null, tipo: e.tipo, ref_id: e.ref_id, total: e.total,
+      sangra: (e.eventos || []).some((x) => /sangr/i.test(String(x && x.nome || ''))) }));
+  return { rodada: rodadaNova, ts: Date.now(), acao: 'sistema', texto, ...(fxVirada.length ? { fx_virada: fxVirada } : {}) };
 }
 
 /* ── Aplica a consequência da Falha Crítica no ATACANTE (puro) ─────
@@ -6537,6 +6541,56 @@ function aplicarGolpeEmAlvo(arr, atorIdx, alvoIdx, danoBruto, critico, elemento,
   // derrubou/matou. Dano contido em EH ou AR não quebra — mas zerar a EH
   // desmaia, e desmaiar quebra (ver quebrarConcentracaoPorDano).
   return [...quebrarConcentracaoPorDano(next, alvoAntes, next[alvoIdx])];
+}
+
+/* ── O QUE O GOLPE FEZ NO ALVO, PARA OS EFEITOS (17/11/2026) ───────
+   Usuário aprovou um efeito para cada desfecho do golpe (esquivou, aparou,
+   desviou, bloqueou no escudo, a armadura segurou, furou até a EF, a peça
+   quebrou) e mandou aplicar. Nada disso estava no log: a revelação só via
+   "acertou com N" ou "errou". Esta função compara o alvo antes e depois de
+   aplicarGolpeEmAlvo e devolve o desfecho, que o handler grava em
+   `fx_alvos[chave]`. Puro; não decide regra nenhuma, só lê o que a regra fez.
+
+     esquivou   o status evita_golpe estava lá e foi gasto
+     defesa     o maior corte de dano_recebido_pct do alvo: −75 aparar,
+                −50 desviar, o resto (−25) escudo — os três da tabela
+     eh, ef     quanto saiu de cada poço
+     segurou    nada saiu: 'armadura' (a cascata rodou) ou 'protecao' (o
+                dano final já era zero — proteção elemental, Pele de Árvore;
+                aplicarGolpeEmAlvo devolve o MESMO objeto nesse caso)
+     quebrou    nomes das peças que quebraram neste golpe
+
+   Chamar logo depois de aplicarGolpeEmAlvo, antes de efeitoDaMagiaNoGolpe e
+   do veneno: os dois mexem no alvo e confundiriam a leitura. */
+function fxDoGolpeNoAlvo(antes, depois, danoBruto, catalogos) {
+  if (!antes || !depois || !(Number(danoBruto) > 0)) return null;
+  const evita = (p) => Array.isArray(p.status_temp) && p.status_temp.some((s) => s && s.consome_em === 'golpe_recebido' && s.efeito && s.efeito.tipo === 'evita_golpe');
+  if (evita(antes) && !evita(depois)) return { esquivou: true };
+  const eh = Math.max(0, (Number(antes.eh) || 0) - (Number(depois.eh) || 0));
+  const ef = Math.max(0, (Number(antes.ef) || 0) - (Number(depois.ef) || 0));
+  const out = { eh, ef };
+  const pct = (antes.status_temp || []).reduce((m, s) => (s && s.efeito && s.efeito.tipo === 'dano_recebido_pct'
+    ? Math.min(m, Number(s.efeito.valor) || 0) : m), 0);
+  if (pct <= -75) out.defesa = 'aparar';
+  else if (pct <= -50) out.defesa = 'desviar';
+  else if (pct < 0) out.defesa = 'escudo';
+  const idPeca = (pc) => pc.instanceId || pc.slug || '';
+  const jaQuebradas = new Set((antes.armadura_pecas || []).filter((pc) => pc && pc.quebrada).map(idPeca));
+  const porSlug = catalogos && catalogos.catalogoBySlug;
+  const quebrou = (depois.armadura_pecas || [])
+    .filter((pc) => pc && pc.quebrada && !jaQuebradas.has(idPeca(pc)))
+    .map((pc) => (porSlug && porSlug[pc.slug] && porSlug[pc.slug].nome) || pc.nome || null)
+    .filter(Boolean);
+  if (quebrou.length) out.quebrou = quebrou;
+  if (!eh && !ef) out.segurou = depois === antes ? 'protecao' : 'armadura';
+  return out;
+}
+/* Anota o desfecho no mapa do log, pela chave que a revelação usa (inst_id,
+   ou tipo:ref_id em batalha antiga). Devolve o próprio mapa. */
+function fxDoGolpeAnotado(mapa, antes, depois, danoBruto, catalogos) {
+  const fx = fxDoGolpeNoAlvo(antes, depois, danoBruto, catalogos);
+  if (fx && antes) mapa[antes.inst_id || (antes.tipo + ':' + antes.ref_id)] = fx;
+  return mapa;
 }
 
 /* ── O EFEITO QUE ACOMPANHA O GOLPE DA MAGIA (10/11/2026) ───────────
@@ -8770,16 +8824,23 @@ function BatalhaPreparoJogador({ batalha, pjAtivoId, lang, onVoltar }) {
   const jaRolou = !!(meu && meu.ini_rolada);
   const valor = mostrado != null ? mostrado : (jaRolou ? meu.bonus_iniciativa : null);
   const D10 = window.DadoD10;
-  const rolar = async () => {
+  // Dado real (17/11/2026): o jogador informa o d10 que rolou na mesa, e o
+  // servidor confere 1..10 (rolar_iniciativa_jogador com p_valor).
+  const dadoReal = !!batalha.dados_reais;
+  const [pedindoValor, setPedindoValor] = useState(false);
+  const rolar = async (informado) => {
     if (rolando || jaRolou) return;
     setRolando(true); setErro(null);
     try {
       const { data, error } = await supabaseClient.rpc('rolar_iniciativa_jogador',
-        { p_batalha_id: batalha.id, p_pj_id: Number(pjAtivoId) });
+        { p_batalha_id: batalha.id, p_pj_id: Number(pjAtivoId),
+          ...(dadoReal && Number.isInteger(informado) ? { p_valor: informado } : {}) });
       if (error) throw error;
       if (!data || data.ok === false) {
         throw new Error(data && data.motivo === 'ja_rolou'
           ? (isEn ? 'You have already rolled.' : 'Você já rolou.')
+          : data && data.motivo === 'valor_invalido'
+          ? (isEn ? 'Enter a number from 1 to 10.' : 'Informe um número de 1 a 10.')
           : (isEn ? 'The roll could not be saved. Try again.' : 'Não deu para gravar a rolagem. Tente de novo.'));
       }
       const v = Number(data.valor);
@@ -8823,7 +8884,8 @@ function BatalhaPreparoJogador({ batalha, pjAtivoId, lang, onVoltar }) {
               </div>
             </div>
           ) : (
-            <button type="button" className="btn-primary batalha-preparo-rolar" disabled={rolando || !meu} onClick={rolar}>
+            <button type="button" className="btn-primary batalha-preparo-rolar" disabled={rolando || !meu}
+              onClick={() => (dadoReal ? setPedindoValor(true) : rolar())}>
               <i className="ti ti-dice-5" aria-hidden="true" />
               {rolando ? (isEn ? 'Rolling…' : 'Rolando…') : (isEn ? 'Roll d10' : 'Rolar d10')}
             </button>
@@ -8831,6 +8893,12 @@ function BatalhaPreparoJogador({ batalha, pjAtivoId, lang, onVoltar }) {
           {erro && <p className="err-msg" role="alert">{erro}</p>}
         </div>
       </div>
+      {pedindoValor && (
+        <ModalDadoReal faces={10} lang={lang}
+          titulo={(isEn ? 'Initiative · ' : 'Iniciativa · ') + (meu ? meu.nome : '')}
+          onClose={() => setPedindoValor(false)}
+          onInformar={(v) => { setPedindoValor(false); rolar(v); }} />
+      )}
     </div>
   );
 }
@@ -8925,6 +8993,27 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
      aparecer o efeito do golpe ou magia"). Ver efeitos-da-vez.jsx. Só o
      Mestre grava a coluna. Sem a coluna no banco (gravação recusada), a
      aprovação se desliga e a mesa segue como antes. */
+  /* DADO REAL (17/11/2026): o modo da batalha inteira, só o Mestre troca. Ver
+     DadosReaisCtx. Grava direto na coluna, como a cortina. */
+  const [dadosReais, setDadosReais] = useState(!!batalha.dados_reais);
+  // A iniciativa que o Mestre marca: sorteada (virtual) ou informada (real).
+  const [iniReal, setIniReal] = useState(null);   // { inst, nome, ehPj }
+  const marcarIniciativa = (i, ehPj, valor) => {
+    let next = definirIniciativa(participantes, i, valor);
+    // Rolado pelo Mestre, o personagem não rola de novo na tela dele.
+    if (ehPj) next = next.map((q, k) => (k === i ? { ...q, ini_rolada: true } : q));
+    setParticipantes(next);
+    persistir({ participantes: next });
+  };
+  const trocarDadosReais = async () => {
+    const novo = !dadosReais;
+    setDadosReais(novo);
+    const { error: err } = await supabaseClient.from('batalhas').update({ dados_reais: novo }).eq('id', batalha.id);
+    if (err) {
+      console.warn('[batalha] dados_reais não gravou:', err.message);
+      setDadosReais(!novo);
+    }
+  };
   const MC = window.MotorCortina;
   const [cortina, setCortina] = useState(batalha.cortina || null);
   const [semCortina, setSemCortina] = useState(false);
@@ -9118,6 +9207,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           if (nova.rodada != null)        setRodada(nova.rodada);
           if (nova.log != null)           setLog(nova.log);
           if (nova.cortina !== undefined) setCortina(nova.cortina);
+          if (nova.dados_reais !== undefined) setDadosReais(!!nova.dados_reais);
         })
       .on('postgres_changes',
         { event: 'DELETE', schema: 'public', table: 'batalhas' },
@@ -9618,6 +9708,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     if (!resolvendoPendente) next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     const alvoAntesDoGolpe = next[alvoIdx];
     next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+    // O desfecho de cada alvo, para os efeitos da revelação (17/11/2026) — ver fxDoGolpeNoAlvo.
+    const fxAlvos = fxDoGolpeAnotado({}, alvoAntesDoGolpe, next[alvoIdx], danoPraGolpe, catalogos);
     // O efeito que acompanha o golpe da magia (derrubar, veneno, penalidade) — ver efeitoDaMagiaNoGolpe.
     if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, alvoIdx, alvoAntesDoGolpe, magia);
     // Onde o dano caiu no alvo principal — o log diz "na energia física" (27/09/2026).
@@ -9644,6 +9736,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       if (next[exIdx].inst_id) instAlvosExtras.push(next[exIdx].inst_id);
       const exAntes = next[exIdx];
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+      fxDoGolpeAnotado(fxAlvos, exAntes, next[exIdx], danoPraGolpe, catalogos);
       if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, exIdx, exAntes, magia);
       next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf).next;
     });
@@ -9707,6 +9800,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       // O que a revelação anima (10/11/2026): o elemento da magia e o tipo do golpe.
       ...(elementoDoGolpe ? { elemento: elementoDoGolpe } : {}),
       ...(tipo === 'arma' && arma ? { golpe_tipo: tipoCriticoDoGrupo(arma.grupo_sigla || arma.grupo || '') } : {}),
+      ...(Object.keys(fxAlvos).length ? { fx_alvos: fxAlvos } : {}),
       arma_nome: nomeAcao,                       // mantém nome do campo p/ retrocompat do render
       ...(venenoPrincipal.aplicado > 0 ? { veneno_ef: venenoPrincipal.aplicado } : {}),
       coluna, d20,
@@ -10555,6 +10649,21 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   // da vez — e por isso moraram no menu do avatar dele, junto de dano, cura e
   // estado. No header ficavam órfãs de dono, longe do lutador que afetavam.
   // Encerrar continua no topo: é da batalha inteira.
+  /* O botão do modo de dado (17/11/2026), no trilho da montagem e da condução. */
+  const botaoDadosReais = (classe) => (
+    <button type="button" className={classe + (dadosReais ? ' is-ativo' : '')} data-acao="dados-reais"
+      aria-pressed={dadosReais} disabled={salvando || rolagemPendente}
+      onClick={() => { fecharTip(); trocarDadosReais(); }}
+      onMouseEnter={(e) => abrirTip(e, dadosReais
+        ? (isEn ? 'Real dice: each player enters the number rolled at the table. Click to switch to virtual dice.'
+                : 'Dado real: cada um informa o número que rolou na mesa. Clique para voltar ao dado virtual.')
+        : (isEn ? 'Virtual dice: the system rolls. Click to play with real dice.'
+                : 'Dado virtual: o sistema rola. Clique para jogar com dado real.'))}
+      onMouseLeave={fecharTip}>
+      <i className="ti ti-dice-5" aria-hidden="true" />
+      <span className="mc-acao-rotulo">{dadosReais ? (isEn ? 'Real dice' : 'Dado real') : (isEn ? 'Virtual dice' : 'Dado virtual')}</span>
+    </button>
+  );
   useEffect(() => {
     if (!onHeaderActionsChange) return;
     if (estado === 'setup') {
@@ -10586,6 +10695,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
               );
             })}
           </div>
+          {botaoDadosReais('btn-ghost btn-sm batalha-dados-modo')}
           {/* Só a palavra, sem ícone (pedido do usuário, 12/09/2026). */}
           <button type="button" className="btn-primary btn-sm"
             disabled={iniciando || participantes.length === 0}
@@ -10623,6 +10733,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           <i className={'ti ' + VISIBILIDADE_ICONE[visibilidade]} aria-hidden="true" />
           <span className="mc-acao-rotulo">{NOME_VISIB[visibilidade] || visibilidade}</span>
         </button>
+        {botaoDadosReais('mc-acao')}
         {/* REFORÇOS (29/09/2026): quem chega entra na próxima rodada. */}
         <button type="button" className="mc-acao" data-acao="reforcos"
           disabled={salvando || rolagemPendente}
@@ -10673,7 +10784,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       </>
     );
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [estado, acaoOpen, salvando, current, catalogos, participantes, iniciando, isEn, rolagemPendente, rodada, visibilidade, ambiente, aguardandoRevelar, cortina]);
+  }, [estado, acaoOpen, salvando, current, catalogos, participantes, iniciando, isEn, rolagemPendente, rodada, visibilidade, ambiente, aguardandoRevelar, cortina, dadosReais]);
 
   // Encerra a batalha: leva o estado final pra ficha de cada PJ, limpa o
   // personagens_pools da história e arquiva o log pela RPC.
@@ -10898,11 +11009,9 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                       onMouseLeave={fecharTip}
                       onClick={() => {
                         fecharTip();
-                        let next = definirIniciativa(participantes, i, rolarD10());
-                        // Rolado pelo Mestre, o personagem não rola de novo na tela dele.
-                        if (ehPj) next = next.map((q, k) => (k === i ? { ...q, ini_rolada: true } : q));
-                        setParticipantes(next);
-                        persistir({ participantes: next });
+                        // Dado real (17/11/2026): o Mestre informa o d10 que rolou.
+                        if (dadosReais) { setIniReal({ inst: p.inst_id, nome: p.nome, ehPj }); return; }
+                        marcarIniciativa(i, ehPj, rolarD10());
                       }}>
                       <i className="ti ti-dice-5" aria-hidden="true" />
                     </button>
@@ -10959,6 +11068,16 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           fecharTip={fecharTip}
         />
         {error && <div className="err-msg" style={{ marginTop: 10 }}>{error}</div>}
+        {iniReal && (
+          <ModalDadoReal faces={10} lang={lang}
+            titulo={(isEn ? 'Initiative · ' : 'Iniciativa · ') + iniReal.nome}
+            onClose={() => setIniReal(null)}
+            onInformar={(v) => {
+              const idx = participantes.findIndex((q) => q.inst_id === iniReal.inst);
+              if (idx >= 0) marcarIniciativa(idx, iniReal.ehPj, v);
+              setIniReal(null);
+            }} />
+        )}
         {/* Botão "Iniciar batalha" é renderizado no slot de ações do HEADER
             da página (via onHeaderActionsChange, junto do mesmo padrão usado
             nos estados ativa/encerrada) — não duplicar aqui no corpo. Voltar
@@ -10969,7 +11088,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
 
   // ── ATIVA / ENCERRADA ──
   return (
-    <>
+    <DadosReaisCtx.Provider value={dadosReais}>
     <div className="batalha-conduzir">
       {/* Barra de Rodada/Vez/Encerrada removida: o card do lutador atual já
           fica evidenciado visualmente (borda dourada) quando é a vez dele. */}
@@ -11685,7 +11804,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         <PreviaPool poolOpen={poolOpen} bruto={poolVal} tb={tb} />
       </ModalShell>
     )}
-    </>
+    </DadosReaisCtx.Provider>
   );
 }
 
@@ -11848,6 +11967,77 @@ const DadoD20BatInline = React.forwardRef(function DadoD20BatInline(props, ref) 
   );
 });
 
+/* ============================== DADO REAL (17/11/2026) ==============================
+   Usuário: "Adicione no tabuleiro de batalha a opção para jogar usando dados
+   reais. Apenas o mestre habilita essa função, a batalha toda funciona com
+   dado real, ou dado virtual. A diferença é que ao clicar na rolagem, abrirá
+   um modal pedindo para inserir o valor. E o próprio jogador informa o valor."
+
+   O modo é da BATALHA (batalhas.dados_reais, só o Mestre grava) e chega a
+   todo dado da luta por contexto: as duas telas (ConduzirBatalhaView e
+   BatalhaJogadorView) fornecem, e o DadoOverlay e a iniciativa leem. Com ele
+   ligado, o dado não sorteia: pede o número que caiu na mesa e assenta nele
+   (roll(forcado)), e dali em diante o caminho é o de sempre — resultado,
+   trava de "rolou, não rola de novo", gravação. O modo automático segue com
+   dado virtual: quem joga ali é a mesa, não uma pessoa com um dado na mão. */
+const DadosReaisCtx = React.createContext(false);
+
+/* O campo do número que caiu. `faces` 20 (ação) ou 10 (iniciativa). Enter
+   informa; fora de 1..faces o botão apaga e a linha de erro diz o intervalo. */
+/* `semBotao`: dentro de uma janela com rodapé (ModalDadoReal), o Informar mora
+   no rodapé, e o campo só avisa o valor válido por onMudar. */
+function ValorDoDadoReal({ faces, isEn, onInformar, desativado = false, semBotao = false, onMudar = null }) {
+  const [txt, setTxt] = useState('');
+  const inputRef = useRef(null);
+  const n = Number(txt);
+  const valido = txt !== '' && Number.isInteger(n) && n >= 1 && n <= faces;
+  const fora = txt !== '' && !valido;
+  useEffect(() => {
+    const t = setTimeout(() => { if (inputRef.current) inputRef.current.focus(); }, 80);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => { if (onMudar) onMudar(valido ? n : null); /* eslint-disable-next-line */ }, [txt]);
+  return (
+    <form className={'dado-real' + (semBotao ? ' dado-real--so-campo' : '')}
+      onSubmit={(e) => { e.preventDefault(); if (valido && !desativado) onInformar(n); }}>
+      <label className="dado-real-campo">
+        <span className="mn-rotulo">{isEn ? `What did the d${faces} show?` : `Quanto caiu no d${faces}?`}</span>
+        <input ref={inputRef} type="text" inputMode="numeric" autoComplete="off" maxLength={2}
+          value={txt} placeholder={`1–${faces}`} disabled={desativado}
+          aria-invalid={fora || undefined}
+          onChange={(e) => setTxt(e.target.value.replace(/\D/g, '').slice(0, 2))} />
+      </label>
+      {!semBotao && (
+        <button type="submit" className="btn-primary" disabled={!valido || desativado}>
+          {isEn ? 'Enter value' : 'Informar'}
+        </button>
+      )}
+      {fora && (
+        <p className="dado-real-erro" role="alert">
+          {isEn ? `Enter a number from 1 to ${faces}.` : `Informe um número de 1 a ${faces}.`}
+        </p>
+      )}
+    </form>
+  );
+}
+
+/* A janela do d10 da iniciativa no dado real: quem clica em rolar (o jogador
+   no preparo, o Mestre pelos inimigos ou por um jogador ausente) informa o
+   número. Informar no rodapé, como toda confirmação de janela. */
+function ModalDadoReal({ faces = 10, titulo, lang, onInformar, onClose, ocupado = false }) {
+  const isEn = lang === 'en';
+  const [valor, setValor] = useState(null);
+  return (
+    <ModalShell lang={lang} size="sm" extraClass="modal-dado-real" title={titulo}
+      onClose={ocupado ? null : onClose} onCancel={onClose} cancelDisabled={ocupado}
+      onConfirm={() => { if (valor != null && !ocupado) onInformar(valor); }}
+      confirmLabel={isEn ? 'Enter value' : 'Informar'} confirmDisabled={valor == null || ocupado}>
+      <ValorDoDadoReal faces={faces} isEn={isEn} semBotao onMudar={setValor} desativado={ocupado}
+        onInformar={(v) => { if (!ocupado) onInformar(v); }} />
+    </ModalShell>
+  );
+}
+
 /* ============================== DadoOverlay — overlay fiel ao RolagemD20Overlay da ficha ============================== */
 /*
    Props:
@@ -11860,12 +12050,22 @@ const DadoD20BatInline = React.forwardRef(function DadoD20BatInline(props, ref) 
      isCritico / tipoCritico / msgCritico — segundo dado de crítico
 */
 function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onFechar, onConfirmar, onRolou,
-                       isCritico, tipoCritico, msgCritico }) {
+                       isCritico, tipoCritico, msgCritico, dadoVirtual = false }) {
   const isEn = lang === 'en';
   const tb = tBat(lang); // i18n-sync (Fase 3.3)
   const [resultado, setResultado] = useState(null);
   const dadoRef = useRef(null);
   const jaRolou = useRef(false);
+  // Dado real (17/11/2026): a batalha em dado real e quem rola é uma pessoa.
+  const dadoReal = !!React.useContext(DadosReaisCtx) && !dadoVirtual;
+  const [informado, setInformado] = useState(false);
+  const [valorReal, setValorReal] = useState(null);
+  const informarReal = (v) => {
+    if (jaRolou.current || !dadoRef.current || v == null) return;
+    jaRolou.current = true;
+    setInformado(true);
+    dadoRef.current.roll(v);
+  };
 
   // Trava scroll + Escape. Escape só fecha ANTES do dado assentar (resultado
   // ainda null) — depois que existe um resultado, a única saída é
@@ -11874,15 +12074,18 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
   // null no AcaoPanel, o que reabilita o botão que abre este mesmo overlay
   // pra um novo sorteio — repetível até sair um número que agrade.
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape' && !resultado) onFechar(); };
+    // Dado real: informado o número, o Escape também já não fecha (o dado
+    // está assentando nele, e fechar ali descartaria o valor).
+    const onKey = (e) => { if (e.key === 'Escape' && !resultado && !informado) onFechar(); };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
-  }, [onFechar, resultado]);
+  }, [onFechar, resultado, informado]);
 
-  // Rola sozinho ao abrir
+  // Rola sozinho ao abrir — no dado real, não: espera o número da mesa.
   useEffect(() => {
+    if (dadoReal) return undefined;
     const t = setTimeout(() => {
       if (dadoRef.current && !jaRolou.current) { jaRolou.current = true; dadoRef.current.roll(); }
     }, 260);
@@ -11945,7 +12148,10 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
       role="dialog" aria-modal="true"
       aria-label={(tb.rolagem) + titulo}
     >
-      <div className="dado-overlay-inner">
+      {/* OS TEXTOS SÓ DEPOIS QUE O DADO PARA (17/11/2026, usuário): enquanto ele
+          rola, a janela mostra só o dado. No dado real, antes de informar, o
+          título e o campo ficam à vista (é preciso saber o que se rola). */}
+      <div className={'dado-overlay-inner' + (!resultado && (!dadoReal || informado) ? ' is-rolando' : '')}>
         {/* Cabeçalho */}
         <div>
           <div className="dado-overlay-head">
@@ -11954,14 +12160,21 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
           {subtitulo && <div className="dado-overlay-sub">{subtitulo}</div>}
         </div>
 
-        {/* Dado icosaedro */}
-        <DadoD20Bat
-          ref={dadoRef}
-          size="clamp(150px, 42vw, 208px)"
-          ariaLabel={(tb.rolandoDadoPara) + titulo}
-          onRoll={aoRolar}
-          disabled={!!resultado}
-        />
+        {/* Dado icosaedro. No dado real ele não responde ao clique (inert: o
+            clique sortearia) — só assenta no número informado. */}
+        <span className="dado-overlay-dado" inert={dadoReal ? true : undefined}>
+          <DadoD20Bat
+            ref={dadoRef}
+            size="clamp(150px, 42vw, 208px)"
+            ariaLabel={(tb.rolandoDadoPara) + titulo}
+            onRoll={aoRolar}
+            disabled={!!resultado}
+          />
+        </span>
+        {dadoReal && !resultado && (
+          <ValorDoDadoReal faces={20} isEn={isEn} desativado={informado} semBotao
+            onMudar={setValorReal} onInformar={informarReal} />
+        )}
 
         {/* Card de resultado */}
         <div aria-live="polite" className={'dado-overlay-result-wrap' + (resultado ? ' visible' : '')}>
@@ -11994,14 +12207,27 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
 
         {/* Botões */}
         <div className="dado-overlay-btns">
-          {onConfirmar && (
+          {/* Dado real: antes de informar dá para desistir (o virtual nem
+              chega a ter esse momento — já abre rolando). */}
+          {dadoReal && !resultado && (
+            <>
+              <button type="button" className="btn-ghost" onClick={onFechar} disabled={informado}>
+                {isEn ? 'Cancel' : 'Cancelar'}
+              </button>
+              <button type="button" className="btn-primary" disabled={valorReal == null || informado}
+                onClick={() => informarReal(valorReal)}>
+                {isEn ? 'Enter value' : 'Informar'}
+              </button>
+            </>
+          )}
+          {onConfirmar && !(dadoReal && !resultado) && (
             <button type="button" className="btn-primary"
               disabled={!resultado}
               onClick={() => resultado && onConfirmar({ valor: resultado.d20, resultado: resultado.res })}>
               {tb.confirmar}
             </button>
           )}
-          {!onConfirmar && (
+          {!onConfirmar && !(dadoReal && !resultado) && (
             <button type="button" className="btn-primary" onClick={onFechar}>
               {tb.concluir}
             </button>
@@ -14191,6 +14417,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
              alvo (C1, acima) é o que a spec pedia ali — não isto. */
           semCard={tab === 'habilidade' || tab === 'tecnica_teste'}
           lang={lang}
+          dadoVirtual={!!auto}
           onFechar={() => setOverlayAberto(null)}
           onRolou={({ valor }) => {
             setD20ComReset(valor);
@@ -14216,6 +14443,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           lang={lang}
           isCritico
           tipoCritico={tipoCritico}
+          dadoVirtual={!!auto}
           onFechar={() => setOverlayAberto(null)}
           onRolou={({ valor }) => {
             setD20Critico(valor);
@@ -14825,6 +15053,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     const alvoAntesDoGolpe = next[alvoIdx];
     next = aplicarGolpeEmAlvo(next, atorIdx, alvoIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+    // O desfecho de cada alvo, para os efeitos da revelação (17/11/2026) — ver fxDoGolpeNoAlvo.
+    const fxAlvos = fxDoGolpeAnotado({}, alvoAntesDoGolpe, next[alvoIdx], danoPraGolpe, catalogos);
     // O efeito que acompanha o golpe da magia (derrubar, veneno, penalidade) — ver efeitoDaMagiaNoGolpe.
     if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, alvoIdx, alvoAntesDoGolpe, magia);
     // Onde o dano caiu no alvo principal — o log diz "na energia física" (27/09/2026).
@@ -14851,6 +15081,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       if (next[exIdx].inst_id) instAlvosExtras.push(next[exIdx].inst_id);
       const exAntes = next[exIdx];
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
+      fxDoGolpeAnotado(fxAlvos, exAntes, next[exIdx], danoPraGolpe, catalogos);
       if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, exIdx, exAntes, magia);
       next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf).next;
     });
@@ -14903,6 +15134,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       // O que a revelação anima (10/11/2026): o elemento da magia e o tipo do golpe.
       ...(elementoDoGolpe ? { elemento: elementoDoGolpe } : {}),
       ...(tipo === 'arma' && arma ? { golpe_tipo: tipoCriticoDoGrupo(arma.grupo_sigla || arma.grupo || '') } : {}),
+      ...(Object.keys(fxAlvos).length ? { fx_alvos: fxAlvos } : {}),
       arma_nome: nomeAcao, coluna, d20,
       ...(venenoPrincipal.aplicado > 0 ? { veneno_ef: venenoPrincipal.aplicado } : {}),
       resultado: resultado ? resultado.codigo : null,
@@ -15533,6 +15765,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
   };
 
   return (
+    <DadosReaisCtx.Provider value={!!batalha.dados_reais}>
     <div className="menestrel-ui fp-page batalha-jog-root">
       <div className="fp-card batalha-mng-page batalha-jog-card">
         <div className="cartoes-barra batalha-trilho">
@@ -15858,6 +16091,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           no fim da árvore — sai por cima do menu de qualquer jeito. */}
       <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
     </div>
+    </DadosReaisCtx.Provider>
   );
 }
 
@@ -15874,6 +16108,8 @@ function tBat(lang) {
 
 Object.assign(window, {
   BatalhasHistoriaView, BatalhaJogadorView, BatalhaPreparoJogador,
+  // Dado real (17/11/2026, dado-real.test.jsx).
+  DadosReaisCtx, ValorDoDadoReal, ModalDadoReal, DadoOverlay,
   // O d10 da iniciativa extra (11/11/2026, iniciativa-d10.test.js).
   rolarD10, ehInimigoDoMestre, criaturaDoMestre, rolarIniciativaDosInimigos,
   // O botão de restaurar do treino (11/11/2026).
@@ -16063,6 +16299,7 @@ Object.assign(window, {
     SEGUNDOS_POR_ACAO, combatentesQueAgem, segundosDaRodada, duracaoDaBatalhaSegundos,
     minutosDaBatalha, prazosDaFichaEmRodadas,
     aplicarGolpeEmAlvo,
+    fxDoGolpeNoAlvo,
     defesaComEscolta,
     // 14/09/2026: Provocar — o provocado só ataca quem provocou.
     provocadorDe, alvosSobProvocacao, podeAtacarSobProvocacao, TIPOS_EFEITO_COM_FONTE,

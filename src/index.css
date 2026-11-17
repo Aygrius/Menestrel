@@ -8627,12 +8627,15 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .dado-overlay-result-card {
   display: inline-block; min-width: min(82vw, 280px);
 }
-#root .menestrel-ui .dado-overlay-result-card.com-card {
-  background: rgba(45,38,28,0.85);
-  border: 1px solid var(--border, var(--regua-forte));
-  border-radius: var(--radius, 6px);
-  padding: clamp(12px, 3vw, 18px) clamp(16px, 4vw, 24px);
-}
+/* Sem cartão (17/11/2026, usuário: "Onde está escrito 'muito difícil' e '100%
+   de dano' eu quero sem fundo, igual está em 'Espada Longa > Orc'"): o
+   resultado é texto solto, como o título da janela. */
+#root .menestrel-ui .dado-overlay-result-card.com-card { background: none; border: 0; padding: 0; }
+/* Enquanto o dado rola, a janela é só o dado: título, resultado e botões
+   aparecem juntos quando ele para (17/11/2026). O lugar continua reservado,
+   para nada pular quando eles entram. */
+#root .menestrel-ui .dado-overlay-inner > * { transition: opacity .35s ease; }
+#root .menestrel-ui .dado-overlay-inner.is-rolando > :not(.dado-overlay-dado) { opacity: 0; visibility: hidden; transition: none; }
 #root .menestrel-ui .dado-overlay-result-nome {
   font-family: var(--font-body); font-weight: 700;
   font-size: clamp(20px, 5.5vw, 30px); line-height: 1.1;
@@ -8653,6 +8656,29 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 #root .menestrel-ui .dado-overlay-btns {
   display: flex; gap: clamp(8px, 2vw, 12px); flex-wrap: wrap; justify-content: center;
 }
+
+/* DADO REAL (17/11/2026, DadosReaisCtx em batalha.jsx): o número que caiu na
+   mesa. O campo é o número grande da rolagem — algarismo tabular, no centro —
+   e o Informar logo abaixo; no d10 da iniciativa (janela com rodapé) só o
+   campo. O dado de cima não responde ao clique (inert): assenta no informado. */
+#root .menestrel-ui .dado-overlay-dado { display: inline-block; line-height: 0; }
+#root .menestrel-ui .dado-overlay-dado[inert] .ms-d20-hit { cursor: default; }
+#root .menestrel-ui .dado-real {
+  display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 0;
+}
+#root .menestrel-ui .dado-real-campo { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+#root .menestrel-ui .dado-real-campo input {
+  width: 120px; height: 56px; padding: 0 12px; box-sizing: border-box;
+  border: 1px solid var(--regua-forte); border-radius: 999px; background: var(--chao-celula-opaco);
+  color: var(--tinta); text-align: center; caret-color: var(--vivo);
+  font: 700 28px/1 var(--font-body); font-variant-numeric: lining-nums tabular-nums;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+#root .menestrel-ui .dado-real-campo input::placeholder { color: var(--tinta-3); font-size: 18px; font-weight: 600; }
+#root .menestrel-ui .dado-real-campo input:focus { outline: none; border-color: var(--vivo-aro); box-shadow: 0 0 0 3px rgba(var(--vivo-rgb),0.18); }
+#root .menestrel-ui .dado-real-campo input[aria-invalid="true"] { border-color: var(--alerta); box-shadow: 0 0 0 3px var(--alerta-fundo); }
+#root .menestrel-ui .dado-real-erro { margin: 0; font-size: var(--fs-sm); color: var(--alerta); }
+#root .menestrel-ui .modal-dado-real .ms-body { display: flex; justify-content: center; padding-top: 24px; padding-bottom: 24px; }
 
 /* ── DadoD20Bat (componente SVG do dado) ── */
 #root .menestrel-ui .ms-d20 {
@@ -10935,14 +10961,11 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
 /* ── Abas nos modais de detalhe do catálogo (26/09/2026) ──────────────────
    Ver useAbasDoCorpo (09-bestiario/bestiario.jsx). A barra fica entre o
    cabeçalho e o corpo, no mesmo desenho das abas do Diário e de "Editar
-   História" (hist-modal-tabs). */
-#root .menestrel-ui .modal-best-detalhe .best-abas {
-  margin: 0; padding: 0 24px;
-  overflow-x: auto; overflow-y: hidden; scrollbar-width: thin;
-  scrollbar-color: rgba(var(--bronze-rgb),0.45) transparent;
-}
-#root .menestrel-ui .modal-best-detalhe .best-abas .hist-modal-tab { white-space: nowrap; }
-#root .menestrel-ui .modal-best-detalhe .best-abas .hist-modal-tab:focus-visible {
+   História" (hist-modal-tabs). Desde 17/11/2026 a barra é o trilho de toda
+   janela (.form-abas-barra, bloco "O TRILHO DE TODA JANELA"); aqui fica só o
+   que é desta janela. */
+#root .menestrel-ui .modal-best-detalhe .best-abas .mc-acao { white-space: nowrap; }
+#root .menestrel-ui .modal-best-detalhe .best-abas .mc-acao:focus-visible {
   outline: 2px solid rgba(var(--ouro-rgb),0.70); outline-offset: -2px;
 }
 /* `hidden` tem de vencer os display das seções e grades */
@@ -19616,7 +19639,7 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 #root .menestrel-ui :is(.ms-body :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]), select, textarea, .select-pill-btn), .diario-input, .diario-textarea):focus {
   border-color: transparent; outline: none; box-shadow: none; background-color: var(--campo-bg-hover);
 }
-#root .menestrel-ui :is(.cartoes-barra .best-header-acoes, .mc-acoes-ficha, .fp-abas-trilho, .cdj-trilho, .mp-grupo, .wiz-fases, .estoque-sim-nao, .fp3-rodape-trilho) { border-color: transparent; }
+#root .menestrel-ui :is(.cartoes-barra .best-header-acoes, .mc-acoes-ficha, .fp-abas-trilho, .cdj-trilho, .mp-grupo, .mp-escala, .wiz-fases, .estoque-sim-nao, .fp3-rodape-trilho) { border-color: transparent; }
 
 /* ── O MENU LATERAL EM CÍRCULOS (16/11/2026) ──────────────────────────────────
    Usuário: "Os botões do menu esquerdo devem ser círculos perfeitos." Na
@@ -20493,14 +20516,16 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
    alto de cada aba; os nomes dos itens das listas). Cada aba abre com o nome
    dela em Cinzel (22px), e os nomes de Locais, Itens, Feriados e Relações
    passam para o Cinzel em 18px, o menor tamanho em que ele entra. */
-#root .menestrel-ui .modal-entidade .best-detail.best-com-abas > .best-secao > .best-secao-titulo {
+/* Em todas as janelas de leitura da Ambientação e do Compêndio (17/11/2026,
+   usuário: "você não adicionou o título nos demais modais, como fez em entidades"). */
+#root .menestrel-ui .modal-ambientacao .best-detail.best-com-abas > .best-secao > .best-secao-titulo {
   display: block; margin: 0 0 14px;
   font: 600 22px/1.2 var(--font-title); letter-spacing: .01em; text-transform: none; color: var(--tinta);
 }
 #root .menestrel-ui .modal-entidade .ent-item-nome { font: 600 18px/1.25 var(--font-title); letter-spacing: .01em; color: var(--tinta); }
 /* Com imagem, o título do Prefácio fica na coluna do texto: o de cima sai. */
-#root .menestrel-ui .modal-entidade .best-detail.best-com-abas > .best-secao:has(> .grp-epigrafe--com-imagem) > .best-secao-titulo { display: none; }
-#root .menestrel-ui .modal-entidade .grp-epigrafe-texto > .ent-titulo-na-coluna {
+#root .menestrel-ui .modal-ambientacao .best-detail.best-com-abas > .best-secao:has(> .grp-epigrafe--com-imagem) > .best-secao-titulo { display: none; }
+#root .menestrel-ui .modal-ambientacao .grp-epigrafe-texto > .ent-titulo-na-coluna {
   display: block; margin: 0 0 14px; font: 600 22px/1.2 var(--font-title); letter-spacing: .01em; text-transform: none; color: var(--tinta);
 }
 
@@ -20509,18 +20534,36 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
    enquanto o formulário rola — com o chão da janela por trás, para o texto
    não passar por baixo dela à vista. O ponto de brasa marca a aba com campo
    obrigatório vazio. */
-#root .menestrel-ui .nb-paginas.form-abas {
-  position: sticky; top: 0; z-index: 5;
-  margin: -20px -24px 18px; padding: 14px 24px 12px;
-  border: 0; border-radius: 0; background: var(--chao-celula-opaco);
+/* A barra das abas: presa no alto do corpo, com o chão da janela por trás; a
+   pílula de trilho no centro, do tamanho do conteúdo (17/11/2026). */
+/* O TRILHO DE TODA JANELA (17/11/2026, usuário: "O trilho dentro do modal de
+   editar criatura [...] está fora do padrão, o fundo está quadrado e grande.
+   Padronize isso para todos os modais."). A barra não é caixa: tem o chão da
+   própria janela (só para o texto não passar à vista por baixo dela quando o
+   corpo rola), e quem aparece é a pílula, no fundo de trilho da Ficha
+   (--pg-trilho-fundo). Vale para os editores (AbasDoFormulario), a janela de
+   leitura do Compêndio (.best-abas) e Editar História. */
+#root .menestrel-ui .form-abas-barra {
+  position: sticky; top: 0; z-index: 5; flex: none;
+  display: flex; justify-content: center; align-items: center;
+  margin: -20px -24px 14px; padding: 12px 24px; background: rgb(var(--chao-rgb));
 }
-#root .menestrel-ui .form-abas .nb-pagina-op { position: relative; z-index: 1; min-width: 0; }
-#root .menestrel-ui .form-abas .form-aba-rotulo { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#root .menestrel-ui .form-abas.trilho-solto { max-width: 100%; overflow-x: auto; scrollbar-width: none; background: var(--pg-trilho-fundo); }
+/* Fora do corpo (entre o cabeçalho e o corpo da janela de leitura): não gruda
+   nem puxa margem — é só a faixa da pílula. */
+#root .menestrel-ui .ms-modal > .form-abas-barra { position: static; margin: 0; padding: 12px 24px 4px; background: none; }
+/* Contador dentro da aba (Capítulos 3): o algarismo no tom da aba. */
+#root .menestrel-ui .form-abas .form-aba-contador { font: 700 13px var(--font-body); font-variant-numeric: tabular-nums; color: var(--tinta-3); }
+#root .menestrel-ui .form-abas .mc-acao.is-ativo .form-aba-contador { color: var(--vivo); }
+/* A ação da barra (Adicionar capítulo) fica na ponta direita, fora da pílula. */
+#root .menestrel-ui .form-abas-barra > .form-abas-acao { position: absolute; right: 24px; top: 50%; transform: translateY(-50%); }
+#root .menestrel-ui .form-abas.trilho-solto::-webkit-scrollbar { display: none; }
+#root .menestrel-ui .form-abas .mc-acao { flex: none; }
 #root .menestrel-ui .form-abas .form-aba-alerta {
-  width: 6px; height: 6px; margin-left: 6px; border-radius: 50%; background: var(--alerta); flex: none;
+  width: 6px; height: 6px; margin-left: 2px; border-radius: 50%; background: var(--alerta); flex: none;
 }
 @media (max-width: 640px) {
-  #root .menestrel-ui .nb-paginas.form-abas { margin: -16px -16px 14px; padding: 10px 16px; overflow-x: auto; grid-auto-columns: max-content; }
+  #root .menestrel-ui .form-abas-barra { margin: -16px -16px 14px; padding: 10px 16px; }
 }
 /* Os campos das abas: o que não é da aba aberta se esconde. No Compêndio é o
    próprio filho da grade; em Lugares e Pessoas, o painel (display: contents,
@@ -20530,4 +20573,76 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 #root .menestrel-ui .form-aba-painel.fora-da-aba { display: none; }
 /* Com abas, a janela não pula de altura a cada troca: guarda uma altura
    mínima (a maior parte das abas cabe nela; as longas rolam). */
-#root .menestrel-ui .ms-modal:has(.form-abas) { min-height: min(620px, calc(100dvh - 80px)); }
+#root .menestrel-ui .ms-modal:has(.ms-body .form-abas) { min-height: min(620px, calc(100dvh - 80px)); }
+
+/* AS PÁGINAS DA JANELA DE LEITURA (17/11/2026, usePaginasDoCorpo em
+   09-bestiario/bestiario.jsx). O que pagina corre em colunas da largura dele
+   e não rola em pé; o título não fica sozinho no pé de uma página, e um
+   bloco curto (uma linha de ficha, o cabeçalho de um item) não se parte. */
+#root .menestrel-ui .em-paginas { overflow: hidden !important; column-fill: auto; scrollbar-width: none; }
+#root .menestrel-ui .em-paginas::-webkit-scrollbar { display: none; }
+#root .menestrel-ui .em-paginas :is(h3, h4, h5, .best-secao-titulo, .ent-sub) { break-after: avoid; }
+#root .menestrel-ui .em-paginas :is(.best-stat, .ent-item-cab, img, figure) { break-inside: avoid; }
+#root .menestrel-ui .em-paginas img { max-height: 100%; }
+/* A navegação mora no rodapé da janela, no centro. */
+#root .menestrel-ui .best-paginas-rodape { padding-top: 10px; padding-bottom: 12px; }
+#root .menestrel-ui .best-paginas-rodape .best-pag { margin: 0; }
+/* Rótulo inteiro nas abas (17/11/2026, usuário: "Alguma parte do texto está
+   sendo escondida no modal"): cada aba tem ao menos a largura do nome; sem
+   espaço, o trilho rola de lado. O editor do mundo ganha a largura das
+   janelas de leitura (oito abas nos Grupos). */
+#root .menestrel-ui .ms-modal.modal-mundo { max-width: 980px; }
+
+/* O TEXTO LIVRE OCUPA A JANELA (17/11/2026, usuário: "o campo para os textos
+   livres precisa ocupar o modal todo"). Com abas, o corpo é uma coluna que
+   enche a janela; fora da aba Geral, as caixas de texto livre crescem e
+   dividem o espaço que sobra (as listas, como Locais e Feriados, ficam do
+   tamanho delas). */
+#root .menestrel-ui .ms-body:has(> .form-abas-barra, > :not(.form-abas-barra) > .form-abas-barra) { display: flex; flex-direction: column; }
+/* Entidades e Grupos */
+#root .menestrel-ui .mundo-form[data-aba-aberta]:not([data-aba-aberta="geral"]) { flex: 1 1 auto; display: flex; flex-direction: column; }
+#root .menestrel-ui .mundo-form[data-aba-aberta]:not([data-aba-aberta="geral"]) > .mundo-campo:has(> textarea) { flex: 1 1 0; min-height: 140px; }
+#root .menestrel-ui .mundo-form[data-aba-aberta]:not([data-aba-aberta="geral"]) > .mundo-campo > textarea { flex: 1 1 auto; resize: none; }
+/* Compêndio: nas abas de texto (Descrição, Níveis, Efeitos) */
+#root .menestrel-ui .catalogo-form-grid:is([data-aba-aberta="descricao"], [data-aba-aberta="niveis"], [data-aba-aberta="efeitos"]) { flex: 1 1 auto; display: flex; flex-direction: column; }
+#root .menestrel-ui .catalogo-form-grid:is([data-aba-aberta="descricao"], [data-aba-aberta="niveis"], [data-aba-aberta="efeitos"]) > .catalogo-campo-full:has(textarea):not(.fora-da-aba) { flex: 1 1 0; min-height: 120px; display: flex; flex-direction: column; }
+#root .menestrel-ui .catalogo-form-grid:is([data-aba-aberta="descricao"], [data-aba-aberta="niveis"], [data-aba-aberta="efeitos"]) > .catalogo-campo-full:not(.fora-da-aba) textarea { flex: 1 1 auto; resize: none; }
+/* Reinos, Cidades, Locais e Pessoas: na aba História, a História (ou Descrição) */
+#root .menestrel-ui .form-aba-painel[data-aba="historia"]:not(.fora-da-aba) > textarea:last-of-type { flex: 1 1 0; min-height: 160px; resize: none; }
+
+/* ASSINATURA (17/11/2026): o Pix das contas, por QR estático — ver
+   10-shell/assinatura.jsx. Os dois planos são o passe (a célula escolhida em
+   ouro: véu e valor vivo); embaixo, o QR num quadrado branco (o app do banco
+   lê escuro sobre claro) e o "copia e cola" ao lado. Copiar fica no rodapé. */
+#root .menestrel-ui .ass-modal .ms-body { display: flex; flex-direction: column; gap: 24px; }
+#root .menestrel-ui .ass-plano {
+  appearance: none; border: 0; background: transparent; font: inherit; color: inherit; text-align: left;
+  cursor: pointer; transition: background-color .18s ease-out;
+}
+#root .menestrel-ui .ass-plano:first-child { border-radius: 9px 0 0 9px; }
+#root .menestrel-ui .ass-plano:last-child { border-radius: 0 9px 9px 0; }
+#root .menestrel-ui .ass-plano:hover:not(.is-on) { background: rgba(255,255,255,.03); }
+#root .menestrel-ui .ass-plano.is-on { background: var(--vivo-fundo); }
+#root .menestrel-ui .ass-plano.is-on .mn-rotulo { color: var(--vivo); }
+#root .menestrel-ui .ass-plano:focus-visible { outline: 2px solid var(--vivo-aro); outline-offset: -2px; }
+#root .menestrel-ui .ass-pix { display: grid; grid-template-columns: 208px minmax(0, 1fr); gap: 24px; align-items: start; }
+#root .menestrel-ui .ass-qr { width: 208px; aspect-ratio: 1; padding: 12px; border-radius: 10px; background: #FFFFFF; box-shadow: 0 0 0 1px var(--regua-forte); }
+#root .menestrel-ui .ass-qr svg { display: block; width: 100%; height: 100%; }
+#root .menestrel-ui .ass-pix-txt { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+#root .menestrel-ui .ass-codigo {
+  display: block; padding: 10px 12px; border-radius: 8px; background: var(--chao-celula); border: 1px solid var(--regua-forte);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: var(--fs-xs); line-height: 1.5; color: var(--tinta-2);
+  overflow-wrap: anywhere; user-select: all;
+}
+#root .menestrel-ui .ass-frase { margin: 4px 0 0; font-size: var(--fs-sm); line-height: 1.5; color: var(--tinta-2); text-wrap: pretty; }
+#root .menestrel-ui .ass-aviso { margin: 0; font-size: var(--fs-base); color: var(--tinta-2); }
+@media (max-width: 560px) {
+  #root .menestrel-ui .ass-pix { grid-template-columns: 1fr; justify-items: center; }
+  #root .menestrel-ui .ass-pix-txt { width: 100%; }
+  #root .menestrel-ui .ass-planos { grid-auto-flow: row; }
+  #root .menestrel-ui .ass-plano + .ass-plano { border-left: 0; border-top: 1px solid var(--regua-forte); }
+  #root .menestrel-ui .ass-plano:first-child { border-radius: 9px 9px 0 0; }
+  #root .menestrel-ui .ass-plano:last-child { border-radius: 0 0 9px 9px; }
+}
+#root .menestrel-ui .ass-plano .mn-celula-valor { white-space: normal; }
+#root .menestrel-ui .ass-plano .mn-celula-valor small { display: block; margin-top: 2px; }

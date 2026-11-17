@@ -576,7 +576,9 @@ describe('processarViradaDeRodada / montarNovaRodada', () => {
     expect(ana.status).toBe('desmaiado');           // 2 − 5 = −3
     expect(ana.atual).toBe(false);
     expect(r.find((p) => p.nome === 'Beto').atual).toBe(true);
-    expect(eventos).toEqual([{ nome: 'Ana', eventos: [{ nome: 'Envenenado', valor: 5 }], total: 5 }]);
+    // inst_id/tipo/ref_id (17/11/2026): a revelação acha o token de quem sangrou.
+    expect(eventos).toEqual([{ nome: 'Ana', eventos: [{ nome: 'Envenenado', valor: 5 }], total: 5,
+      inst_id: 'i-ana', tipo: 'pj', ref_id: undefined }]);
   });
 
   it('montarNovaRodada sem venenos: eventos vazio e primeiro elegível por vb efetiva', () => {

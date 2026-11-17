@@ -1271,7 +1271,7 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
         return Abas ? <Abas abas={abasVisiveis.map(([id, pt, ing]) => ({ id, rotulo: lang === 'en' ? ing : pt, alerta: falta(id) }))}
           ativa={abaAberta} onTrocar={setAbaAberta} rotulo={lang === 'en' ? 'Sections' : 'Seções'} /> : null;
       })()}
-      <div className="catalogo-form-grid" ref={gradeRef}>
+      <div className="catalogo-form-grid" ref={gradeRef} data-aba-aberta={abasVisiveis.length > 1 ? abaAberta || undefined : undefined}>
         {/* `largura: 'curta'` (25/09/2026): meia coluna da grade — Estágio,
             Montaria, Peso e Altura cabem na linha de Nome e Subtipo. */}
         {/* `ocultoSe(form)` (30/10/2026): oculto que depende do item — a grade

@@ -90,11 +90,30 @@ var DadoD20 = React.forwardRef(function DadoD20(props, ref) {
     document.head.appendChild(el);
   }, []);
 
-  // limpa timers ao desmontar
+  /* O DADO 3D (17/11/2026, 02-shell/dado-3d.jsx): quando dá, quem rola é o
+     d20 3D, por cima da tela; este dado 2D deixa o lugar vazio (o 3D para no
+     centro da tela, mais ou menos onde ele estava) e só entrega o valor
+     quando o 3D para. Sem 3D (sem WebGL, "reduzir movimento", testes, a mesa
+     jogando sozinha), tudo segue como antes. */
+  // Já nasce escondido quando o 3D vai rolar: senão o dado 2D aparecia por
+  // um instante antes do 3D entrar (17/11/2026, usuário).
+  var usando3DState = useState(function () { return !!(window.Dado3D && window.Dado3D.disponivel()); });
+  var usando3D = usando3DState[0];
+  var setUsando3D = usando3DState[1];
+  var vivoRef = useRef(true);
+  var usou3DRef = useRef(false);
+  useEffect(function () {
+    // Já vai baixando a física enquanto a janela abre.
+    if (window.Dado3D && window.Dado3D.disponivel()) window.Dado3D.preparar();
+  }, []);
+
+  // limpa timers ao desmontar (e tira o dado 3D da tela)
   useEffect(function () {
     return function () {
+      vivoRef.current = false;
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      if (usou3DRef.current && window.Dado3D) window.Dado3D.limpar();
     };
   }, []);
 
@@ -106,6 +125,41 @@ var DadoD20 = React.forwardRef(function DadoD20(props, ref) {
     rollingRef.current = true;
     setRolling(true);
 
+    var reduz =
+      window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    var D3 = window.Dado3D;
+    if (D3 && D3.disponivel()) {
+      var valor3D =
+        typeof forcado === "number"
+          ? Math.max(1, Math.min(20, Math.round(forcado)))
+          : 1 + Math.floor(Math.random() * 20);
+      usou3DRef.current = true;
+      setUsando3D(true);
+      D3.rolar({ valor: valor3D }).then(function (r) {
+        if (!vivoRef.current) return;
+        if (r == null) {
+          // O 3D não veio (falhou ao carregar): rola o 2D com o mesmo valor.
+          setUsando3D(false);
+          rollingRef.current = false;
+          api.current.roll2D(valor3D);
+          return;
+        }
+        setValue(valor3D);
+        setRolling(false);
+        rollingRef.current = false;
+        if (onRollRef.current) onRollRef.current(valor3D);
+      });
+      return;
+    }
+    api.current.roll2D(forcado, true);
+  };
+  api.current.roll2D = function (forcado, jaMarcado) {
+    if (!jaMarcado) {
+      if (rollingRef.current) return;
+      rollingRef.current = true;
+      setRolling(true);
+    }
     var reduz =
       window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -169,8 +223,8 @@ var DadoD20 = React.forwardRef(function DadoD20(props, ref) {
 
   return (
     <span
-      className={"menestrel-ui ms-d20 " + className}
-      style={{ display: "inline-block", width: dim, height: dim, lineHeight: 0 }}
+      className={"menestrel-ui ms-d20 " + className + (usando3D ? " is-3d" : "")}
+      style={{ display: "inline-block", width: dim, height: dim, lineHeight: 0, visibility: usando3D ? "hidden" : undefined }}
     >
       <span
         className="ms-d20-hit"
@@ -353,6 +407,12 @@ function RolagemD20Overlay(props) {
     if (dadoRef.current) dadoRef.current.roll();
   }
 
+  // Os textos só aparecem quando o dado para (17/11/2026, usuário): enquanto
+  // ele rola, a janela é só o dado; o lugar deles continua reservado.
+  var estiloTexto = resultado
+    ? { opacity: 1, visibility: "visible", transition: "opacity .35s ease" }
+    : { opacity: 0, visibility: "hidden" };
+
   // Sem rótulo de dificuldade no modo livre (não há dificuldade nenhuma).
   var difLbl = livre ? null : (D20_DIF_LABEL[dificuldade]
     ? (en ? D20_DIF_LABEL[dificuldade].en : D20_DIF_LABEL[dificuldade].pt)
@@ -378,7 +438,7 @@ function RolagemD20Overlay(props) {
           textAlign: "center", maxWidth: "min(92vw, 460px)",
         }}
       >
-        <div>
+        <div style={estiloTexto}>
           {nome && (
             <div style={{ fontFamily: "var(--font-title)", fontWeight: 700, fontSize: "clamp(24px, 4.5vw, 38px)", color: "var(--foreground)", letterSpacing: ".01em" }}>
               {nome}
@@ -423,7 +483,7 @@ function RolagemD20Overlay(props) {
           )}
         </div>
 
-        <div style={{ display: "flex", gap: "clamp(8px, 2vw, 12px)", flexWrap: "wrap", justifyContent: "center", marginTop: 10 }}>
+        <div style={Object.assign({ display: "flex", gap: "clamp(8px, 2vw, 12px)", flexWrap: "wrap", justifyContent: "center", marginTop: 10 }, estiloTexto)}>
           {/* "Rolar de novo" SÓ NO CRÍTICO (26/09/2026): primeiro o botão saiu
               ("remova os botões rolar de novo"), depois voltou com regra —
               "falhas críticas e sucessos críticos dão direito a rolar o dado

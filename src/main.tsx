@@ -56,6 +56,7 @@ import './09-bestiario/criatura-formulas.jsx'
 import './09-bestiario/catalogo-descritores.jsx'
 import './09-bestiario/catalogo-editor.jsx'
 import './02-shell/shaders.jsx'
+import './02-shell/dado-3d.jsx'     // o d20 em 3D por cima da tela (17/11/2026); o DadoD20 o chama
 import './02-shell/dado-d20.jsx'
 import './02-shell/dado-d10.jsx'
 import './02-shell/tweaks-panel.jsx'
@@ -81,6 +82,7 @@ import './10-shell/ritual-de-sangue-modal.jsx'   // a janela do Mestre no Ritual
 import './10-shell/galeria-imagens.jsx'
 import './10-shell/testes-combate.jsx'        // a simulação de batalha, para o Mestre (06/11/2026)
 import './10-shell/contas.jsx'                // os tipos de conta, só o Imperador (15/11/2026)
+import './10-shell/assinatura.jsx'            // o Pix das contas, QR estático (17/11/2026)
 // Atalhos flutuantes (Habilidade/Magia/Item) ANTES da ficha, que os monta.
 import './11-ficha/atalhos-ficha.jsx'
 import './11-ficha/paginas-ficha.jsx'       // Status, Atividades, Habilidades… em casas (02/11/2026)
@@ -89,6 +91,7 @@ import './11-ficha/ficha.jsx'
 import '../app.jsx'
 // A aprovação do Mestre entre as vezes e os efeitos da revelação (10/11/2026).
 import './12-batalha/efeitos-da-vez.css'
+import './12-batalha/efeitos-catalogo.jsx'   // o desenho de cada efeito da revelação (17/11/2026)
 import './12-batalha/efeitos-da-vez.jsx'
 import './12-batalha/narracao-golpe.jsx'   // a narração do golpe para o Mestre (11/11/2026)
 import './12-batalha/batalha.jsx'

@@ -53,6 +53,15 @@
         ],
         "createdAt": "2026-11-15T00:23:54.129Z",
         "reason": "agent: aros solidos de 1-1.5px sem desfoque (anel de selecao do sistema), nao e glow; arquivo de previa fora do git"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/12-batalha/efeitos-catalogo.jsx"
+        ],
+        "createdAt": "2026-11-17T17:49:16.391Z",
+        "reason": "Claude: borderLeft em elemento redondo desenha o fio de sombra curvo do efeito de trevas (animação aprovada pelo usuário no protótipo), não é cartão"
       }
     ]
   }

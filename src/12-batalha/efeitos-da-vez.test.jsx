@@ -9,6 +9,7 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, act } from '@testing-library/react';
 import React from 'react';
+import './efeitos-catalogo.jsx';
 import './efeitos-da-vez.jsx';
 
 const MC = window.MotorCortina;
@@ -87,6 +88,44 @@ describe('os efeitos da revelação', () => {
       expect.objectContaining({ tipo: 'queda', alvo: 'cri:1', morto: true }),
       expect.objectContaining({ tipo: 'invocacao', alvo: 'inv:9' }),
     ]));
+  });
+  it('a magia tem o desenho da escola: Relâmpago é raio, ar sem nome é vento, Dardos de Gelo é gelo', () => {
+    const um = (e) => rev([{ acao: 'magia', alvo_inst_id: 'cri:1', resultado: 'M', dano: 5, ...e }])[0];
+    expect(um({ elemento: 'ar', magia_key: 'relampago' })).toMatchObject({ elemento: 'ar', visual: 'raio' });
+    expect(um({ elemento: 'ar' }).visual).toBe('vento');
+    expect(um({ elemento: 'agua', magia_key: 'dardos_de_gelo' }).visual).toBe('gelo');
+    expect(um({ magia_key: 'garras' })).toMatchObject({ tipo: 'golpe', variante: 'garra' });
+  });
+  it('desarmado e arma natural têm desenho próprio; o projétil fica na perfuração', () => {
+    const um = (e) => rev([{ acao: 'arma', alvo_inst_id: 'cri:1', resultado: 'M', dano: 5, ...e }])[0];
+    expect(um({ golpe_tipo: 'DESARMADO' }).variante).toBe('desarmado');
+    expect(um({ golpe_tipo: 'PERFURACAO', arma_nome: 'Presas' }).variante).toBe('garra');
+    expect(um({ golpe_tipo: 'PERFURACAO', arma_nome: 'Arco Curto' }).variante).toBe('perfuracao');
+  });
+  it('o desfecho do log: esquiva, defesa, poço que pagou, armadura e peça quebrada', () => {
+    const golpe = (fx) => rev([{ acao: 'arma', autor_inst_id: 'pj:7', alvo_inst_id: 'cri:1', golpe_tipo: 'CORTE', resultado: 'M', dano: 8, fx_alvos: { 'cri:1': fx } }]);
+    expect(golpe({ esquivou: true })[0]).toMatchObject({ tipo: 'esquiva', alvo: 'cri:1' });
+    expect(golpe({ eh: 2, ef: 0, defesa: 'aparar' })[0]).toMatchObject({ defesa: 'aparar', pool: 'eh', valor: 2 });
+    expect(golpe({ eh: 10, ef: 3 })[0]).toMatchObject({ pool: 'ef', furou_eh: true, valor: 13 });
+    expect(golpe({ eh: 0, ef: 0, segurou: 'armadura' })[0]).toMatchObject({ pool: 'ar', valor: null });
+    const q = golpe({ eh: 0, ef: 4, quebrou: ['Ombreira'] });
+    expect(q[1]).toEqual({ tipo: 'quebrou', alvo: 'cri:1', nome: 'Ombreira' });
+    expect(MC.textoDoValor(golpe({ eh: 0, ef: 0, segurou: 'armadura' })[0], false)).toBe('0');
+  });
+  it('falha crítica volta para quem atacou', () => {
+    const [f] = rev([{ acao: 'arma', autor_inst_id: 'pj:7', alvo_inst_id: 'cri:1', resultado: 'FC', dano: 0, dano_self: 3 }]);
+    expect(f).toMatchObject({ tipo: 'falha_critica', autor: 'pj:7', valor: 3 });
+  });
+  it('fúria, veneno e sangramento na virada, e quem foi derrubado', () => {
+    expect(rev([{ acao: 'teste', autor_inst_id: 'pj:7', chave: 'furia', nome: 'Fúria' }])[0]).toMatchObject({ tipo: 'furia', alvo: 'pj:7' });
+    expect(rev([{ acao: 'teste', autor_inst_id: 'pj:7', chave: 'posicionamento', nome: 'Posicionamento' }])[0].tipo).toBe('tecnica');
+    const virada = rev([{ acao: 'sistema', fx_virada: [{ inst_id: 'cri:1', total: 2, sangra: true }, { inst_id: 'pj:7', total: 1, sangra: false }] }]);
+    expect(virada).toEqual([
+      { tipo: 'sangramento', alvo: 'cri:1', valor: 2 },
+      { tipo: 'veneno_tick', alvo: 'pj:7', valor: 1 },
+    ]);
+    const caido = mesa('orc').map((p) => (p.inst_id === 'cri:1' ? { ...p, status_temp: [{ efeito: { tipo: 'derrubado' } }] } : p));
+    expect(rev([], caido)).toContainEqual({ tipo: 'caido', alvo: 'cri:1' });
   });
   it('o raio desce do alto da tela até o alvo', () => {
     const d = MC.caminhoDoRaio(200, 300, 7);

@@ -7,9 +7,8 @@
    Pessoas (LoreEntradaForm) eram uma coluna só, longa, rolando por baixo do
    título. Agora cada um divide os campos em abas.
 
-   A pele é a pílula segmentada do sistema (.nb-paginas / .nb-pagina-op, a
-   das abas do Livro inicial), com a lâmina (10-shell): .form-abas é trilho,
-   a aba aberta é .is-on. Fica presa no alto do corpo da janela enquanto ele
+   A pele é a pílula de trilho do sistema (.trilho-solto, .mc-acao), com a
+   lâmina (10-shell): .form-abas é trilho, a aba aberta é .is-ativo. Fica presa no alto do corpo da janela enquanto ele
    rola. A aba com campo obrigatório vazio leva o ponto de brasa — o Salvar
    fica apagado, e o ponto diz onde está o que falta.
 
@@ -20,17 +19,22 @@
 
 function AbasDoFormulario({ abas, ativa, onTrocar, rotulo = 'Seções' }) {
   if (!Array.isArray(abas) || abas.length < 2) return null;
+  /* No padrão do trilho (17/11/2026, usuário: "O trilho no modal de edição
+     ficou fora do padrão"): a pílula avulsa do sistema (.trilho-solto, a da
+     Cena), do tamanho do conteúdo e no centro, com os botões do trilho
+     (.mc-acao, .is-ativo) — não a faixa segmentada de ponta a ponta. */
   return (
-    <div className="nb-paginas form-abas" role="tablist" aria-label={rotulo}
-      style={{ gridTemplateColumns: `repeat(${abas.length}, minmax(0, 1fr))` }}>
-      {abas.map((a) => (
-        <button key={a.id} type="button" role="tab" aria-selected={a.id === ativa} data-aba={a.id}
-          className={'nb-pagina-op' + (a.id === ativa ? ' is-on' : '')}
-          onClick={() => onTrocar(a.id)}>
-          <span className="form-aba-rotulo">{a.rotulo}</span>
-          {a.alerta && <span className="form-aba-alerta" aria-label="Falta preencher" />}
-        </button>
-      ))}
+    <div className="form-abas-barra">
+      <div className="trilho-solto livro-trilho form-abas" role="tablist" aria-label={rotulo}>
+        {abas.map((a) => (
+          <button key={a.id} type="button" role="tab" aria-selected={a.id === ativa} data-aba={a.id}
+            className={'mc-acao' + (a.id === ativa ? ' is-ativo' : '')}
+            onClick={() => onTrocar(a.id)}>
+            <span className="mc-acao-rotulo">{a.rotulo}</span>
+            {a.alerta && <span className="form-aba-alerta" aria-label="Falta preencher" />}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
