@@ -4725,6 +4725,7 @@ function DetalhesItemModal({
         if (mostrarVender) { fecharEtapas(); return; }
         const q = Math.max(1, Number(instance.quantidade) || 1);
         setVendaQtd(q); setVendaPreco(Number(cat.valor_latao) || 0);
+       
         abrirEtapa(setMostrarVender);
       },
     },
@@ -5170,11 +5171,17 @@ function DetalhesItemModal({
        quatro moedas numa linha só (quebra em tela estreita). */
     corpoEtapa = (
       <div className="det-etapa det-venda">
-        <label className="det-venda-lugar">
-          <span>{en ? 'Where' : 'Onde vender'}</span>
-          <input value={vendaLugar} onChange={(e) => setVendaLugar(e.target.value)} disabled={publicando}
-            placeholder={en ? 'City or place' : 'Cidade ou local'} maxLength={60} />
-        </label>
+        {/* O "ONDE VENDER" SAIU (17/11/2026, usuário: "Ao vender um item, não
+            precisa escolher o local, pois será vendido apenas se o personagem
+            estiver em uma cidade"). O lugar é o da mesa (lugarAtual, o do
+            trilho do topo), que publicarNaLoja já usa quando vem vazio. No
+            mesmo dia: "Informe em qual cidade o item será vendido". */}
+        <p className="mn-janela-frase det-venda-cidade">
+          <i className="ti ti-building-castle" aria-hidden="true" />{' '}
+          {lugarAtual
+            ? <>{en ? 'Sold in ' : 'Venda em '}<b>{lugarAtual}</b></>
+            : (en ? 'The table has no city set.' : 'A mesa não está em nenhuma cidade.')}
+        </p>
         {/* A QUANTIDADE NO CORPO (04/11/2026, usuário: "O card lateral para
             vender itens ao mestre está com os botões sendo escondidos, não
             precisa do botão 'cancelar', o botão de seletor de quantidade pode
@@ -5209,12 +5216,16 @@ function DetalhesItemModal({
     );
     /* Só o verbo no rodapé (04/11/2026): sem Cancelar — sai-se da etapa
        escolhendo outro item, ou pelo X da janela — e a quantidade subiu para
-       junto do preço, no corpo. */
+       junto do preço, no corpo. NO CENTRO
+       (17/11/2026, usuário: "O botão, propor ao comerciante fica
+       centralizado"). O Negociar que chegou a ficar ao lado saiu no mesmo dia. */
     rodapeEtapa = {
-      direita: (
-        <button type="button" className="btn-primary btn-md" data-publicar disabled={publicando || !precoValido} onClick={publicar}>
-          {publicando ? (en ? 'Sending…' : 'Enviando…') : (en ? 'Offer to the merchant' : 'Propor ao comerciante')}
-        </button>
+      centro: (
+        <span className="det-venda-acoes">
+          <button type="button" className="btn-primary btn-md" data-publicar disabled={publicando || !precoValido} onClick={publicar}>
+            {publicando ? (en ? 'Sending…' : 'Enviando…') : (en ? 'Offer to the merchant' : 'Propor ao comerciante')}
+          </button>
+        </span>
       ),
     };
   } else if (mostrarTransferir) {

@@ -91,9 +91,9 @@ describe('a etapa de publicar no modal do item', () => {
     expect(document.querySelector('.det-venda')).toBeTruthy();
     // sem campo de texto: só seletores (– N +) — 4 de moedas no corpo e o de
     // itens no centro do rodapé (27/09/2026)
-    // 23/10/2026: o único campo de texto é o lugar da venda (Onde vender).
-    expect([...document.querySelectorAll('.det-venda input')].length).toBe(1);
-    expect(document.querySelector('.det-venda-lugar input')).toBeTruthy();
+    // 17/11/2026: o "Onde vender" saiu — o lugar é o da mesa. Nenhum campo de texto.
+    expect([...document.querySelectorAll('.det-venda input')].length).toBe(0);
+    expect(document.querySelector('.det-venda-lugar')).toBeNull();
     // 04/11/2026: a quantidade subiu do rodapé para o corpo, e o corpo virou
     // duas seções — Quantidade (1 seletor) e Valor (4 moedas, com nome) —,
     // sem nada no centro do rodapé.
@@ -122,7 +122,9 @@ describe('a etapa de publicar no modal do item', () => {
     abrir({ instanceId: 'e1', slug: 'espada', quantidade: 1 }, ESPADA, vi.fn());
     fireEvent.click(document.querySelector('[data-acao="vender"]'));
     expect(document.body.textContent).not.toMatch(/Valor de tabela|Preço/);
-    expect([...document.querySelectorAll('.ms-footer button')].map((x) => x.textContent)).toEqual(['Propor ao comerciante']);
+    // 17/11/2026: o Propor ao comerciante no centro do rodapé.
+    expect([...document.querySelectorAll('.ms-footer button')].map((x) => x.textContent.trim())).toEqual(['Propor ao comerciante']);
+    expect(document.querySelector('.ms-footer-center [data-publicar]')).toBeTruthy();
     expect(document.querySelector('.det-venda button[data-publicar]')).toBeNull();
   });
 

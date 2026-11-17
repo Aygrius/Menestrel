@@ -139,30 +139,16 @@ describe('Técnicas: casas e painel, sem leque', () => {
   });
 });
 
-/* OS PONTOS NO TOPO (04/11/2026, usuário: "Quero, adicione os pontos"). */
-describe('Técnicas e Magias mostram os pontos', () => {
-  // 05/11/2026: o selo mostra o SALDO ("5/5" = ainda tem 5 de 5).
-  it('Técnicas: saldo / total', () => {
-    render(<window.PaginaTecnicas lang="pt" tecnicas={[]} pontos={{ gasto: 2, total: 14 }} />);
-    const selo = document.querySelector('.pc-pontos');
-    expect(selo.textContent).toMatch(/Pontos de técnica/);
-    expect(selo.querySelector('.pc-pontos-num').textContent).toBe('12/14');
-    expect(selo.classList.contains('is-excedido')).toBe(false);
-  });
-  it('Magias acima do total fica em brasa', () => {
-    render(<window.PaginaMagias lang="pt" magias={[]} pontos={{ gasto: 5, total: 4 }} onEvocar={() => {}} />);
-    const selo = document.querySelector('.pc-pontos');
-    expect(selo.textContent).toMatch(/Pontos de magia/);
-    expect(selo.querySelector('.pc-pontos-num').textContent).toBe('-1/4');
-    expect(selo.classList.contains('is-excedido')).toBe(true);
-  });
-  it('nada gasto: 5/5', () => {
-    render(<window.PaginaMagias lang="pt" magias={[]} pontos={{ gasto: 0, total: 5 }} onEvocar={() => {}} />);
-    expect(document.querySelector('.pc-pontos-num').textContent).toBe('5/5');
-  });
-  it('sem conta, sem selo', () => {
-    render(<window.PaginaMagias lang="pt" magias={[]} onEvocar={() => {}} />);
+/* O SELO DE PONTOS SAIU (17/11/2026): o saldo mora na janela Aprender. */
+describe('as páginas não mostram mais os pontos', () => {
+  it.each([
+    ['Habilidades', () => <window.PaginaHabilidades lang="pt" habilidades={[]} onRolar={() => {}} pontos={{ gasto: 0, total: 14 }} />],
+    ['Técnicas', () => <window.PaginaTecnicas lang="pt" tecnicas={[]} pontos={{ gasto: 2, total: 14 }} />],
+    ['Magias', () => <window.PaginaMagias lang="pt" magias={[]} onEvocar={() => {}} pontos={{ gasto: 0, total: 5 }} />],
+  ])('%s: sem o selo', (_, el) => {
+    render(el());
     expect(document.querySelector('.pc-pontos')).toBeNull();
+    expect(document.body.textContent).not.toMatch(/Pontos de (habilidade|técnica|magia)/);
   });
 });
 
@@ -232,33 +218,6 @@ describe('a ficha liga as magias dos itens (fonte)', () => {
   });
 });
 
-/* OS PONTOS NO PAINEL LATERAL (06/11/2026, usuário: "Ao invés disso, insira
-   essa informação no card lateral de 'visualização de item' à direita. Faça
-   isso com os outros menus também. Junto com a informação dos pontos, insira
-   um texto explicando como ele chegou naquele número"). */
-describe('os pontos moram no painel, com a conta', () => {
-  const comTelaLarga = (fn) => {
-    const antes = window.matchMedia;
-    window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} });
-    try { fn(); } finally { window.matchMedia = antes; }
-  };
-  const pontos = { gasto: 0, total: 30, explicacao: 'Ladino ganha 10 pontos de habilidade por estágio.' };
-  /* Só o saldo, sem a conta, nas três (07/11/2026, usuário: "Na visualização,
-     remova 'Por estágio: …'") — mesmo se a explicação vier. */
-  it.each([
-    ['Habilidades', () => <window.PaginaHabilidades lang="pt" habilidades={HABS} onRolar={() => {}} pontos={pontos} />],
-    ['Técnicas', () => <window.PaginaTecnicas lang="pt" tecnicas={[]} pontos={pontos} />],
-    ['Magias', () => <window.PaginaMagias lang="pt" magias={[]} onEvocar={() => {}} pontos={pontos} />],
-  ])('%s: no topo do painel lateral, sem a explicação', (_, el) => {
-    comTelaLarga(() => {
-      render(el());
-      const selo = document.querySelector('.pc-pontos');
-      expect(selo.closest('aside.pc-painel')).toBeTruthy();
-      expect(selo.querySelector('.pc-pontos-num').textContent).toBe('30/30');
-      expect(selo.querySelector('.pc-pontos-conta')).toBeNull();
-    });
-  });
-});
 
 describe('explicacaoDosPontos refaz a conta com os números do personagem', () => {
   it('habilidade: base da profissão × estágio', () => {

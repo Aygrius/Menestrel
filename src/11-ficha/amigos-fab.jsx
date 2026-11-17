@@ -180,12 +180,18 @@ function AmigosFab({ lang, pjId, naBarra = false, semBotao = false }) {
           fileira não começa com um buraco de 60px. */}
       {amigos.map((p, i) => {
         const nome = nomeCompletoAmigo(p);
+        /* VER A FICHA DO AMIGO (17/11/2026): o clique pede a ficha dele à
+           FichaComBatalha (08-personagens), que a abre só para leitura. O
+           arraste de item continua achando o card pelo data-amigo-pj-id. */
+        const verFicha = () => { fecharTip(); window.dispatchEvent(new CustomEvent('menestrel:ver-ficha-amigo', { detail: { id: p.id } })); };
         return (
           <div key={p.id} className="amg-amigo" style={{ '--amg-i': semBotao ? i : i + 1 }}
-            data-amigo-pj-id={p.id} role="img" aria-label={nome} tabIndex={0}
+            data-amigo-pj-id={p.id} role="button" aria-label={(en ? 'See the sheet of ' : 'Ver a ficha de ') + nome} tabIndex={0}
+            onClick={verFicha}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); verFicha(); } }}
             {...propsTip(abrirTip, fecharTip, {
               title: nome,
-              desc: en ? 'Drag an item from your inventory here to send it.' : 'Arraste um item do inventário até aqui para enviar.',
+              desc: en ? 'Click to see the sheet. Drag an item from your inventory here to send it.' : 'Clique para ver a ficha. Arraste um item do inventário até aqui para enviar.',
             })}>
             <AvatarAmigo p={p} className="amg-avatar" />
           </div>

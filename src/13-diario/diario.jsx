@@ -1136,9 +1136,11 @@ function DetalheEntradaModal({
 
 // ---------- MemoriaModal ----------
 
-function MemoriaModal({ memoria, lang, pjId, onClose, onSaved, onExcluir = null }) {
+function MemoriaModal({ memoria, lang, pjId, onClose, onSaved, onExcluir = null, alheia = false, onCompartilhar = null }) {
   const en = lang === 'en';
   const isEdit = !!memoria;
+  // Compartilhada com amigos (17/11/2026): o estado do botão, que já grava ao clicar.
+  const [compartilhada, setCompartilhada] = useState(!!memoria?.compartilhado);
   // Excluir em dois cliques (23/10/2026): a lixeira saiu da linha da tabela.
   const [excluirArmado, setExcluirArmado] = useState(false);
   const [titulo, setTitulo] = useState(memoria?.titulo || '');
@@ -1166,6 +1168,26 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved, onExcluir = null 
     onSaved(data && data.entrada ? data.entrada : { ...memoria, titulo, comentario: conteudo });
   };
 
+  /* A MEMÓRIA DE UM AMIGO (17/11/2026): só leitura — o título, quem escreveu e
+     o texto. Fecha-se pelo X. */
+  if (alheia && memoria) {
+    const texto = String(memoria.comentario ?? memoria.conteudo ?? '');
+    return (
+      <ModalShell title={memoria.titulo || (en ? '(untitled)' : '(sem título)')} lang={lang} size="lg" onClose={onClose}>
+        {memoria.autor_nome && <p className="mn-janela-frase diario-memoria-autor">{en ? 'Written by ' : 'Escrita por '}{memoria.autor_nome}</p>}
+        {texto.split(/\n{2,}/).filter((p) => p.trim()).map((p, i) => <p key={i} className="diario-memoria-texto">{p}</p>)}
+      </ModalShell>
+    );
+  }
+
+  const botaoCompartilhar = isEdit && onCompartilhar ? (
+    <button type="button" className="btn-ghost btn-md"
+      onClick={async () => { const ligar = !compartilhada; setCompartilhada(ligar); const ok = await onCompartilhar(memoria, ligar); if (ok === false) setCompartilhada(!ligar); }}>
+      <i className={'ti ' + (compartilhada ? 'ti-users' : 'ti-share')} aria-hidden="true" />
+      {compartilhada ? (en ? 'Stop sharing with friends' : 'Parar de compartilhar') : (en ? 'Share with friends' : 'Compartilhar com amigos')}
+    </button>
+  ) : null;
+
   return (
     <ModalShell
       title={isEdit ? (en ? 'Edit memory' : 'Editar memória') : (en ? 'New memory' : 'Nova memória')}
@@ -1177,6 +1199,7 @@ function MemoriaModal({ memoria, lang, pjId, onClose, onSaved, onExcluir = null 
       onConfirm={salvar}
       confirmLabel={saving ? (en ? 'Saving…' : 'Salvando…') : (en ? 'Save' : 'Salvar')}
       confirmDisabled={saving}
+      footerCenter={botaoCompartilhar}
       footerBeforeConfirm={isEdit && onExcluir ? (
         <button type="button" className={'btn-ghost btn-md diario-excluir' + (excluirArmado ? ' is-armado' : '')}
           onClick={() => (excluirArmado ? onExcluir(memoria) : setExcluirArmado(true))}
@@ -1670,6 +1693,23 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
     }
   };
 
+  /* MEMÓRIAS ENTRE AMIGOS (17/11/2026, usuário: "compartilhar diário apenas
+     com amigos" — escolha: cada memória, uma a uma). A lista traz as minhas e
+     as que meus amigos compartilharam (listar_diario_disponivel, autor_id);
+     a do amigo abre só para leitura. */
+  const memoriaDeAmigo = (m) => !!m && m.autor_id != null && pjId != null && String(m.autor_id) !== String(pjId);
+  const compartilharMemoria = async (m, ligar) => {
+    setError(null);
+    setMemorias((prev) => (prev || []).map((x) => (x.id === m.id ? { ...x, compartilhado: ligar } : x)));
+    const { data, error: err } = await supabaseClient.rpc('compartilhar_memoria', { p_id: m.id, p_ligar: ligar });
+    if (err || (data && data.ok === false)) {
+      setError(err?.message || data?.motivo || 'erro');
+      await carregar();
+      return false;
+    }
+    return true;
+  };
+
   // Importar entrada para a coleção pessoal do PJ.
   // Armazena uma cópia dos dados — a entrada fica disponível mesmo que o
   // autor original a exclua posteriormente.
@@ -2075,14 +2115,19 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
     : tipoAba === 'memoria'
     ? (m) => (
       <CartaoDiario key={m.id} nome={m.titulo || (en ? '(untitled)' : '(sem título)')}
-        linha2={resumoDeTexto(m.comentario, 140)} onAbrir={() => setMemoriaAberta(m)} />
+        linha1={memoriaDeAmigo(m) && m.autor_nome ? [(en ? 'By ' : 'De ') + m.autor_nome] : []}
+        linha2={resumoDeTexto(m.comentario, 140)} abrirTip={abrirTip} fecharTip={fecharTip}
+        canto={memoriaDeAmigo(m)
+          ? { icone: 'ti-heart-handshake', rotulo: en ? 'Shared by a friend' : 'Compartilhada por um amigo' }
+          : (m.compartilhado ? { icone: 'ti-users', rotulo: en ? 'Shared with friends' : 'Compartilhada com amigos' } : null)}
+        onAbrir={() => setMemoriaAberta(m)} />
     )
     : (e) => {
       const meu = souDono && e.origem === 'pessoal';
       const [l1, l2] = linhasDoCartaoLore(e, lang);
       const canto = meu
         ? (e.compartilhado
-          ? { icone: 'ti-users', rotulo: en ? 'Written by you · shared with the table' : 'Escrito por você · compartilhado com a mesa' }
+          ? { icone: 'ti-users', rotulo: en ? 'Written by you · shared with friends' : 'Escrito por você · compartilhado com amigos' }
           : { icone: 'ti-feather', rotulo: en ? 'Written by you' : 'Escrito por você' })
         : (souDono && naColecao(e) ? { icone: 'ti-bookmark', rotulo: en ? 'In your journal' : 'No seu diário' } : null);
       return (
@@ -2100,7 +2145,7 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
     if (meu) {
       return [
         { icone: e.compartilhado ? 'ti-users' : 'ti-share',
-          rotulo: e.compartilhado ? (en ? 'Stop sharing with the table' : 'Parar de compartilhar com a mesa') : (en ? 'Share with the table' : 'Compartilhar com a mesa'),
+          rotulo: e.compartilhado ? (en ? 'Stop sharing with friends' : 'Parar de compartilhar com amigos') : (en ? 'Share with friends' : 'Compartilhar com amigos'),
           onClick: () => { const ligar = !e.compartilhado; toggleCompartilhar(e.tipo, refId, ligar); setViewingLore({ ...e, compartilhado: ligar }); } },
         { icone: 'ti-pencil', rotulo: en ? 'Edit' : 'Editar',
           onClick: () => { setViewingLore(null); setTipoNovo(e.tipo); setEditando({ ...e }); } },
@@ -2144,7 +2189,9 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
           lang={lang}
           onClose={() => setMemoriaAberta(null)}
           onSaved={() => { setMemoriaAberta(null); carregar(); }}
-          onExcluir={souDono ? (m) => { setMemoriaAberta(null); supabaseClient.rpc('excluir_entrada_diario', { p_id: m.id }).then(carregar); } : null}
+          onExcluir={souDono && !memoriaDeAmigo(memoriaAberta) ? (m) => { setMemoriaAberta(null); supabaseClient.rpc('excluir_entrada_diario', { p_id: m.id }).then(carregar); } : null}
+          alheia={memoriaDeAmigo(memoriaAberta)}
+          onCompartilhar={souDono && !memoriaDeAmigo(memoriaAberta) ? compartilharMemoria : null}
         />
       )}
       <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
@@ -2215,7 +2262,9 @@ function DiarioView({ pj, lang, papel, currentUserId, isMestre, tipoFixo, trilho
           lang={lang}
           onClose={() => setMemoriaAberta(null)}
           onSaved={() => { setMemoriaAberta(null); carregar(); }}
-          onExcluir={souDono ? (m) => { setMemoriaAberta(null); supabaseClient.rpc('excluir_entrada_diario', { p_id: m.id }).then(carregar); } : null}
+          onExcluir={souDono && !memoriaDeAmigo(memoriaAberta) ? (m) => { setMemoriaAberta(null); supabaseClient.rpc('excluir_entrada_diario', { p_id: m.id }).then(carregar); } : null}
+          alheia={memoriaDeAmigo(memoriaAberta)}
+          onCompartilhar={souDono && !memoriaDeAmigo(memoriaAberta) ? compartilharMemoria : null}
         />
       )}
       <PortalTooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />

@@ -173,7 +173,8 @@ describe('as mesmas peças de Personagens', () => {
     await montar('npc');
     fireEvent.click(document.querySelector('.diario-cartao'));
     const rotulos = [...document.querySelectorAll('[role="dialog"] button[aria-label]')].map((b) => b.getAttribute('aria-label'));
-    expect(rotulos).toEqual(expect.arrayContaining(['Compartilhar com a mesa', 'Editar', 'Excluir']));
+    // Desde 17/11/2026 o compartilhar vale só para amigos (pacto selado).
+    expect(rotulos).toEqual(expect.arrayContaining(['Compartilhar com amigos', 'Editar', 'Excluir']));
   });
 });
 

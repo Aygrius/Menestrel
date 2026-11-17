@@ -20208,3 +20208,27 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
   #root .menestrel-ui .hist-cap-row > .wiz-field,
   #root .menestrel-ui .hist-cap-date-col { flex: 1 1 100%; }
 }
+
+/* A FICHA DO AMIGO (17/11/2026): só leitura. Nada dentro do cartão clica,
+   arrasta ou abre janela — só o "Voltar à minha ficha" do topo. */
+#root .menestrel-ui .fp-somente-leitura .fp-card * { pointer-events: none; }
+#root .menestrel-ui .fp-somente-leitura .fp-card .fp-leitura-topo,
+#root .menestrel-ui .fp-somente-leitura .fp-card .fp-leitura-topo * { pointer-events: auto; }
+/* O card do amigo abre a ficha dele: mão de clique. */
+#root .menestrel-ui .amg-amigo { cursor: pointer; }
+/* A memória de um amigo, só leitura (17/11/2026). */
+#root .menestrel-ui .diario-memoria-autor { margin: 0 0 16px; color: var(--tinta-2); }
+#root .menestrel-ui .diario-memoria-texto { margin: 0 0 12px; color: var(--tinta); line-height: 1.6; white-space: pre-line; }
+/* OS SELETORES DE MOEDA SEM BORDA, COM O BRILHO DOS TRILHOS (17/11/2026,
+   usuário: "Remova a borda e adicione o efeito de brilho nos botões de
+   moedas"). Cada moeda virou um trilho (TRILHO_SELETOR, 10-shell): a lâmina
+   acende sob o − e o + na passagem. */
+#root .menestrel-ui .fp-pop-stepper.venda-moeda { border-color: transparent; }
+#root .menestrel-ui .venda-moeda[data-lamina] .fp-step-btn { position: relative; z-index: 1; }
+#root .menestrel-ui .venda-moeda[data-lamina] .fp-step-btn:not(:disabled):hover { background: transparent; }
+/* A VENDA (17/11/2026): a cidade da venda no topo; no rodapé, Propor ao
+   comerciante no centro. */
+#root .menestrel-ui .det-venda-cidade { margin: 0; color: var(--tinta-2); }
+#root .menestrel-ui .det-venda-cidade b { color: var(--tinta); font-weight: 700; }
+#root .menestrel-ui .det-venda-cidade .ti { color: var(--tinta-3); }
+#root .menestrel-ui .det-venda-acoes { display: inline-flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }

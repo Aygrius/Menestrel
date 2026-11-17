@@ -60,6 +60,18 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
   const [batalhaAtiva, setBatalhaAtiva] = useState(null);   // { id, estado, participantes, historia_id, ... }
   const [viewBatalha, setViewBatalha] = useState(false);    // true = mostra tela de batalha
   const [carregando, setCarregando] = useState(true);
+  /* A FICHA DO AMIGO (17/11/2026, usuário: "Vamos adicionar 'ver ficha' [...]
+     apenas com amigos" — escolha: "Só a página Ficha"). O card do amigo
+     (AmigosFab, 11-ficha) dispara `menestrel:ver-ficha-amigo`; a ficha dele
+     toma o lugar da sua, só para leitura, até o "Voltar". O banco só entrega
+     a linha com pacto selado (personagens_select_amigo). */
+  const [amigoAberto, setAmigoAberto] = useState(null);
+  useEffect(() => {
+    const abrir = (e) => { const id = e && e.detail && e.detail.id; if (id && id !== pjAtivoId) setAmigoAberto(id); };
+    window.addEventListener('menestrel:ver-ficha-amigo', abrir);
+    return () => window.removeEventListener('menestrel:ver-ficha-amigo', abrir);
+  }, [pjAtivoId]);
+  useEffect(() => { setAmigoAberto(null); }, [pjAtivoId, abaToken]);
 
   // Busca batalha ativa onde o PJ participa
   useEffect(() => {
@@ -145,6 +157,13 @@ function FichaComBatalha({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
 
   // Batalha — só quando há batalha ativa do PJ. A ficha desenha o ícone
   // (ti-sword, com tooltip) na fileira de abas, via `onBatalha` (27/09/2026).
+
+  if (amigoAberto) {
+    return (
+      <FichaPersonagem key={'amigo:' + amigoAberto} ac={ac} lang={lang} currentUserId={currentUserId}
+        pjAtivoId={amigoAberto} somenteLeitura onVoltar={() => setAmigoAberto(null)} />
+    );
+  }
 
   return (
     <FichaPersonagem

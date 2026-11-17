@@ -3849,11 +3849,15 @@ function TooltipFlipGuard() {
    Personagens já usa. O estado de qual está aberto continua aqui. */
 function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEditar, onExcluir, onEvoluir = null, isMestre, navSlot, onBatalha, abaPedida = null, abaToken = 0, onAba = null,
   onCompanheiros = null, compPedidoId = null, compPedidoToken = 0,
-  compPedidoParte = null }) {
+  compPedidoParte = null, somenteLeitura = false }) {
   const en = lang === 'en';
   /* Barra de ações da ficha (22/10/2026): os atalhos e o pacto de amizade
      moram nela quando o console a oferece (#mc-acoes-ficha, 10-shell). */
-  const alvoAcoes = useAlvoPortal('mc-acoes-ficha');
+  /* `somenteLeitura` (17/11/2026): a ficha de um AMIGO, aberta pelo card dele
+     (08-personagens, FichaComBatalha). Só a página Ficha, nada clica, nenhum
+     trilho no console — a barra é do personagem do jogador. */
+  const alvoAcoesDoConsole = useAlvoPortal('mc-acoes-ficha');
+  const alvoAcoes = somenteLeitura ? null : alvoAcoesDoConsole;
 
   // Globals de fases anteriores — acesso via window para robustez,
   // pois nem todas são exportadas explicitamente por Object.assign/window.X.
@@ -3929,7 +3933,9 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
      escolha abre aqui mesmo. { nivel, alvo } ou null. */
   const [ritualSangueAberto, setRitualSangueAberto] = useState(null);
   const [fpFull, setFpFull] = useState(false);
-  const [fpTab, setFpTab] = useState(abaPedida || 'ficha');
+  const [fpTabEstado, setFpTabEstado] = useState(somenteLeitura ? 'ficha' : (abaPedida || 'ficha'));
+  const fpTab = somenteLeitura ? 'ficha' : fpTabEstado;
+  const setFpTab = somenteLeitura ? () => {} : setFpTabEstado;
   /* A BARRA LATERAL ESCOLHE A ABA (22/10/2026, "Mesa em Sessão"): Ficha,
      Inventário e Loja são destinos do menu do Jogador. `abaToken` sobe a cada
      clique, para o mesmo destino reabrir a aba; `onAba` devolve a aba atual,
@@ -7201,7 +7207,7 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
 
   return (
     <>
-    <div className={'menestrel-ui fp-page' + (fpFull ? ' is-full' : '') + (paginaDeCasas ? ' is-inv is-inventario' : '')}>
+    <div className={'menestrel-ui fp-page' + (fpFull ? ' is-full' : '') + (paginaDeCasas ? ' is-inv is-inventario' : '') + (somenteLeitura ? ' fp-somente-leitura' : '')}>
 
       {abasMestreEl}
       {/* O trilho de busca e moedas do Inventário mora fora do painel, logo
@@ -7218,7 +7224,17 @@ function FichaPersonagem({ ac, lang, currentUserId, pjAtivoId, onVoltar, onEdita
                   : 'História pausada — o jogador está sem acesso a esta ficha agora.'}
             </div>
           )}
-          {cabecalhoNoMenu ? ctrlsNaBarra : mestreNaBarra
+          {somenteLeitura ? (
+            /* A ficha do amigo: o nome e o caminho de volta, mais nada. */
+            <header className="ms-header ficha-page-header fp-leitura-topo">
+              <div className="fp-flex-fill">
+                <h2 className="ms-title" style={{ margin: 0 }}>{nomeCompleto}</h2>
+              </div>
+              <button type="button" className="btn-ghost btn-sm fp-tab-sair" onClick={onVoltar}>
+                <i className="ti ti-arrow-back-up" aria-hidden="true" /> {en ? 'Back to my sheet' : 'Voltar à minha ficha'}
+              </button>
+            </header>
+          ) : cabecalhoNoMenu ? ctrlsNaBarra : mestreNaBarra
             /* Sem cabeçalho: só o espaço da busca da Loja, que a LojaJogador
                preenche por portal. */
             ? null

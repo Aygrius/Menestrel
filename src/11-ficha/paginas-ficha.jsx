@@ -260,7 +260,6 @@ function PaginaHabilidades({ lang, habilidades, onRolar, onSubir = null, pontos 
     || String(a.nome).localeCompare(String(b.nome), 'pt'));
   return (
     <PaginaCasas lang={lang} casas={casas} classe="pc-habilidades" grupoDe={(c) => c.h.grupo}
-      noPainel={<SeloPontos pontos={pontos} rotulo={en ? 'Skill points' : 'Pontos de habilidade'} />}
       buscaRotulo={en ? 'Search skill' : 'Buscar habilidade'}
       painelRotulo={en ? 'Skill' : 'Habilidade'}
       vazioTxt={en ? 'No skills.' : 'Nenhuma habilidade.'}
@@ -312,18 +311,10 @@ function PaginaHabilidades({ lang, habilidades, onRolar, onSubir = null, pontos 
 /* SÓ O SALDO (07/11/2026, usuário: "Na visualização, remova 'Por estágio:
    1 de Mago + 4 de Intelecto = 5. […]'" e a frase das habilidades). A conta
    em palavras saiu das três páginas; o selo é rótulo sobre o número. */
-function SeloPontos({ rotulo, pontos }) {
-  if (!pontos || pontos.total == null) return null;
-  const saldo = (Number(pontos.total) || 0) - (Number(pontos.gasto) || 0);
-  const excedido = saldo < 0;
-  return (
-    <section className={'pc-pontos' + (excedido ? ' is-excedido' : '')} role="status"
-      aria-label={`${rotulo}: ${saldo} / ${pontos.total}`}>
-      <span className="mn-rotulo">{rotulo}</span>
-      <span className="pc-pontos-num" aria-hidden="true">{saldo}<i>/{pontos.total}</i></span>
-    </section>
-  );
-}
+/* O SELO DE PONTOS SAIU DAS PÁGINAS (17/11/2026, usuário: "Remova da página
+   habilidades, técnicas, etc o texto Pontos de habilidade 0/14 porque ele vai
+   aparecer na tela de aprender"). O saldo mora nas abas da janela Aprender
+   (EstudarMagiaModal, 07-inventario). */
 
 /* ── TÉCNICAS (04/11/2026) ─────────────────────────────────────────────────
    "Não precisamos mais das colunas habilidades, técnicas, magias, na aba
@@ -349,7 +340,6 @@ function PaginaTecnicas({ lang, tecnicas, pontos = null, onSubir = null }) {
   ));
   return (
     <PaginaCasas lang={lang} casas={casas} classe="pc-tecnicas"
-      noPainel={<SeloPontos pontos={pontos} rotulo={en ? 'Technique points' : 'Pontos de técnica'} />}
       buscaRotulo={en ? 'Search technique' : 'Buscar técnica'}
       painelRotulo={en ? 'Technique' : 'Técnica'}
       vazioTxt={en ? 'No techniques learned.' : 'Nenhuma técnica aprendida.'}
@@ -392,7 +382,6 @@ function PaginaMagias({ lang, magias, onEvocar, pontos = null, onSubir = null })
     <PaginaCasas lang={lang} casas={casas} classe="pc-magias"
       /* Só o saldo, sem a conta por extenso (07/11/2026, usuário: 'Remova o texto
          "Por estágio: 8 de Mago + 4 de Intelecto = 12..."'). */
-      noPainel={<SeloPontos pontos={pontos} rotulo={en ? 'Magic points' : 'Pontos de magia'} />}
       buscaRotulo={en ? 'Search spell' : 'Buscar magia'}
       painelRotulo={en ? 'Spell' : 'Magia'}
       vazioTxt={en ? 'No spells learned.' : 'Nenhuma magia aprendida.'}
