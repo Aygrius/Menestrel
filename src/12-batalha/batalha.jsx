@@ -12060,6 +12060,19 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
   const dadoReal = !!React.useContext(DadosReaisCtx) && !dadoVirtual;
   const [informado, setInformado] = useState(false);
   const [valorReal, setValorReal] = useState(null);
+  /* O DADO DO CRÍTICO É NO CLIQUE (17/11/2026, usuário: "Rolar novamente,
+     quando o resultado é crítico, não é uma escolha. É consequência. Mas o
+     jogador deve clicar para rolar"). A janela abre parada, com o botão de
+     rolar como única saída: sem Cancelar e sem Esc. O modo automático
+     (dadoVirtual) segue rolando sozinho. */
+  const esperaClique = !!isCritico && !dadoReal && !dadoVirtual;
+  const [iniciado, setIniciado] = useState(false);
+  const rolarCritico = () => {
+    if (jaRolou.current || !dadoRef.current) return;
+    jaRolou.current = true;
+    setIniciado(true);
+    dadoRef.current.roll();
+  };
   const informarReal = (v) => {
     if (jaRolou.current || !dadoRef.current || v == null) return;
     jaRolou.current = true;
@@ -12076,16 +12089,16 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
   useEffect(() => {
     // Dado real: informado o número, o Escape também já não fecha (o dado
     // está assentando nele, e fechar ali descartaria o valor).
-    const onKey = (e) => { if (e.key === 'Escape' && !resultado && !informado) onFechar(); };
+    const onKey = (e) => { if (e.key === 'Escape' && !resultado && !informado && !isCritico) onFechar(); };
     document.addEventListener('keydown', onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prev; };
-  }, [onFechar, resultado, informado]);
+  }, [onFechar, resultado, informado, isCritico]);
 
   // Rola sozinho ao abrir — no dado real, não: espera o número da mesa.
   useEffect(() => {
-    if (dadoReal) return undefined;
+    if (dadoReal || esperaClique) return undefined;
     const t = setTimeout(() => {
       if (dadoRef.current && !jaRolou.current) { jaRolou.current = true; dadoRef.current.roll(); }
     }, 260);
@@ -12151,7 +12164,7 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
       {/* OS TEXTOS SÓ DEPOIS QUE O DADO PARA (17/11/2026, usuário): enquanto ele
           rola, a janela mostra só o dado. No dado real, antes de informar, o
           título e o campo ficam à vista (é preciso saber o que se rola). */}
-      <div className={'dado-overlay-inner' + (!resultado && (!dadoReal || informado) ? ' is-rolando' : '')}>
+      <div className={'dado-overlay-inner' + (!resultado && ((!dadoReal && !esperaClique) || informado || iniciado) ? ' is-rolando' : '')}>
         {/* Cabeçalho */}
         <div>
           <div className="dado-overlay-head">
@@ -12211,23 +12224,30 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
               chega a ter esse momento — já abre rolando). */}
           {dadoReal && !resultado && (
             <>
-              <button type="button" className="btn-ghost" onClick={onFechar} disabled={informado}>
-                {isEn ? 'Cancel' : 'Cancelar'}
-              </button>
+              {!isCritico && (
+                <button type="button" className="btn-ghost" onClick={onFechar} disabled={informado}>
+                  {isEn ? 'Cancel' : 'Cancelar'}
+                </button>
+              )}
               <button type="button" className="btn-primary" disabled={valorReal == null || informado}
                 onClick={() => informarReal(valorReal)}>
                 {isEn ? 'Enter value' : 'Informar'}
               </button>
             </>
           )}
-          {onConfirmar && !(dadoReal && !resultado) && (
+          {esperaClique && !resultado && (
+            <button type="button" className="btn-primary" onClick={rolarCritico} disabled={iniciado}>
+              <i className="ti ti-dice-5" aria-hidden="true" /> {isEn ? 'Roll the critical' : 'Rolar o crítico'}
+            </button>
+          )}
+          {onConfirmar && !(dadoReal && !resultado) && !(esperaClique && !resultado) && (
             <button type="button" className="btn-primary"
               disabled={!resultado}
               onClick={() => resultado && onConfirmar({ valor: resultado.d20, resultado: resultado.res })}>
               {tb.confirmar}
             </button>
           )}
-          {!onConfirmar && !(dadoReal && !resultado) && (
+          {!onConfirmar && !(dadoReal && !resultado) && !(esperaClique && !resultado) && (
             <button type="button" className="btn-primary" onClick={onFechar}>
               {tb.concluir}
             </button>

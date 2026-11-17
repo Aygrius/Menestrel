@@ -6,7 +6,7 @@
    dado novamente." (usuário, 26/09/2026)
    ============================================================ */
 import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
-import { render, cleanup, act } from '@testing-library/react';
+import { render, cleanup, act, fireEvent } from '@testing-library/react';
 import '../01-core/copy.jsx';
 import '../01-core/constants.jsx';
 import '../01-core/helpers.jsx';
@@ -48,5 +48,39 @@ describe('rolar de novo: só no crítico', () => {
     cleanup(); vi.useRealTimers(); vi.restoreAllMocks();
     rolar(0.5, { livre: true });
     expect(botao()).toBeNull();
+  });
+});
+
+/* 17/11/2026, usuário: "Rolar novamente, quando o resultado é crítico, não é
+   uma escolha. É consequência. Mas o jogador deve clicar para rolar." */
+describe('no crítico, rolar de novo é obrigatório (e é no clique)', () => {
+  const concluir = () => [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Concluir');
+  it('no crítico não há Concluir: o único botão é o de rolar', () => {
+    rolar(0.99);
+    expect(botao()).toBeTruthy();
+    expect(concluir()).toBeUndefined();
+  });
+  it('no crítico o Esc não fecha', () => {
+    const onClose = vi.fn();
+    rolar(0, { onClose });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+  it('fora do crítico, Concluir fecha e o Esc também', () => {
+    const onClose = vi.fn();
+    rolar(0.5, { onClose });
+    expect(concluir()).toBeTruthy();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalled();
+  });
+  it('o dado só rola de novo quando o jogador clica', () => {
+    const onResultado = vi.fn();
+    rolar(0.99, { onResultado });
+    expect(onResultado).toHaveBeenCalledTimes(1);
+    act(() => { vi.advanceTimersByTime(5000); });
+    expect(onResultado).toHaveBeenCalledTimes(1);
+    fireEvent.click(botao());
+    act(() => { vi.advanceTimersByTime(1200); });
+    expect(onResultado).toHaveBeenCalledTimes(2);
   });
 });

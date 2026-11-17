@@ -353,9 +353,12 @@ function RolagemD20Overlay(props) {
   var dadoRef = useRef(null);
   var jaRolou = useRef(false);
 
+  // No crítico o Esc não fecha: rolar de novo é obrigatório (ver os botões).
+  var criticoPendenteRef = useRef(false);
+
   // Esc fecha + trava o scroll do fundo (mesmo padrão dos modais da ficha).
   useEffect(function () {
-    var onKey = function (e) { if (e.key === "Escape" && onClose) onClose(); };
+    var onKey = function (e) { if (e.key === "Escape" && onClose && !criticoPendenteRef.current) onClose(); };
     document.addEventListener("keydown", onKey);
     var prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -406,6 +409,8 @@ function RolagemD20Overlay(props) {
     setResultado(null);
     if (dadoRef.current) dadoRef.current.roll();
   }
+
+  criticoPendenteRef.current = ehCritico(resultado);
 
   // Os textos só aparecem quando o dado para (17/11/2026, usuário): enquanto
   // ele rola, a janela é só o dado; o lugar deles continua reservado.
@@ -489,15 +494,21 @@ function RolagemD20Overlay(props) {
               "falhas críticas e sucessos críticos dão direito a rolar o dado
               novamente". Crítico = Falha Crítica (FC; o 1 no dado sempre é) ou
               Absurdo (o 20 sempre é). No modo livre, sem tabela, o 1 e o 20. */}
-          {ehCritico(resultado) && (
-            <button type="button" className="btn-ghost" data-rolar-de-novo="1" onClick={rolarDeNovo}>
+          {/* NÃO É ESCOLHA (17/11/2026, usuário: "Rolar novamente, quando o
+              resultado é crítico, não é uma escolha. É consequência. Mas o
+              jogador deve clicar para rolar"). No crítico o único botão é o de
+              rolar — sem Concluir, e o Esc não fecha —, e o dado só rola no
+              clique. */}
+          {ehCritico(resultado) ? (
+            <button type="button" className="btn-primary" data-rolar-de-novo="1" onClick={rolarDeNovo}>
               <i className="ti ti-refresh" aria-hidden="true" style={{ marginRight: 6, verticalAlign: "-2px" }} />
               {en ? "Roll again (critical)" : "Rolar de novo (crítico)"}
             </button>
+          ) : (
+            <button type="button" className="btn-primary" onClick={onClose}>
+              {en ? "Done" : "Concluir"}
+            </button>
           )}
-          <button type="button" className="btn-primary" onClick={onClose}>
-            {en ? "Done" : "Concluir"}
-          </button>
         </div>
       </div>
     </div>

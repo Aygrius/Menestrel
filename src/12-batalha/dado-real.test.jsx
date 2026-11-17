@@ -99,3 +99,30 @@ describe('o modo é da batalha, e só o Mestre troca', () => {
     expect(fonte).toMatch(/if \(dadosReais\) \{ setIniReal\(/);
   });
 });
+
+/* 17/11/2026, usuário: "Rolar novamente, quando o resultado é crítico, não é
+   uma escolha. É consequência. Mas o jogador deve clicar para rolar." */
+describe('o dado do crítico: obrigatório, e só no clique', () => {
+  it('abre parado, sem Cancelar; rola quando o jogador clica', () => {
+    vi.useFakeTimers();
+    const onRolou = overlay(false, { isCritico: true, tipoCritico: 'alvo' });
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(onRolou).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Rolar o crítico/ }));
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(onRolou).toHaveBeenCalledTimes(1);
+  });
+  it('o Esc não fecha a janela do crítico', () => {
+    const onFechar = vi.fn();
+    overlay(false, { isCritico: true, tipoCritico: 'alvo', onFechar });
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onFechar).not.toHaveBeenCalled();
+  });
+  it('no modo automático o crítico segue rolando sozinho', () => {
+    vi.useFakeTimers();
+    const onRolou = overlay(false, { isCritico: true, tipoCritico: 'alvo', dadoVirtual: true });
+    act(() => { vi.advanceTimersByTime(3000); });
+    expect(onRolou).toHaveBeenCalledTimes(1);
+  });
+});
