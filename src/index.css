@@ -20646,3 +20646,107 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 }
 #root .menestrel-ui .ass-plano .mn-celula-valor { white-space: normal; }
 #root .menestrel-ui .ass-plano .mn-celula-valor small { display: block; margin-top: 2px; }
+
+/* UM PERSONAGEM POR PÁGINA, PARA O JOGADOR (17/11/2026, PersonagensList em
+   08-personagens/personagens.jsx). O card ocupa a página: a foto numa metade,
+   de ponta a ponta, e o que importa do personagem na outra — nome, quem ele é,
+   estágio, as energias em células, o último capítulo e as ações. A paginação
+   mora no rodapé do card, atrás da régua, e só aparece com mais de um. No
+   celular a foto sobe e as informações descem. */
+#root .menestrel-ui .pjs-pagina { display: flex; flex-direction: column; }
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card {
+  padding: 0; gap: 0; min-height: min(calc(100dvh - 220px), 680px);
+  background: var(--pg-fundo); border-radius: 14px;
+}
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card-body {
+  flex: 1 1 auto; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0; align-items: stretch;
+}
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card-portrait {
+  width: 100%; height: 100%; min-height: 320px; border-radius: 0; box-shadow: none;
+  border-right: 1px solid var(--regua-forte);
+}
+/* A foto não dita a altura do card: cobre a metade dela, seja qual for o tamanho da imagem. */
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card-portrait { position: relative; }
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card-portrait-img { position: absolute; inset: 0; object-fit: cover; object-position: center 20%; }
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card-portrait-mono { font-size: clamp(64px, 10vw, 120px); }
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card-info {
+  display: flex; flex-direction: column; justify-content: center; gap: 18px; min-width: 0;
+  padding: clamp(20px, 3vw, 40px);
+}
+#root .menestrel-ui .pj-card-wrap--pagina .pj-name {
+  font-size: clamp(28px, 3.2vw, 40px); line-height: 1.15; -webkit-line-clamp: 3; text-wrap: balance;
+}
+#root .menestrel-ui .pj-card-wrap--pagina .pj-meta { font-size: var(--fs-md); }
+/* As energias: atual e máximo do mesmo tamanho e peso, só o tom muda. */
+#root .menestrel-ui .pj-pagina-vitais { grid-template-columns: none; grid-auto-columns: minmax(0, 1fr); }
+#root .menestrel-ui .pj-pagina-vital {
+  font-family: var(--font-body); font-size: 24px; font-weight: 700; line-height: 1.1;
+  color: var(--tinta); font-variant-numeric: lining-nums tabular-nums; white-space: nowrap;
+}
+#root .menestrel-ui .pj-pagina-vital-max { color: var(--tinta-3); }
+#root .menestrel-ui .pj-card-wrap--pagina .pj-capitulo { margin: 0; }
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card-acoes-ativo {
+  flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 10px;
+  margin: 0; padding: 0; border: 0; align-self: flex-start;
+}
+/* O rodapé: a paginação, centrada, atrás da régua de ponta a ponta. */
+#root .menestrel-ui .pj-card-rodape {
+  display: flex; justify-content: center; padding: 12px 16px;
+  border-top: 1px solid var(--regua-forte); cursor: default;
+}
+#root .menestrel-ui .pj-card-rodape .best-pag { margin: 0; }
+@media (max-width: 720px) {
+  #root .menestrel-ui .pj-card-wrap--pagina .pj-card-body { grid-template-columns: minmax(0, 1fr); }
+  #root .menestrel-ui .pj-card-wrap--pagina .pj-card-portrait { height: 50dvh; min-height: 260px; border-right: 0; border-bottom: 1px solid var(--regua-forte); }
+  #root .menestrel-ui .pj-pagina-vitais { grid-auto-flow: row; grid-auto-columns: auto; }
+  #root .menestrel-ui .pj-pagina-vitais .mn-celula + .mn-celula { border-left: 0; border-top: 1px solid var(--regua-forte); }
+}
+/* O personagem bloqueado (outro está ativo) esmaece só ele: o rodapé com a
+   paginação segue aceso, que é por onde o jogador volta. */
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card--inerte,
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card--inerte:hover { opacity: 1; filter: none; cursor: default; }
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card--inerte .pj-card-body { opacity: .45; filter: saturate(.55); cursor: not-allowed; transition: opacity .2s ease; }
+#root .menestrel-ui .pj-card-wrap--pagina .pj-card--inerte:hover .pj-card-body { opacity: .62; }
+
+/* A LÂMINA NA BUSCA DO CTRL + K (17/11/2026, usuário: "Adicione o efeito de
+   brilho no menu ctrl + k"): a lista é um trilho em pé (10-shell,
+   TRILHO_SELETOR). A luz desce de linha em linha, pelo ponteiro e pelas
+   setas, e pousa na escolhida; o véu próprio da linha sai, e a lâmina toma o
+   raio dela. */
+#root .menestrel-ui .busca-livro-lista[data-lamina]::before { border-radius: 999px; }
+#root .menestrel-ui [data-lamina] .busca-livro-linha { position: relative; z-index: 1; }
+#root .menestrel-ui [data-lamina] .busca-livro-linha.is-ativa { background: transparent; }
+
+/* O FERIADO SEM CHÃO NA AGENDA (17/11/2026, usuário: "No calendário, o
+   feriado está com um fundo que não deveria ter"): com o dia escolhido, o
+   feriado é uma linha como as do "Neste mês" — ícone e nome, sem caixa. */
+#root .cal-overlay .menestrel-ui .cal-evento-feriado { background: none; padding-left: 10px; padding-right: 10px; }
+
+/* O CTRL + K NO PADRÃO DOS MENUS (17/11/2026, usuário: "No menu ctrl + k
+   ainda há estilo despadronizado do nosso sistema"): cada linha é o item do
+   menu solto (o seletor de mesa) — pílula, sem as réguas entre as linhas,
+   ícone de 17px em ouro sem a caixinha de fundo, rótulo 700/15px na tinta-2
+   que clareia na escolhida. O voltar do grupo, ícone em ouro como os do trilho. */
+#root .menestrel-ui .busca-livro-lista { display: flex; flex-direction: column; gap: 2px; padding: 6px; }
+#root .menestrel-ui .busca-livro-linha { min-height: 40px; padding: 0 14px 0 12px; gap: 10px; border-radius: 999px; color: var(--tinta-2); transition: color .15s ease; }
+#root .menestrel-ui .busca-livro-linha + .busca-livro-linha,
+#root .menestrel-ui .busca-livro-linha.is-ativa + .busca-livro-linha { box-shadow: none; }
+#root .menestrel-ui .busca-livro-linha.is-ativa { color: var(--tinta); }
+#root .menestrel-ui .busca-livro-lista:not([data-lamina]) .busca-livro-linha.is-ativa { background: var(--vivo-fundo); }
+#root .menestrel-ui .busca-livro-nome { font-size: 15px; font-weight: 700; }
+#root .menestrel-ui .busca-livro-ic,
+#root .menestrel-ui .busca-livro-linha.is-ativa .busca-livro-ic { width: auto; height: auto; border-radius: 0; background: none; color: var(--vivo); font-size: 17px; }
+#root .menestrel-ui .busca-livro-seta { font-size: 17px; color: var(--tinta-3); transition: color .15s ease; }
+#root .menestrel-ui .busca-livro-linha.is-ativa .busca-livro-seta { color: var(--vivo); }
+#root .menestrel-ui .busca-livro-grupo { padding: 10px 12px 4px; }
+#root .menestrel-ui .busca-livro-voltar { background: none; color: var(--vivo); font-size: 17px; transition: background-color .15s ease; }
+#root .menestrel-ui .busca-livro-voltar:hover { background: rgba(var(--bronze-rgb),0.16); color: var(--vivo); }
+
+/* O CABEÇALHO DO CALENDÁRIO SEPARADO (17/11/2026, usuário: "No calendário,
+   coloque uma linha separadora entre mês e ano, e o resto. Diminua o
+   espaçamento no topo."): a régua padrão fecha o mês e o ano, de ponta a
+   ponta; o topo encolhe de 18px para 8px, e a grade ganha o respiro abaixo
+   da régua. */
+#root .cal-overlay .menestrel-ui .cal-header { padding: 8px 18px 12px; border-bottom: 1px solid var(--regua-forte); }
+#root .cal-overlay .menestrel-ui .cal-corpo { padding-top: 16px; }
+

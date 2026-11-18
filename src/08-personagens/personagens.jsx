@@ -291,6 +291,8 @@ function PersonagensList({ ac, t, lang, profile = 'player', convidarPrimeiro = f
      ("o mestre pode dar a ficha para quem ele quiser que já está na mesa"). */
   const [busca, setBusca] = useState('');
   const [darFichaDe, setDarFichaDe] = useState(null);
+  // A página do Jogador (17/11/2026): null = a do personagem ativo (ou a primeira).
+  const [paginaPj, setPaginaPj] = useState(null);
 
 // PJ ativo do jogador (lido do profile carregado pelo shell).
   // Setar local + persistir em profiles. Voltar pra lista é só setar null
@@ -739,6 +741,46 @@ function PersonagensList({ ac, t, lang, profile = 'player', convidarPrimeiro = f
      Ficha (`convidarPrimeiro`): é a porta do Jogador. */
   const primeiroPj = convidarPrimeiro && !isMaster && personagens.length === 0;
 
+  // O card de um personagem: na grade do Mestre ou na página do Jogador (extra.emPagina).
+  const cardDoPersonagem = (p, extra = {}) => (
+    <PersonagemCard
+      key={p.id}
+      p={p}
+      isMaster={isMaster}
+      isOwn={currentUserId && p.user_id === currentUserId}
+      playerName={profilesMap[p.user_id] || '—'}
+      semMesa={!isMaster && !idsComMesa.has(p.id)}
+
+      onEntrarMesa={!isMaster ? () => setConvidarPj({ id: p.id, nome: p.nome, sobrenome: p.sobrenome }) : undefined}
+      onEdit={() => setToEdit(p)}
+      onDelete={() => setToDelete(p)}
+      /* Ativo/inativo, o termo que o usuário pediu. O card do ativo
+         mostra "Desativar"; os outros ficam bloqueados enquanto houver
+         um ativo — e dizem por quê. */
+      ativo={!isMaster && pjAtivoNoPerfil === p.id}
+      bloqueadoPorOutroAtivo={!isMaster && !!pjAtivoNoPerfil && pjAtivoNoPerfil !== p.id}
+      onAtivar={!isMaster ? () => ativarPj(p.id) : undefined}
+      onDesativar={!isMaster && pjAtivoNoPerfil === p.id ? desativarPj : undefined}
+      /* Voltar à ficha do ativo sem passar pela barra lateral: quem veio
+         para a lista pelo "voltar" da ficha não tinha caminho de volta
+         a partir do próprio card (o clique no ativo não faz nada). */
+      onAbrir={!isMaster && pjAtivoNoPerfil === p.id ? () => setPjAtivoIdLocal(p.id) : undefined}
+      ultimoCapitulo={!isMaster ? pjData?.ultimoCapituloPorPersonagem?.[p.id] : undefined}
+      /* HISTÓRIA PAUSADA: o Mestre entra DIRETO (17/09/2026 — "não
+         precisa de mostrar 'história pausada' para o mestre, na hora de
+         entrar no personagem"). Ele é quem pausou a mesa e segue
+         administrando-a; o aviso só o fazia confirmar o óbvio a cada
+         ficha. Quem a pausa tranca é o Jogador, na própria ficha
+         (11-ficha/ficha.jsx, tela "História pausada"). */
+      onAbrirFicha={isMaster ? () => setFichaAbertoId(p.id) : undefined}
+      /* Ficha ainda do Mestre (criada por ele e não dada): o botão
+         "Dar a ficha" no cartão (23/10/2026). */
+      onDarFicha={isMaster && mesaAtivaId && p.user_id === currentUserId ? () => setDarFichaDe(p) : undefined}
+      emPagina={!!extra.emPagina}
+      rodape={extra.rodape || null}
+      lang={lang} />
+  );
+
   return (
     <div className={'pjs' + (primeiroPj ? ' pjs-primeiro' : '')}>
       {primeiroPj && (
@@ -762,7 +804,7 @@ function PersonagensList({ ac, t, lang, profile = 'player', convidarPrimeiro = f
             ac={ac}
             placeholder={lang === 'en' ? 'Search' : 'Buscar'}
             query={busca}
-            setQuery={setBusca}
+            setQuery={(v) => { setBusca(v); setPaginaPj(null); }}
             podeCriar={podeCriarPj}
             onNovo={() => setModalOpen(true)}
             dicaNovo={lang === 'en' ? 'New character' : 'Novo personagem'} />
@@ -772,43 +814,35 @@ function PersonagensList({ ac, t, lang, profile = 'player', convidarPrimeiro = f
       {termoPj && listaVisivel.length === 0 && (
         <div className="best-empty">{lang === 'en' ? `No character matches "${busca.trim()}".` : `Nenhum personagem com "${busca.trim()}".`}</div>
       )}
-      {!primeiroPj && <div className="pjs-grid">
-        {listaVisivel.map((p) => (
-          <PersonagemCard
-            key={p.id}
-            p={p}
-            isMaster={isMaster}
-            isOwn={currentUserId && p.user_id === currentUserId}
-            playerName={profilesMap[p.user_id] || '—'}
-            semMesa={!isMaster && !idsComMesa.has(p.id)}
-
-            onEntrarMesa={!isMaster ? () => setConvidarPj({ id: p.id, nome: p.nome, sobrenome: p.sobrenome }) : undefined}
-            onEdit={() => setToEdit(p)}
-            onDelete={() => setToDelete(p)}
-            /* Ativo/inativo, o termo que o usuário pediu. O card do ativo
-               mostra "Desativar"; os outros ficam bloqueados enquanto houver
-               um ativo — e dizem por quê. */
-            ativo={!isMaster && pjAtivoNoPerfil === p.id}
-            bloqueadoPorOutroAtivo={!isMaster && !!pjAtivoNoPerfil && pjAtivoNoPerfil !== p.id}
-            onAtivar={!isMaster ? () => ativarPj(p.id) : undefined}
-            onDesativar={!isMaster && pjAtivoNoPerfil === p.id ? desativarPj : undefined}
-            /* Voltar à ficha do ativo sem passar pela barra lateral: quem veio
-               para a lista pelo "voltar" da ficha não tinha caminho de volta
-               a partir do próprio card (o clique no ativo não faz nada). */
-            onAbrir={!isMaster && pjAtivoNoPerfil === p.id ? () => setPjAtivoIdLocal(p.id) : undefined}
-            ultimoCapitulo={!isMaster ? pjData?.ultimoCapituloPorPersonagem?.[p.id] : undefined}
-            /* HISTÓRIA PAUSADA: o Mestre entra DIRETO (17/09/2026 — "não
-               precisa de mostrar 'história pausada' para o mestre, na hora de
-               entrar no personagem"). Ele é quem pausou a mesa e segue
-               administrando-a; o aviso só o fazia confirmar o óbvio a cada
-               ficha. Quem a pausa tranca é o Jogador, na própria ficha
-               (11-ficha/ficha.jsx, tela "História pausada"). */
-            onAbrirFicha={isMaster ? () => setFichaAbertoId(p.id) : undefined}
-            /* Ficha ainda do Mestre (criada por ele e não dada): o botão
-               "Dar a ficha" no cartão (23/10/2026). */
-            onDarFicha={isMaster && mesaAtivaId && p.user_id === currentUserId ? () => setDarFichaDe(p) : undefined}
-            lang={lang} />
-        ))}
+      {/* UM PERSONAGEM POR PÁGINA, PARA O JOGADOR (17/11/2026, usuário: "Conectado
+          como jogador, a página de personagens vai ter apenas um card por
+          página, com a foto do personagem ocupando metade da tela, e as
+          informações mais importantes do personagem ocupando a outra metade.
+          No rodapé, o menu de navegação (se houver mais de um personagem)").
+          Abre na página do ativo; a busca volta para a primeira. O Mestre
+          segue com a grade. */}
+      {!primeiroPj && !isMaster && listaVisivel.length > 0 && (() => {
+        const total = listaVisivel.length;
+        const idxAtivo = listaVisivel.findIndex((q) => q.id === pjAtivoNoPerfil);
+        const pagina = Math.min(Math.max(1, paginaPj ?? (idxAtivo >= 0 ? idxAtivo + 1 : 1)), total);
+        const Pag = window.BestPagination;
+        return (
+          <div className="pjs-pagina">
+            {cardDoPersonagem(listaVisivel[pagina - 1], {
+              emPagina: true,
+              rodape: total > 1 && Pag ? (
+                <Pag page={pagina} safePage={pagina} totalPages={total} lang={lang}
+                  setPage={(v) => setPaginaPj((atual) => {
+                    const de = atual ?? pagina;
+                    return Math.min(Math.max(1, typeof v === 'function' ? v(de) : v), total);
+                  })} />
+              ) : null,
+            })}
+          </div>
+        );
+      })()}
+      {!primeiroPj && isMaster && <div className="pjs-grid">
+        {listaVisivel.map((p) => cardDoPersonagem(p))}
       </div>}
 
       {modalOpen && (
@@ -941,7 +975,7 @@ function iconeDoStatusCard(st) {
   return { ti: 'ti-bolt' };
 }
 
-function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesativar, onAbrir, ultimoCapitulo, ativo, bloqueadoPorOutroAtivo, onAbrirFicha, onEntrarMesa, onDarFicha, semMesa, lang, playerName }) {
+function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesativar, onAbrir, ultimoCapitulo, ativo, bloqueadoPorOutroAtivo, onAbrirFicha, onEntrarMesa, onDarFicha, semMesa, lang, playerName, emPagina = false, rodape = null }) {
   /* As condições entram no cálculo (17/09/2026), como já entravam na ficha
      (11-ficha/ficha.jsx): sem elas o card anunciaria uma EF máxima que a ficha
      do mesmo personagem contradiz na linha seguinte. */
@@ -1069,8 +1103,61 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
   const capData = cap?.data && typeof formatarDataFantasy === 'function' && cap.data.dia && cap.data.mes
     ? formatarDataFantasy(cap.data, lang) : null;
 
+  const acoesEl = (ativo && (onAbrir || onDesativar) && (
+          <div className="pj-card-acoes-ativo">
+            {onAbrir && (
+              <button
+                type="button"
+                className="btn-primary btn-sm pj-card-abrir"
+                onClick={(e) => { e.stopPropagation(); onAbrir(); }}>
+                <i className="ti ti-book-2" aria-hidden="true" />
+                {en ? 'Open sheet' : 'Abrir ficha'}
+              </button>
+            )}
+            {onDesativar && (
+              <button
+                type="button"
+                className="btn-ghost btn-sm pj-card-desativar"
+                onClick={(e) => { e.stopPropagation(); onDesativar(); }}>
+                <i className="ti ti-player-stop" aria-hidden="true" />
+                {en ? 'Deactivate' : 'Desativar'}
+              </button>
+            )}
+          </div>
+        ));
+  const capEl = (cap && (
+        <section className="pj-capitulo" aria-label={en ? 'Latest chapter' : 'Último capítulo'}>
+          <div className="pj-capitulo-eyebrow">
+            <i className="ti ti-feather" aria-hidden="true" />
+            <span>{en ? 'Latest chapter' : 'Último capítulo'}</span>
+            <span className="sep">·</span>
+            <span className="pj-capitulo-historia">{cap.historia}</span>
+          </div>
+          <h4 className="pj-capitulo-titulo">
+            <span className="pj-capitulo-num">{en ? `Ch. ${cap.numero}` : `Cap. ${cap.numero}`}</span>
+            {cap.titulo || (en ? 'Untitled' : 'Sem título')}
+          </h4>
+          {capData && <div className="pj-capitulo-data">{capData}</div>}
+          {cap.texto && <p className="pj-capitulo-texto">{cap.texto}</p>}
+        </section>
+      ));
+
+  /* NA PÁGINA (17/11/2026): as energias em células (atual / máximo, os dois
+     números do mesmo tamanho, só o tom muda) — o que o jogador mais procura
+     sem abrir a ficha. Na grade elas seguem fora (23/10/2026). */
+  const vitaisEl = emPagina && vitais.length > 0 ? (
+    <div className="mn-passe pj-pagina-vitais">
+      {vitais.map((v) => (
+        <div key={v.k} className="mn-celula">
+          <span className="mn-rotulo">{v.rotulo}</span>
+          <span className="pj-pagina-vital">{v.atual}<span className="pj-pagina-vital-max">/{v.max}</span></span>
+        </div>
+      ))}
+    </div>
+  ) : null;
+
   return (
-    <div className={'pj-card-wrap' + (ativo ? ' pj-card-wrap--ativo' : '') + (bloqueadoPorOutroAtivo ? ' pj-card-wrap--inerte' : '') + (mostrarSetaEvoluir ? ' pj-card-wrap--seta' : '')}>
+    <div className={'pj-card-wrap' + (emPagina ? ' pj-card-wrap--pagina' : '') + (ativo ? ' pj-card-wrap--ativo' : '') + (bloqueadoPorOutroAtivo ? ' pj-card-wrap--inerte' : '') + (mostrarSetaEvoluir ? ' pj-card-wrap--seta' : '')}>
     <article
       className={'pj-card' + (levelUp ? ' pj-card--levelup' : '') + (ativo ? ' pj-card--ativo' : '') + (bloqueadoPorOutroAtivo ? ' pj-card--inerte' : '') + (cliqueNoCard ? ' is-clickable' : '')}
       onClick={cliqueNoCard}
@@ -1206,6 +1293,10 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
           </div>
           </div>
 
+          {emPagina && vitaisEl}
+          {emPagina && capEl}
+          {emPagina && acoesEl}
+
           {/* AS BARRAS SAÍRAM DO CARD (23/10/2026): "Melhore o card dos
               personagens, remove as barras do card." Física, Heroica e Karma
               moram na ficha (os tubos do Resumo); o card fica com quem o
@@ -1222,45 +1313,14 @@ function PersonagemCard({ p, isMaster, isOwn, onEdit, onDelete, onAtivar, onDesa
             o personagem ativo), "Desativar" fica abaixo, mais discreto, e só
             ganha cor de alerta no hover — trocar de personagem troca o mundo
             inteiro do jogador, não é o clique que se quer dar por engano. */}
-        {ativo && (onAbrir || onDesativar) && (
-          <div className="pj-card-acoes-ativo">
-            {onAbrir && (
-              <button
-                type="button"
-                className="btn-primary btn-sm pj-card-abrir"
-                onClick={(e) => { e.stopPropagation(); onAbrir(); }}>
-                <i className="ti ti-book-2" aria-hidden="true" />
-                {en ? 'Open sheet' : 'Abrir ficha'}
-              </button>
-            )}
-            {onDesativar && (
-              <button
-                type="button"
-                className="btn-ghost btn-sm pj-card-desativar"
-                onClick={(e) => { e.stopPropagation(); onDesativar(); }}>
-                <i className="ti ti-player-stop" aria-hidden="true" />
-                {en ? 'Deactivate' : 'Desativar'}
-              </button>
-            )}
-          </div>
-        )}
+        {!emPagina && acoesEl}
       </div>
 
-      {cap && (
-        <section className="pj-capitulo" aria-label={en ? 'Latest chapter' : 'Último capítulo'}>
-          <div className="pj-capitulo-eyebrow">
-            <i className="ti ti-feather" aria-hidden="true" />
-            <span>{en ? 'Latest chapter' : 'Último capítulo'}</span>
-            <span className="sep">·</span>
-            <span className="pj-capitulo-historia">{cap.historia}</span>
-          </div>
-          <h4 className="pj-capitulo-titulo">
-            <span className="pj-capitulo-num">{en ? `Ch. ${cap.numero}` : `Cap. ${cap.numero}`}</span>
-            {cap.titulo || (en ? 'Untitled' : 'Sem título')}
-          </h4>
-          {capData && <div className="pj-capitulo-data">{capData}</div>}
-          {cap.texto && <p className="pj-capitulo-texto">{cap.texto}</p>}
-        </section>
+      {!emPagina && capEl}
+
+      {rodape && (
+        // O rodapé (a paginação do Jogador) não é clique no card.
+        <footer className="pj-card-rodape" onClick={(e) => e.stopPropagation()}>{rodape}</footer>
       )}
 
       {/* O botão "Selecionar personagem" saiu em 17/09/2026: "remova o botão

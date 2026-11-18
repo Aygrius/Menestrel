@@ -6462,6 +6462,9 @@ Object.assign(window, {
    O seletor de mesa (.mc-ident) e a conta (.mc-user), como o Buscar: trilho
    e botão ao mesmo tempo (15/11/2026, usuário: "Use o mesmo estilo de botão
    com brilho no seletor de aventura, no botão da conta inferior esquerdo"). */
+// A busca do Ctrl + K (.busca-livro-lista, 17/11/2026, usuário: "Adicione o efeito de brilho no menu ctrl + k"):
+// a lista é um trilho em pé — a lâmina desce de linha em linha e pousa na escolhida (.is-ativa), pelo
+// ponteiro ou pelas setas.
 // A paginação também (.best-pag, 16/11/2026: "Aplique o efeito de brilho nos botões de navegação das páginas").
 // O quadro do calendário dos campos de data (.cal-pop, 16/11/2026, usuário: "O modal que abre da lista suspensa
 // continua fora do padrão, veja o seletor de mesa"): o topo, a grade dos dias, a dos meses e o rodapé são trilhos.
@@ -6471,9 +6474,9 @@ Object.assign(window, {
 // padrão"): clima, hora e local são menus soltos — a lâmina desliza entre as opções e pousa na escolhida (.is-ativa).
 // A janela Dar item (16/11/2026, usuário: "Coloque os efeitos de brilho, padrão"): o topo (busca e o −/+ da
 // quantidade) e a lista, um trilho em pé — a lâmina desce de linha em linha e pousa no item escolhido (.is-on).
-const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu, .trilho-solto, .batalha-zoom, .dar-item-topo, .dar-item-lista, .cdj-tempo-lista, .cdj-hora-lista, .cdj-local-lista, .select-pill-drop, .cal-topo, .cal-grade, .cal-meses, .cal-rodape, .estudar-abas, .venda-moeda, .cal-nav-mes, .cal-nav-ano, .cal-grid, .cal-meses-grade, .cal-legenda, .form-abas';
+const TRILHO_SELETOR = '.mc-acoes-ficha, .cartoes-barra .best-header-acoes, .fp-abas-trilho, .mp-grupo, .cdj-trilho, .mc-nav, .mc-navbusca, .wiz-fases, .mc-ident, .mc-user, .best-pag, .mc-ident-menu, .mc-usermenu, .trilho-solto, .batalha-zoom, .dar-item-topo, .dar-item-lista, .cdj-tempo-lista, .cdj-hora-lista, .cdj-local-lista, .select-pill-drop, .cal-topo, .cal-grade, .cal-meses, .cal-rodape, .estudar-abas, .venda-moeda, .cal-nav-mes, .cal-nav-ano, .cal-grid, .cal-meses-grade, .cal-legenda, .form-abas, .busca-livro-lista';
 // O "+" também (15/11/2026, usuário: "O botão de '+' nos trilhos também precisam entrar no padrão com brilho, cor, etc.").
-const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho', '.mc-navitem', '.mc-navbusca', '.wiz-fase', '.mc-ident', '.mc-user', '.best-page-btn', '.mc-menu-item', '.mc-usermenu [role="menuitem"]', '.batalha-zoom-btn', '.dar-item-linha', '.dar-item-qtd .fp-step-btn', '.cdj-tempo-opcao', '.cdj-hora-opcao', '.select-pill-drop li', '.cal-titulo', '.cal-seta', '.cal-dia', '.cal-mes', '.cal-acao', '.nb-pagina-op', '.venda-moeda .fp-step-btn', '.cal-nav-seta', '.cal-nav-titulo', '.cal-nav-hoje', '.cal-meses-casa', '.cal-legenda-row'];
+const TRILHO_BOTOES = ['.mc-acao', '.best-search', '.best-botao-novo', '.cdj-bar', '.at-fab', '.amg-fab', '.rl-fab', '.fp-aba-trilho', '.mc-navitem', '.mc-navbusca', '.wiz-fase', '.mc-ident', '.mc-user', '.best-page-btn', '.mc-menu-item', '.mc-usermenu [role="menuitem"]', '.batalha-zoom-btn', '.dar-item-linha', '.dar-item-qtd .fp-step-btn', '.cdj-tempo-opcao', '.cdj-hora-opcao', '.select-pill-drop li', '.cal-titulo', '.cal-seta', '.cal-dia', '.cal-mes', '.cal-acao', '.nb-pagina-op', '.venda-moeda .fp-step-btn', '.cal-nav-seta', '.cal-nav-titulo', '.cal-nav-hoje', '.cal-meses-casa', '.cal-legenda-row', '.busca-livro-linha'];
 const TRILHO_BOTAO = TRILHO_BOTOES.join(', ');
 // O marcado de cada família: .is-ativo nos trilhos, .is-on nas pílulas de escolha, .is-active no menu, .is-ativa nas fases.
 // .is-atual: a mesa escolhida no menu da mesa (16/11/2026: 'Os botões internos de selecionar aventura também terão brilho, assim como os botões no menu da conta').
@@ -6565,7 +6568,9 @@ function instalarLaminaDosTrilhos() {
   const repousarTodos = () => {
     pedido = 0;
     document.querySelectorAll(TRILHO_SELETOR).forEach((t) => {
-      if (t.matches(':hover') || t.contains(document.activeElement)) return;   // quem está sob o ponteiro manda
+      /* Na busca do Ctrl + K a linha escolhida (.is-ativa) já segue o ponteiro e as setas:
+         a luz vai sempre com ela, mesmo com o ponteiro parado sobre a lista. */
+      if (!t.matches('.busca-livro-lista') && (t.matches(':hover') || t.contains(document.activeElement))) return;   // quem está sob o ponteiro manda
       _laminaRepousar(t);
     });
   };
