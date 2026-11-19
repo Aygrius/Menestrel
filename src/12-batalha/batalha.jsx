@@ -2291,6 +2291,8 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
       // Base 1, mesma regra do PJ: acima de velocidade 30 ganha mais uma ação
       // (confirmado pelo usuário em 12/09/2026). O bônus entra no pa_rest.
       // Mesmo bonus de iniciativa do PJ — ver o comentario la em cima.
+      // O perfil do automático (18/11/2026): o da montagem, ou o do bestiário.
+      perfil_auto: perfilAutoDe(p.perfil_auto || c.perfil_auto),
       vb: (c.velocidade || 0) + bonusIni, pa_max: 1, pa_rest: paDaRodada(1, (c.velocidade || 0) + bonusIni),
       // Criatura nunca tem o ponto de tecnica: e sempre 1 ponto livre.
       pa_tecnica_max: 0, pa_tecnica_rest: 0,
@@ -3364,13 +3366,29 @@ function rolarIniciativaDosInimigos(participantes, rolar = rolarD10, filtro = eh
    fila. Agora, ao adicionar: um d10 por tipo de criatura do Mestre (como na
    montagem) e um por personagem e por animal de personagem. Quem já trouxe
    um número fica com ele. */
+/* `rolar(p)` recebe quem rola — o primeiro do tipo, ou o personagem. Com
+   dado real (18/11/2026), o Mestre informa um número por chamada, na mesma
+   ordem (pedidosDeIniciativaDosReforcos). */
 function rolarIniciativaDosReforcos(crus, rolar = rolarD10) {
   const lista = Array.isArray(crus) ? crus : [];
   const semNumero = (p) => !(bonusIniciativaDe(p) > 0);
-  let next = rolarIniciativaDosInimigos(lista, rolar, (p) => criaturaDoMestre(p) && semNumero(p));
-  next = next.map((p) => ((p && (p.tipo === 'pj' || p.dono_pj != null) && semNumero(p))
-    ? { ...p, bonus_iniciativa: rolar() } : p));
-  return next;
+  let next = lista;
+  const tipos = new Set();
+  lista.forEach((p, i) => {
+    if (!(criaturaDoMestre(p) && semNumero(p))) return;
+    const k = String(p.ref_id);
+    if (tipos.has(k)) return;
+    tipos.add(k);
+    next = definirIniciativa(next, i, rolar(p));
+  });
+  return next.map((p) => ((p && (p.tipo === 'pj' || p.dono_pj != null) && semNumero(p))
+    ? { ...p, bonus_iniciativa: rolar(p) } : p));
+}
+// Quem precisa de um d10, na ordem em que rolarIniciativaDosReforcos pede.
+function pedidosDeIniciativaDosReforcos(crus) {
+  const pedidos = [];
+  rolarIniciativaDosReforcos(crus, (p) => { pedidos.push({ nome: (p && p.nome) || '' }); return 1; });
+  return pedidos;
 }
 
 /* ── Líder morto, bando em fuga (puro) ─────────────────────────────
@@ -4907,6 +4925,8 @@ function destinoDeRecuo(ator, lista, { alvo = null, alcance = null } = {}) {
    de fim de vez) até a criatura recuar. */
 function querRecuarDepoisDoAtaque(p, lista) {
   if (!p || !p.auto || p.tipo !== 'criatura' || (p.status || 'ativo') !== 'ativo') return false;
+  // O agressivo não recua (perfis do automático, 18/11/2026).
+  if (perfilAutoDe(p.perfil_auto) === 'agressivo') return false;
   if (statusTemEfeito(p, 'sem_acoes') || evocacaoPrendeAcao(p)) return false;
   if (movimentosFeitosAuto(p) > 0) return false;
   if (typeof minionPresoAoLider === 'function' && minionPresoAoLider(p, lista)) return false;
@@ -4919,13 +4939,95 @@ function querRecuarDepoisDoAtaque(p, lista) {
   return ameacado && !!destinoDeRecuo(p, lista);
 }
 
+/* ══ OS PERFIS DO AUTOMÁTICO (18/11/2026) ══════════════════════════════════
+   Usuário: "Eu gostaria de definir alguns planos de ações para os
+   combatentes no automático. Algumas criaturas com modo agressivo, outras
+   com modo cauteloso, outras que se preocupam com os colegas do próprio
+   time. Revise os alvos dos ataques e das magias." Aprovados por ele:
+
+     padrao     o de antes: revida quem o atacou, senão o mais perto;
+     agressivo  vai no inimigo de menos vida (EF + EH) para derrubar, avança
+                sem recuar, usa a ação de mais dano e põe todo o karma livre
+                na coluna da magia;
+     cauteloso  prefere a ação de longe, recua do inimigo colado, mira quem
+                está mais perto dele (a ameaça) e, com a EF abaixo da metade,
+                cura a si mesmo ou foge;
+     protetor   antes de atacar, cura o aliado mais ferido (EF abaixo da
+                metade, ou caído) se tiver magia de cura ao alcance; senão
+                ataca quem bateu num aliado por último, ou o inimigo mais
+                perto do aliado mais ferido.
+
+   A BASE, para todos: o alvo sai dos que a ação alcança AGORA (antes, o
+   alvo era escolhido primeiro e, fora de alcance, a criatura andava atrás
+   dele mesmo com outro inimigo ao alcance); caído só vira alvo quando não
+   sobra ninguém de pé; a magia é a de mais dano, não a primeira da lista.
+   O perfil mora em `perfil_auto` do combatente (vem do bestiário,
+   criaturas.perfil_auto, e o Mestre troca no card). */
+const PERFIS_AUTO = ['padrao', 'agressivo', 'cauteloso', 'protetor'];
+const PERFIL_AUTO_ROTULO = {
+  padrao: ['Padrão', 'Standard'], agressivo: ['Agressivo', 'Aggressive'],
+  cauteloso: ['Cauteloso', 'Cautious'], protetor: ['Protetor', 'Protective'],
+};
+function perfilAutoDe(v) {
+  const s = String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+  return PERFIS_AUTO.includes(s) ? s : 'padrao';
+}
+function rotuloPerfilAuto(v, isEn) {
+  const r = PERFIL_AUTO_ROTULO[perfilAutoDe(v)];
+  return isEn ? r[1] : r[0];
+}
+const FERIDO_FRACAO = 0.5;   // "EF abaixo da metade"
+function fracaoEf(p) {
+  const max = Number(p && p.ef_max) || 0;
+  return max > 0 ? (Number(p.ef) || 0) / max : 1;
+}
+function vidaDe(p) { return (Number(p && p.ef) || 0) + (Number(p && p.eh) || 0); }
+function estaFerido(p) {
+  return !!p && p.status !== 'morto' && p.status !== 'desistiu' && p.status !== STATUS_CHEGANDO
+    && (p.status === 'desmaiado' || fracaoEf(p) < FERIDO_FRACAO);
+}
+function aliadosNaMesa(ator, lista) {
+  const lado = ladoNaBatalha(ator);
+  return (lista || []).filter((p) => p && !mesmoParticipante(p, ator) && podeSerAtacado(p)
+    && p.status !== 'desistiu' && ladoNaBatalha(p) === lado);
+}
+// A magia de apoio cura? (cura_pool positiva, ou cura por rodada)
+function ehMagiaDeCura(m) {
+  const reg = m && typeof magiaEfeitoDe === 'function' ? magiaEfeitoDe(m.key) : null;
+  return !!(reg && (reg.efeitos || []).some((e) => (e.tipo === 'cura_pool' && e.sinal !== -1) || e.tipo === 'cura_por_rodada'));
+}
+// Esta magia de apoio pode ir neste alvo? 'self' e "Pessoal" só em si.
+function apoioMiraEm(m, alvo, ator) {
+  if (!m || !alvo || m.alvo === 'inimigo') return false;
+  if (mesmoParticipante(alvo, ator)) return true;
+  return m.alvo === 'aliado' && !m.pessoal;
+}
+// O inimigo que bateu num aliado de `ator` por último (o log de trás para frente).
+function ultimoQueAtacouUmAliado(ator, lista, log) {
+  if (!ator || !Array.isArray(log)) return null;
+  const lado = ladoNaBatalha(ator);
+  const achar = (inst, tipo, ref, nome) => (lista || []).find((p) => (inst ? inst === p.inst_id
+    : (tipo === p.tipo && String(ref) === String(p.ref_id) && (!nome || nome === p.nome))));
+  for (let k = log.length - 1; k >= 0; k--) {
+    const e = log[k];
+    if (!e || (e.acao !== 'arma' && e.acao !== 'magia')) continue;
+    const alvo = achar(e.alvo_inst_id, e.alvo_tipo, e.alvo_ref_id, e.alvo_nome);
+    const autor = achar(e.autor_inst_id, e.autor_tipo, e.autor_ref_id, e.autor_nome);
+    if (alvo && autor && !mesmoParticipante(alvo, ator) && ladoNaBatalha(alvo) === lado && ladoNaBatalha(autor) !== lado) return autor;
+  }
+  return null;
+}
+function danoDaArma(a) { return Number(a && (a.dano_100 != null ? a.dano_100 : a.dano)) || 0; }
+
 function decidirJogadaAutomatica(ator, participantes, catalogos, tecnicasUsadas = [], log = null) {
   const T = (typeof window !== 'undefined' && window.MotorTabuleiro) || {};
   const _alcance = T.alcanceDaAcao || (typeof alcanceDaAcao === 'function' ? alcanceDaAcao : null);
   const _noAlcance = T.alvoNoAlcance || (typeof alvoNoAlcance === 'function' ? alvoNoAlcance : null);
   const _dist = T.distanciaEntre || (typeof distanciaEntre === 'function' ? distanciaEntre : null);
   if (!ator || !catalogos || !_alcance || !_noAlcance || !_dist) return { tipo: 'passar', motivo: 'sem_motor' };
+  const perfil = perfilAutoDe(ator.perfil_auto);
   // Atacou e se afasta (11/11/2026): sem PA, o movimento grátis vira recuo.
+  // O agressivo não recua (querRecuarDepoisDoAtaque já diz não para ele).
   if (!temAcaoRestante(ator) && querRecuarDepoisDoAtaque(ator, participantes)) {
     const destino = destinoDeRecuo(ator, participantes);
     if (destino) return { tipo: 'mover', destino, recuo: true };
@@ -4940,69 +5042,131 @@ function decidirJogadaAutomatica(ator, participantes, catalogos, tecnicasUsadas 
     return { tipo: 'acao', aba: 'magia', magiaKey: ator.evocando.magia_key, alvoId: alvoEv };
   }
   const lado = ladoNaBatalha(ator);
-  /* Revide primeiro: o último que o atacou, inimigo OU aliado (pedido do
-     usuário), se ainda pode ser atacado — e a provocação continua mandando. */
-  const agressor = ultimoAtacanteDe(ator, lista, log);
-  const revide = agressor && podeSerAtacado(agressor)
-    ? alvosSobProvocacao(ator, [agressor], lista)[0] || null : null;
-  const todos = lista.filter((p) => podeSerAtacado(p) && !mesmoParticipante(p, ator) && ladoNaBatalha(p) !== lado);
-  const alvos = alvosSobProvocacao(ator, todos, lista);
-  if (!revide && !alvos.length) return { tipo: 'passar', motivo: 'sem_alvo' };
-  const alvo = revide || [...alvos].sort((a, b) => (_dist(ator, a) - _dist(ator, b))
-    || ((Number(a.ef) || 0) - (Number(b.ef) || 0)))[0];
-  const alcanca = (acao) => _noAlcance(ator, alvo, _alcance(acao));
+  const karma = Number(ator.karma) || 0;
+  const pagaKarma = (m) => (Number(m.custo_karma) || 0) <= karma || nivelQueOKarmaPaga(m, karma) != null;
+  const podeMover = !(typeof minionPresoAoLider === 'function' && minionPresoAoLider(ator, lista));
+  const passoLivre = typeof movimentoDisponivel === 'function' ? movimentoDisponivel(ator) : 0;
+
+  /* AS CURAS do protetor (aliados e ele) e do cauteloso ferido (só ele). Sem
+     as que pedem teste (o automático não sabe responder a um). */
+  const curas = (perfil === 'protetor' || perfil === 'cauteloso')
+    ? magiasDeApoioDoAtor(ator, catalogos).filter((m) => ehMagiaDeCura(m) && !m.evocacao_bloqueada
+      && !m.bloqueio_milagre && !m.resistencia && !m.teste_habilidade
+      && paParaAtaque(ator, 'magia', m) && pagaKarma(m))
+    : [];
+  const curarQuem = (quem) => {
+    const m = curas.find((c) => apoioMiraEm(c, quem, ator)
+      && (mesmoParticipante(quem, ator) || _noAlcance(ator, quem, _alcance({ magia: c }))));
+    return m ? { tipo: 'acao', aba: 'apoio', magiaKey: m.key, alvoId: quem.inst_id } : null;
+  };
+  if (perfil === 'protetor' && curas.length) {
+    const feridos = [ator, ...aliadosNaMesa(ator, lista)].filter(estaFerido)
+      .sort((a, b) => fracaoEf(a) - fracaoEf(b));
+    for (const f of feridos) { const j = curarQuem(f); if (j) return j; }
+  }
+  if (perfil === 'cauteloso' && estaFerido(ator)) {
+    const j = curarQuem(ator);
+    if (j) return j;
+    if (podeMover && passoLivre > 0 && movimentosFeitosAuto(ator) === 0) {
+      const destino = destinoDeRecuo(ator, lista);
+      if (destino) return { tipo: 'mover', destino, recuo: true };
+    }
+  }
+
+  /* OS ALVOS, na ordem do perfil. Caído só quando não sobra ninguém de pé. */
+  const todos = alvosSobProvocacao(ator,
+    lista.filter((p) => podeSerAtacado(p) && !mesmoParticipante(p, ator) && ladoNaBatalha(p) !== lado), lista);
+  const dePe = todos.filter((p) => p.status !== 'desmaiado');
+  const pool = dePe.length ? dePe : todos;
+  const dist = (a, b) => { const d = _dist(a, b); return d == null ? Infinity : d; };
+  const perto = (a, b) => (dist(ator, a) - dist(ator, b)) || (vidaDe(a) - vidaDe(b));
+  let ordem;
+  if (perfil === 'agressivo') {
+    ordem = [...pool].sort((a, b) => (vidaDe(a) - vidaDe(b)) || (dist(ator, a) - dist(ator, b)));
+  } else if (perfil === 'protetor') {
+    const bateu = ultimoQueAtacouUmAliado(ator, lista, log);
+    const maisFerido = aliadosNaMesa(ator, lista).sort((a, b) => fracaoEf(a) - fracaoEf(b))[0] || null;
+    const pertoDoFerido = (a, b) => (maisFerido ? (dist(maisFerido, a) - dist(maisFerido, b)) : 0) || perto(a, b);
+    ordem = [...pool].sort(pertoDoFerido);
+    if (bateu && pool.some((p) => mesmoParticipante(p, bateu))) {
+      ordem = [bateu, ...ordem.filter((p) => !mesmoParticipante(p, bateu))];
+    }
+  } else {
+    ordem = [...pool].sort(perto);
+  }
+  /* Padrão: revide primeiro — o último que o atacou, inimigo OU aliado
+     (pedido de 08/11/2026), se ainda pode ser atacado e a provocação deixa. */
+  if (perfil === 'padrao') {
+    const agressor = ultimoAtacanteDe(ator, lista, log);
+    const revide = agressor && podeSerAtacado(agressor) && (agressor.status !== 'desmaiado' || !dePe.length)
+      ? alvosSobProvocacao(ator, [agressor], lista)[0] || null : null;
+    if (revide) ordem = [revide, ...ordem.filter((p) => !mesmoParticipante(p, revide))];
+  }
+  if (!ordem.length) return { tipo: 'passar', motivo: 'sem_alvo' };
 
   const armas = podeAtacarAgora(ator) ? ataquesDoAtor(ator, catalogos) : [];
   const armaPrincipal = armas[0] || null;
+  const tecnicas = podeUsarTecnicaAgora(ator) ? tecnicasDoAtor(ator, catalogos) : [];
+  // A de mais dano primeiro (antes era a primeira da lista).
+  const magias = magiasOfensivasDoAtor(ator, catalogos).filter((m) => paParaAtaque(ator, 'magia', m)
+    && !m.evocacao_bloqueada && !m.bloqueio_milagre && pagaKarma(m))
+    .sort((a, b) => (Number(b.dano) || 0) - (Number(a.dano) || 0));
+  /* A criatura reveza (09/11/2026): depois de uma magia vem a arma. */
+  const armaPeloRevezamento = perfil === 'padrao' && ator.tipo === 'criatura' && ultimaAcaoDeAtaque(ator, log) === 'magia';
 
-  // Técnica de alvo inimigo, uma vez por vez.
-  if (podeUsarTecnicaAgora(ator)) {
-    const tec = tecnicasDoAtor(ator, catalogos).find((t) => {
+  // A jogada contra um alvo, ou null se nada o alcança agora.
+  const jogadaContra = (alvo) => {
+    const alcanca = (acao) => _noAlcance(ator, alvo, _alcance(acao));
+    const tec = tecnicas.find((t) => {
       const reg = typeof tecnicaEfeitoDe === 'function' ? tecnicaEfeitoDe(t.key) : null;
       return reg && reg.alvo === 'inimigo' && !tecnicasUsadas.includes(t.key)
         && podeUsarTecnica(ator, t).pode && podeAtivarTecnicaLivre(ator, t).pode
         && tecnicaPermitida(t, ator, armaPrincipal, catalogos).pode
         && alcanca({ arma: armaPrincipal, tecnica: t });
     });
-    if (tec) return { tipo: 'acao', aba: 'tecnica_teste', tecKey: tec.key, alvoId: alvo.inst_id };
-  }
-
-  // Magia de ataque que dê para pagar e que alcance.
-  const karma = Number(ator.karma) || 0;
-  // Só com PA de verdade: o ataque extra não paga magia (paParaAtaque).
-  const magia = magiasOfensivasDoAtor(ator, catalogos).find((m) => paParaAtaque(ator, 'magia', m) && !m.evocacao_bloqueada && !m.bloqueio_milagre
-    && ((Number(m.custo_karma) || 0) <= karma || nivelQueOKarmaPaga(m, karma) != null) && alcanca({ magia: m }));
-  // A arma de mais dano que alcança.
-  const arma = armas.filter((a) => alcanca({ arma: a }))
-    .sort((a, b) => (Number(b.dano_100 != null ? b.dano_100 : b.dano) || 0) - (Number(a.dano_100 != null ? a.dano_100 : a.dano) || 0))[0];
-  const jogaMagia = magia && { tipo: 'acao', aba: 'magia', magiaKey: magia.key, alvoId: alvo.inst_id };
-  const jogaArma = arma && { tipo: 'acao', aba: 'arma', armaSlug: arma.slug || null, armaNome: arma.nome, alvoId: alvo.inst_id };
-  /* A CRIATURA REVEZA (09/11/2026, usuário: "No modo automático, eu quero
-     que as criaturas revezem entre usar magia e atacar com arma"). Depois de
-     uma magia vem a arma, e depois da arma, a magia — lido da última ação
-     dela no log. Sem a outra opção à mão, repete a que tem. O personagem no
-     automático segue magia primeiro. */
-  const armaAgora = ator.tipo === 'criatura' && ultimaAcaoDeAtaque(ator, log) === 'magia';
-  const escolha = armaAgora ? (jogaArma || jogaMagia) : (jogaMagia || jogaArma);
-  /* Recuar para atirar (11/11/2026): inimigo colado e a ação é de longe —
-     a criatura usa o movimento grátis para abrir distância, sem perder o
-     alvo do alcance, e ataca no passo seguinte. */
-  if (escolha && ator.auto && ator.tipo === 'criatura' && movimentosFeitosAuto(ator) === 0
-    && !(typeof minionPresoAoLider === 'function' && minionPresoAoLider(ator, lista))) {
-    const alcanceEscolha = escolha.aba === 'magia' ? _alcance({ magia }) : _alcance({ arma });
-    const colado = _dist(ator, alvo);
-    if (alcanceEscolha >= ALCANCE_DE_LONGE && colado != null && colado < ALCANCE_DE_LONGE) {
-      const destino = destinoDeRecuo(ator, lista, { alvo, alcance: alcanceEscolha });
-      if (destino) return { tipo: 'mover', destino, alvoId: alvo.inst_id, recuo: true };
+    if (tec) return { escolha: { tipo: 'acao', aba: 'tecnica_teste', tecKey: tec.key, alvoId: alvo.inst_id }, alcanceEscolha: 0 };
+    const magia = magias.find((m) => alcanca({ magia: m })) || null;
+    const arma = armas.filter((a) => alcanca({ arma: a })).sort((a, b) => danoDaArma(b) - danoDaArma(a))[0] || null;
+    if (!magia && !arma) return null;
+    const jogaMagia = magia && { tipo: 'acao', aba: 'magia', magiaKey: magia.key, alvoId: alvo.inst_id,
+      ...(perfil === 'agressivo' ? { karmaTudo: true } : {}) };
+    const jogaArma = arma && { tipo: 'acao', aba: 'arma', armaSlug: arma.slug || null, armaNome: arma.nome, alvoId: alvo.inst_id };
+    let escolha;
+    if (perfil === 'agressivo') {
+      escolha = (magia && arma) ? ((Number(magia.dano) || 0) >= danoDaArma(arma) ? jogaMagia : jogaArma) : (jogaMagia || jogaArma);
+    } else if (perfil === 'cauteloso') {
+      const deLonge = (j) => !!j && (j.aba === 'magia' ? _alcance({ magia }) : _alcance({ arma })) >= ALCANCE_DE_LONGE;
+      escolha = [jogaMagia, jogaArma].find(deLonge) || jogaMagia || jogaArma;
+    } else {
+      escolha = armaPeloRevezamento ? (jogaArma || jogaMagia) : (jogaMagia || jogaArma);
     }
-  }
-  if (escolha) return escolha;
+    return { escolha, alcanceEscolha: escolha.aba === 'magia' ? _alcance({ magia }) : _alcance({ arma }) };
+  };
 
-  // Nada alcança: anda na direção do alvo.
-  const passo = typeof movimentoDisponivel === 'function' ? movimentoDisponivel(ator) : 0;
-  if (passo > 0 && T.destinoAlcancavel && T.posValida && T.posValida(ator.pos) && T.posValida(alvo.pos)
-    && !minionPresoAoLider(ator, lista)) {
-    const destino = T.destinoAlcancavel(ator, alvo.pos, lista, passo);
+  for (const alvo of ordem) {
+    const j = jogadaContra(alvo);
+    if (!j) continue;
+    const { escolha, alcanceEscolha } = j;
+    if (escolha.aba === 'tecnica_teste') return escolha;
+    /* Recuar para atirar (11/11/2026): inimigo colado e a ação é de longe —
+       usa o movimento grátis para abrir distância, sem perder o alvo do
+       alcance, e ataca no passo seguinte. Não no agressivo; o cauteloso
+       recua também sendo personagem. */
+    const recua = perfil === 'cauteloso' || (perfil !== 'agressivo' && ator.tipo === 'criatura');
+    if (recua && ator.auto && movimentosFeitosAuto(ator) === 0 && podeMover) {
+      const colado = _dist(ator, alvo);
+      if (alcanceEscolha >= ALCANCE_DE_LONGE && colado != null && colado < ALCANCE_DE_LONGE) {
+        const destino = destinoDeRecuo(ator, lista, { alvo, alcance: alcanceEscolha });
+        if (destino) return { tipo: 'mover', destino, alvoId: alvo.inst_id, recuo: true };
+      }
+    }
+    return escolha;
+  }
+
+  // Nada alcança ninguém: anda na direção do primeiro da ordem.
+  const alvo = ordem[0];
+  if (passoLivre > 0 && T.destinoAlcancavel && T.posValida && T.posValida(ator.pos) && T.posValida(alvo.pos) && podeMover) {
+    const destino = T.destinoAlcancavel(ator, alvo.pos, lista, passoLivre);
     if (destino) return { tipo: 'mover', destino, alvoId: alvo.inst_id };
   }
   return { tipo: 'passar', motivo: 'nada_alcanca' };
@@ -9564,12 +9728,22 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     concluirInvocacao(e.conjInstId, e.pend, novos, escolhidos.length ? 'mas a convocação falhou' : 'mas nenhum animal atendeu');
   };
 
-  const adicionarReforcos = async (crus) => {
+  /* DADO REAL NO REFORÇO (18/11/2026): com a batalha em dado real, o Mestre
+     informa o d10 de cada um que chega (um por tipo de criatura, um por
+     personagem), um de cada vez; depois o reforço entra como sempre. */
+  const [iniReforco, setIniReforco] = useState(null);   // { crus, pedidos, valores }
+  const adicionarReforcos = async (crus, valoresReais) => {
+    if (dadosReais && !valoresReais) {
+      const pedidos = pedidosDeIniciativaDosReforcos(crus);
+      if (pedidos.length) { setIniReforco({ crus, pedidos, valores: [] }); return; }
+    }
     setError(null);
     try {
       const { pools, magiasByKey, dataJogo } = await carregarBaseDosSnapshots();
       // O d10 da iniciativa extra de quem chega (rolarIniciativaDosReforcos).
-      const snaps0 = await montarSnapshots(rolarIniciativaDosReforcos(crus), pools, magiasByKey, dataJogo);
+      let k = 0;
+      const rolar = valoresReais ? () => valoresReais[k++] : rolarD10;
+      const snaps0 = await montarSnapshots(rolarIniciativaDosReforcos(crus, rolar), pools, magiasByKey, dataJogo);
       // O reforço converte o prazo pela rodada que vai encontrar: a mesa + ele.
       const snaps = prazosDaFichaEmRodadas(snaps0, dataJogo, segundosDaRodada([...participantes, ...snaps0]));
       const next = [...participantes, ...prepararReforcos(snaps, rodada)];
@@ -10723,7 +10897,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       }
       if (j.aba === 'tecnica_teste') at.tecnicas.push(j.tecKey);
       setAtaqueContra({ id: j.alvoId, aba: j.aba, unica: true,
-        auto: { armaSlug: j.armaSlug || null, armaNome: j.armaNome || null, magiaKey: j.magiaKey || null, tecKey: j.tecKey || null } });
+        auto: { armaSlug: j.armaSlug || null, armaNome: j.armaNome || null, magiaKey: j.magiaKey || null, tecKey: j.tecKey || null,
+          apoio: j.aba === 'apoio', karmaTudo: !!j.karmaTudo } });
       setAcaoOpen(true);
     /* No mínimo 2 s entre os passos (08/11/2026, usuário: "Dê 1 segundo entre uma ação e
        outra dos combatentes automáticos, para dar tempo de ler a mensagem"). O
@@ -10763,6 +10938,11 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   // O lado do combatente no automático (08/11/2026) — ver ladoNaBatalha.
   const definirLado = (i, lado) => {
     const next = participantes.map((q, k) => (k === i ? { ...q, lado } : q));
+    persistir({ participantes: next }, () => setParticipantes(next));
+  };
+  // O perfil do automático (18/11/2026) — ver perfilAutoDe.
+  const definirPerfilAuto = (i, perfil) => {
+    const next = participantes.map((q, k) => (k === i ? { ...q, perfil_auto: perfil } : q));
     persistir({ participantes: next }, () => setParticipantes(next));
   };
   // Liga/desliga o automático de um combatente (só o Mestre, 08/11/2026).
@@ -11693,6 +11873,23 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                         })}
                       </div>
                     )}
+                    {/* COMO ELE LUTA (18/11/2026): o perfil do automático. Vem
+                        do bestiário; o Mestre troca aqui. Ver perfilAutoDe. */}
+                    {p.auto && (
+                      <div className="nb-paginas batalha-auto-lado batalha-auto-perfil" role="radiogroup"
+                        aria-label={isEn ? 'Profile' : 'Perfil'}>
+                        {PERFIS_AUTO.map((v) => {
+                          const on = perfilAutoDe(p.perfil_auto) === v;
+                          return (
+                            <button key={v} type="button" role="radio" aria-checked={on} data-perfil={v}
+                              className={'nb-pagina-op' + (on ? ' is-on' : '')} disabled={salvando}
+                              onClick={() => { if (!on) definirPerfilAuto(i, v); }}>
+                              <span className="nb-pagina-nome">{rotuloPerfilAuto(v, isEn)}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
                 {/* SAQUEAR (25/09/2026): criatura morta ou desmaiada, e o PJ da vez
@@ -11754,9 +11951,20 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
           bandosExistentes={participantes.filter((p) => p.bando)}
           criarRef={reforcoRef}
           onStateChange={setReforcoState}
-          onCriar={adicionarReforcos}
+          onCriar={(crus) => adicionarReforcos(crus)}
         />
       </ModalShell>
+    )}
+    {iniReforco && (
+      <ModalDadoReal key={iniReforco.valores.length} faces={10} lang={lang}
+        titulo={(isEn ? 'Initiative · ' : 'Iniciativa · ') + iniReforco.pedidos[iniReforco.valores.length].nome}
+        onClose={() => setIniReforco(null)}
+        onInformar={(v) => {
+          const valores = [...iniReforco.valores, v];
+          if (valores.length < iniReforco.pedidos.length) { setIniReforco({ ...iniReforco, valores }); return; }
+          setIniReforco(null);
+          adicionarReforcos(iniReforco.crus, valores);
+        }} />
     )}
     {saqueDe && catalogos && (() => {
       const alvo = participantes.find((q) => q.inst_id === saqueDe);
@@ -13625,7 +13833,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
       const k = armas.findIndex((a) => (auto.armaSlug && a.slug === auto.armaSlug) || (!auto.armaSlug && a.nome === auto.armaNome));
       if (k >= 0) setArmaIdx(k);
     }
-    if (auto.magiaKey) {
+    /* A CURA DO AUTOMÁTICO (18/11/2026): o protetor e o cauteloso usam
+       magia de apoio — o painel abre nela, no alvo que a jogada escolheu. */
+    if (auto.magiaKey && auto.apoio) {
+      const k = magiasApoio.findIndex((m) => m.key === auto.magiaKey);
+      if (k >= 0) setApoioIdx(k);   // o nível: o padrão (nivelQueOKarmaPaga)
+    } else if (auto.magiaKey) {
       const k = magias.findIndex((m) => m.key === auto.magiaKey);
       if (k >= 0) {
         setMagiaIdx(k);
@@ -13636,8 +13849,10 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
            pagar o nível. */
         const m = magias[k];
         if (escolheKarmaColuna && m) {
-          const sobra = Math.max(0, (Number(ator.karma) || 0) - (Number(m.custo_karma) || 0));
-          setKarmaColunaSel(Math.min(Number(m.nivel) || 0, sobra));
+          // O nível que o karma paga (nivelQueOKarmaPaga), e o agressivo põe tudo o que sobra.
+          const custo = nivelQueOKarmaPaga(m, ator.karma) != null ? nivelQueOKarmaPaga(m, ator.karma) : (Number(m.custo_karma) || 0);
+          const sobra = Math.max(0, (Number(ator.karma) || 0) - custo);
+          setKarmaColunaSel(auto.karmaTudo ? sobra : Math.min(Number(m.nivel) || 0, sobra));
         }
       }
     }
@@ -13671,7 +13886,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             : tab === 'resistencia' ? tb.verboResistir
             : tb.verboUsar;
     // REGRA NOVA (revisão final): técnica modo 'total' é ativação livre — 0 PA.
-    const custoPA = (tab === 'tecnica_teste' && tecSemDado) ? 0 : 1;
+    const custoPA = ((tab === 'tecnica_teste' && tecSemDado) || tab === 'item' || abaInstantanea) ? 0 : 1;   // item e instantânea: sem PA (18/11/2026)
     const pa = custoPA === 1 ? (isEn ? '1 Action Point' : '1 Ponto de Ação')
       : custoPA === 0 ? (isEn ? 'no Action Point' : 'sem Ponto de Ação')
       : (isEn ? `${custoPA} Action Points` : `${custoPA} Pontos de Ação`);
@@ -13828,7 +14043,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           coluna (ou a resistência do alvo), o alcance, a distância e o custo.
           Só entra a célula que tem o que dizer. */}
       {(() => {
-        const custoPA = (tab === 'tecnica_teste' && tecSemDado) ? 0 : 1;
+        const custoPA = ((tab === 'tecnica_teste' && tecSemDado) || tab === 'item' || abaInstantanea) ? 0 : 1;
         /* O karma do APOIO também (08/11/2026): só a magia de ataque punha o
            KA no custo, e o apoio sem karma travava o Usar sem dizer por quê.
            Concluindo uma canalização, o karma já foi pago. */
@@ -16482,7 +16697,7 @@ Object.assign(window, {
     efeitoAncoraNoAtacante,
     tetoDeAlvos,
     alvosExtrasEfetivos,
-    debitarCustoAtaque, paParaAtaque, itemJaUsado, acaoExtraPorFalhaCritica, entradaLogAcaoExtraFc, TETO_ACOES_RODADA, rolarIniciativaDosReforcos, ehMagiaInstantanea, temInstantaneaLivre, nivelQueOKarmaPaga, instantaneaJaUsada, debitarAcaoDaMagia, acoesDaRodadaNova, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel, condicoesAoEncerrar,
+    debitarCustoAtaque, paParaAtaque, PERFIS_AUTO, perfilAutoDe, rotuloPerfilAuto, ehMagiaDeCura, apoioMiraEm, ultimoQueAtacouUmAliado, itemJaUsado, acaoExtraPorFalhaCritica, entradaLogAcaoExtraFc, TETO_ACOES_RODADA, rolarIniciativaDosReforcos, pedidosDeIniciativaDosReforcos, ehMagiaInstantanea, temInstantaneaLivre, nivelQueOKarmaPaga, instantaneaJaUsada, debitarAcaoDaMagia, acoesDaRodadaNova, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel, condicoesAoEncerrar,
     itemAindaNaMochila,
     // O tempo da batalha (14/11/2026): 30 s × combatentes por rodada.
     SEGUNDOS_POR_ACAO, combatentesQueAgem, segundosDaRodada, duracaoDaBatalhaSegundos,

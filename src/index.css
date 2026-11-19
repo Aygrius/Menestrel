@@ -18908,6 +18908,9 @@ html[data-mesa-auto] .dado-overlay-backdrop {
    (.nb-paginas), logo abaixo do botão, na largura do card. */
 #root .menestrel-ui .batalha-mesa-painel .batalha-auto-lado { width: 100%; }
 #root .menestrel-ui .batalha-auto-lado .nb-pagina-op { height: 32px; }
+/* O perfil do automático (18/11/2026): quatro opções, só o nome, na mesma pílula do lado. */
+#root .menestrel-ui .batalha-auto-perfil .nb-pagina-op { padding-inline: 6px; min-width: 0; }
+#root .menestrel-ui .batalha-auto-perfil .nb-pagina-nome { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* O zoom no centro do rodapé (08/11/2026, usuário: "Centralize o botão de
    zoom na tela, no rodapé"). Na batalha em tela cheia, no meio da janela;

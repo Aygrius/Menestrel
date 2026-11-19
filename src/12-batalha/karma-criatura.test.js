@@ -61,7 +61,8 @@ describe('o painel (fonte)', () => {
     expect(fonte).toMatch(/const escolheKarmaColuna = ator\.tipo === 'pj' \|\| ator\.tipo === 'criatura';/);
   });
   it('no automático, a coluna recebe o menor entre o nível e o karma que sobra', () => {
-    expect(fonte).toMatch(/setKarmaColunaSel\(Math\.min\(Number\(m\.nivel\) \|\| 0, sobra\)\)/);
+    // O agressivo (18/11/2026) põe tudo o que sobra; os outros, o menor.
+    expect(fonte).toMatch(/setKarmaColunaSel\(auto\.karmaTudo \? sobra : Math\.min\(Number\(m\.nivel\) \|\| 0, sobra\)\)/);
   });
   it('o minion fica com 1/4 do karma', () => {
     expect(fonte).toMatch(/const kaCri = minion \? poolDeMinion\(kaCheio\) : kaCheio;/);

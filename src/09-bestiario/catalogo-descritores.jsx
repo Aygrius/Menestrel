@@ -283,6 +283,10 @@ const CATALOGO_DESCRITORES = {
       { col: 'magia',   tipo: 'lista',  rotuloKey: 'campoMagia', fonte: 'magias' },
       { col: 'tecnicas_especiais', tipo: 'lista', rotuloKey: 'campoTecnicasEspeciais', fonte: 'tecnicas' },
       { col: 'habilidades',        tipo: 'lista', rotuloKey: 'campoHabilidades',        fonte: 'habilidades' },
+      /* O PERFIL NO AUTOMÁTICO (18/11/2026): como a criatura luta quando o
+         Mestre a põe no automático. É o padrão; na luta ele troca no card. */
+      { col: 'perfil_auto', tipo: 'opcoes', rotuloKey: 'campoPerfilAuto', largura: 'meia',
+        opcoes: ['Padrão', 'Agressivo', 'Cauteloso', 'Protetor'] },
       /* CALCULADOS (14/09/2026) — só leitura, sempre da conta. Antes eram
          sugestões sobrescrevíveis; agora "são calculados automaticamente com
          base nas informações inseridas". `texto`: o valor é texto (o nome da

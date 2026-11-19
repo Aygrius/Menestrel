@@ -856,7 +856,7 @@ const ABAS_CATALOGO = {
   criaturas: { abas: [['geral', 'Geral', 'General'], ['atributos', 'Atributos', 'Attributes'], ['equipamento', 'Equipamento', 'Equipment'],
     ['poderes', 'Poderes', 'Powers'], ['descricao', 'Descrição', 'Description']],
     mapa: { intelecto: 'atributos', aura: 'atributos', carisma: 'atributos', forca: 'atributos', fisico: 'atributos', agilidade: 'atributos', percepcao: 'atributos',
-      equipamento: 'equipamento', magia: 'poderes', tecnicas_especiais: 'poderes', habilidades: 'poderes', descricao: 'descricao' } },
+      equipamento: 'equipamento', magia: 'poderes', tecnicas_especiais: 'poderes', habilidades: 'poderes', perfil_auto: 'poderes', descricao: 'descricao' } },
   itens: { abas: [['geral', 'Geral', 'General'], ['combate', 'Combate', 'Combat'], ['efeitos', 'Efeitos e magia', 'Effects and magic'], ['descricao', 'Descrição', 'Description']],
     mapa: Object.fromEntries([
       ...['dano', 'alcance', 'ajuste_atributo', 'grupo_armas', 'dano_l', 'dano_m', 'dano_p', 'forca_req', 'defesa', 'absorcao', 'tipo_armadura', 'conjunto',

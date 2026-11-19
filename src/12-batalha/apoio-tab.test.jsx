@@ -231,10 +231,11 @@ describe('aba Apoio — rolagem só quando a magia exige', () => {
     expect(btn(/Rolar d20/i)).toBeTruthy();
   });
 
+  // Instantânea: sem PA desde 18/11/2026 — o botão diz "sem Ponto de Ação".
   it('magia sem teste já pode ser confirmada, sem rolar nada', () => {
     montar({ velocidade: 1 });
     fireEvent.click(abaApoio());
-    const usar = btn(/Usar 1 Ponto de Ação/i);
+    const usar = btn(/Usar sem Ponto de Ação/i);
     expect(usar).toBeTruthy();
     expect(usar.disabled).toBe(false);
   });
@@ -245,7 +246,7 @@ describe('aba Apoio — rolagem só quando a magia exige', () => {
     montarComTeste({ bravura: 1 });
     fireEvent.click(abaApoio());
     expect(document.querySelector('.atacar-confirmar')).toBeNull();
-    expect(btn(/Rolar d20 · Usar 1 Ponto de Ação/i)).toBeTruthy();
+    expect(btn(/Rolar d20 · Usar sem Ponto de Ação/i)).toBeTruthy();
   });
 });
 
@@ -260,7 +261,7 @@ describe('aba Apoio — mirar em si mesmo', () => {
     let payload = null;
     montar({ velocidade: 1 }, (p) => { payload = p; });
     fireEvent.click(abaApoio());
-    fireEvent.click(btn(/Usar 1 Ponto de Ação/i));
+    fireEvent.click(btn(/Usar sem Ponto de Ação/i));
     expect(payload).toBeTruthy();
     expect(payload.alvo.inst_id).toBe(ATOR.inst_id);
   });
@@ -277,7 +278,7 @@ describe('aba Apoio — mirar em si mesmo', () => {
     let payload = null;
     montar({ bravura: 1 }, (p) => { payload = p; });
     fireEvent.click(abaApoio());
-    fireEvent.click(btn(/Usar 1 Ponto de Ação/i));
+    fireEvent.click(btn(/Usar sem Ponto de Ação/i));
     expect(payload.alvo.inst_id).toBe(ATOR.inst_id);
   });
 
@@ -291,7 +292,7 @@ describe('aba Apoio — mirar em si mesmo', () => {
        de alvo estar HABILITADO: ele desabilita com alvosApoio.length <= 1. */
     const selects = Array.from(document.querySelectorAll('.select-pill-btn'));
     expect(selects.some((s) => !s.disabled && /Yuldrous/.test(s.textContent))).toBe(true);
-    fireEvent.click(btn(/Usar 1 Ponto de Ação/i));
+    fireEvent.click(btn(/Usar sem Ponto de Ação/i));
     expect(payload.alvo.inst_id).toBe(ATOR.inst_id);
   });
 

@@ -149,6 +149,20 @@ describe('rolarIniciativaDosReforcos', () => {
   });
   it('adicionarReforcos rola antes de montar os snapshots', () => {
     const fonte = require('node:fs').readFileSync(require('node:path').resolve(__dirname, 'batalha.jsx'), 'utf8');
-    expect(fonte).toMatch(/montarSnapshots\(rolarIniciativaDosReforcos\(crus\)/);
+    expect(fonte).toMatch(/montarSnapshots\(rolarIniciativaDosReforcos\(crus, rolar\)/);
+  });
+});
+
+describe('dado real no reforço (18/11/2026)', () => {
+  it('pede um número por tipo e por personagem, na ordem em que usa', () => {
+    const crus = [
+      { tipo: 'criatura', ref_id: 7, nome: 'Goblin', inst_id: 'a' },
+      { tipo: 'criatura', ref_id: 7, nome: 'Goblin', inst_id: 'b' },
+      { tipo: 'pj', ref_id: 3, nome: 'Lia' },
+    ];
+    expect(M.pedidosDeIniciativaDosReforcos(crus).map((p) => p.nome)).toEqual(['Goblin', 'Lia']);
+    let k = 0; const valores = [6, 9];
+    const out = M.rolarIniciativaDosReforcos(crus, () => valores[k++]);
+    expect(out.map((p) => p.bonus_iniciativa)).toEqual([6, 6, 9]);
   });
 });
