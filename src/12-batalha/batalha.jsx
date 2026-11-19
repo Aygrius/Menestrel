@@ -10248,7 +10248,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     // Se quem testou era o ator da vez e ficou sem PA → passa a vez.
     let viraRodada = false;
     const t = next[testIdx];
-    if (t.atual && !temAcaoRestante(t)) {
+    // Incapaz ou "sem ações" também passa — como no Jogador (autoPassarSeNecessario).
+    if (t.atual && (!temAcaoRestante(t) || t.status !== 'ativo' || statusTemEfeito(t, 'sem_acoes'))) {
       const prox = proximoAtivo(next, t.ordem);
       if (prox) {
         next = next.map((p) => ({ ...p, atual: mesmoParticipante(p, prox) }));
@@ -13599,11 +13600,14 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
     // Largada de canalização e Ritual não rolam nada: o dado é o golpe, e o
     // golpe só acontece quando a magia sai.
     : tab === 'magia' ? (!magia || !alvo || magiaEmLargada || magiaBloqueada || foraDeAlcance || semPaParaAtaque)
-    : tab === 'habilidade' ? !habilidadeSel
+    /* Sem PA, nenhuma aba rola (18/11/2026): rolar sem poder aplicar prendia
+       o painel — o Cancelar some com a rolagem feita. Acontecia com só o
+       ataque extra sobrando, ou com a instantânea da rodada já usada. */
+    : tab === 'habilidade' ? !habilidadeSel || semPA
     : tab === 'tecnica_teste' ? (!tecnicaTesteSel || !tecBloqueio.pode
-        || (tecPrecisaAlvo && tecAlvosEscolhidos.length === 0))
-    : tab === 'resistencia' ? alvoResist == null
-    : tab === 'apoio' ? alvoResist == null || apoioForaDeAlcance
+        || (tecPrecisaAlvo && tecAlvosEscolhidos.length === 0) || (!tecSemDado && semPaParaTecnica))
+    : tab === 'resistencia' ? alvoResist == null || semPA
+    : tab === 'apoio' ? alvoResist == null || apoioForaDeAlcance || semPaParaApoio
     : true;
 
   /* MODO AUTOMÁTICO NO PAINEL (08/11/2026). Com `auto` (a jogada que
