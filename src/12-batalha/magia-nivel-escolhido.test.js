@@ -149,8 +149,20 @@ describe('o painel oferece a escolha nas duas abas', () => {
   });
 
   it('as duas abas passam pelo recalculador', () => {
-    expect(fonte).toMatch(/const magia = magiaNoNivel\(magiaBase, nivelMagiaSel\)/);
-    expect(fonte).toMatch(/const apoioSel = magiaNoNivel\(apoioBase, nivelApoioSel\)/);
+    // 18/11/2026: sem escolha, o nível que o karma paga (nivelQueOKarmaPaga).
+    expect(fonte).toMatch(/const magia = magiaNoNivel\(magiaBase, nivelMagiaSel != null \? nivelMagiaSel : nivelQueOKarmaPaga\(magiaBase, ator\.karma\)\)/);
+    expect(fonte).toMatch(/const apoioSel = magiaNoNivel\(apoioBase, nivelApoioSel != null \? nivelApoioSel : nivelQueOKarmaPaga\(apoioBase, ator\.karma\)\)/);
+  });
+
+  /* "Depois que o Dragoniano Líder usou a magia Dardos de Gelo uma vez na
+     batalha, a magia sumiu depois" (18/11/2026). */
+  it('sem karma para o nível máximo, cai no maior que o karma paga', () => {
+    const M = window.MotorBatalha;
+    const base = { custo_karma: 9, niveis: [1, 3, 5, 7, 9] };
+    expect(M.nivelQueOKarmaPaga(base, 12)).toBe(null);   // paga o 9
+    expect(M.nivelQueOKarmaPaga(base, 4)).toBe(3);
+    expect(M.nivelQueOKarmaPaga(base, 0)).toBe(null);    // nada cabe
+    expect(M.nivelQueOKarmaPaga({ ...base, item: { nome: 'Anel' } }, 0)).toBe(null);
   });
 
   it('trocar de magia zera o nível escolhido — não vaza de uma para a outra', () => {

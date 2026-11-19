@@ -9,7 +9,7 @@
    Regras documentadas nos comentários do batalha.jsx:
    • Cascata EH→AR→EF; crítico pula EH; EF fica NEGATIVA até o piso
      EF_MORTE (−15). EF entre 0 e −14 = caído (desmaiado); ≤ −15 = morto.
-   • EH chegar a 0 desmaia SEMPRE (guarda eh_max > 0).
+   • Desmaia só com a EF abaixo de 0 (18/11/2026; antes, a EH zerada também).
    • Tiers de ARMA arredondam pra CIMA (ceil, espelho do Arsenal da
      Ficha); MAGIA arredonda pra baixo (floor — decisão em aberto);
      CRIATURA usa campos dano_25/50/75/100 e floor nos tiers E/A.
@@ -129,9 +129,9 @@ describe('aplicarDanoCascata', () => {
     expect(r.ef, 'arrebentada, o quarto passa inteiro').toBe(10);
   });
 
-  it('EH chegar a 0 desmaia SEMPRE (com eh_max > 0)', () => {
+  it('EH chegar a 0 não desmaia mais (18/11/2026: só EF abaixo de 0)', () => {
     const r = M.aplicarDanoCascata(7, pj({ eh: 3, ar: 2, eh_max: 3 }));
-    expect(r.status).toBe('desmaiado');
+    expect(r.status).toBe('ativo');
   });
 
   it('criatura sem pool de EH (eh_max 0) NÃO vive desmaiada por eh===0', () => {

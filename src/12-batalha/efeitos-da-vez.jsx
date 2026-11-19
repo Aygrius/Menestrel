@@ -426,9 +426,14 @@ function EfeitosDaVez({ batalhaId, cortina, log, isEn, seguraCards = true }) {
 
 /* O botão do Mestre: a vez de X terminou, revelar. Fica no trilho, onde o
    "É a vez de" já mora. */
+/* NO MEIO DA TELA (18/11/2026, usuário: "O botão 'Revelar' deve aparecer no
+   meio da tela"). Segue montado no fim do trilho, mas sai por portal para a
+   raiz .menestrel-ui: fixo no centro, fora de qualquer ancestral que prenda
+   o position: fixed. */
 function BotaoRevelarVez({ cortina, proximo, isEn, disabled, onRevelar }) {
   const nome = (cortina && cortina.nome) || '';
-  return React.createElement('span', { className: 'batalha-trilho-revelar', role: 'status' },
+  const destino = typeof document !== 'undefined' ? (document.querySelector('.menestrel-ui') || document.body) : null;
+  const botao = React.createElement('span', { className: 'batalha-trilho-revelar batalha-revelar-centro', role: 'status' },
     React.createElement('span', { className: 'batalha-trilho-revelar-texto' },
       isEn ? 'Turn over: ' : 'Vez concluída: ', React.createElement('b', null, nome)),
     React.createElement('button', {
@@ -439,6 +444,8 @@ function BotaoRevelarVez({ cortina, proximo, isEn, disabled, onRevelar }) {
       React.createElement('i', { className: 'ti ti-eye', 'aria-hidden': 'true' }),
       isEn ? 'Reveal' : 'Revelar'),
   );
+  return destino && typeof ReactDOM !== 'undefined' && ReactDOM.createPortal
+    ? ReactDOM.createPortal(botao, destino) : botao;
 }
 
 Object.assign(window, {

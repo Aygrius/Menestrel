@@ -128,3 +128,27 @@ describe('formarBandosDeReforco', () => {
     expect(soltos[0].bando).toBeUndefined();
   });
 });
+
+/* 18/11/2026, usuário: "Iniciativa não está funcionando para personagens que
+   entraram depois." O d10 só existia na montagem. */
+describe('rolarIniciativaDosReforcos', () => {
+  it('um d10 por tipo de criatura, um por personagem', () => {
+    let n = 0; const rolar = () => { n += 1; return n + 2; };
+    const crus = [
+      { tipo: 'criatura', ref_id: 7, nome: 'Goblin', inst_id: 'a' },
+      { tipo: 'criatura', ref_id: 7, nome: 'Goblin', inst_id: 'b' },
+      { tipo: 'criatura', ref_id: 9, nome: 'Lobo', inst_id: 'c' },
+      { tipo: 'pj', ref_id: 3, nome: 'Lia' },
+    ];
+    const out = M.rolarIniciativaDosReforcos(crus, rolar);
+    expect(out.map((p) => p.bonus_iniciativa)).toEqual([3, 3, 4, 5]);
+  });
+  it('quem já trouxe número fica com ele', () => {
+    const out = M.rolarIniciativaDosReforcos([{ tipo: 'pj', ref_id: 3, bonus_iniciativa: 8 }], () => 1);
+    expect(out[0].bonus_iniciativa).toBe(8);
+  });
+  it('adicionarReforcos rola antes de montar os snapshots', () => {
+    const fonte = require('node:fs').readFileSync(require('node:path').resolve(__dirname, 'batalha.jsx'), 'utf8');
+    expect(fonte).toMatch(/montarSnapshots\(rolarIniciativaDosReforcos\(crus\)/);
+  });
+});

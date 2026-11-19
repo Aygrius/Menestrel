@@ -45,9 +45,9 @@ describe('o PJ que entra caído', () => {
     expect(p.status).toBe('ativo');
     expect(p.desmaio_cumprido).toBe(true);
   });
-  it('EF zero também conta', async () => {
+  it('EF zero não conta: entra de pé (18/11/2026)', async () => {
     const [s] = await entrar({ vitalidade: { ef: 0 } });
-    expect(zz(s)).toHaveLength(1);
+    expect(zz(s)).toHaveLength(0);
   });
   it('de pé não ganha zz; morto também não', async () => {
     const [vivo] = await entrar({ vitalidade: { ef: 10 } });

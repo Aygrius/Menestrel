@@ -279,7 +279,9 @@ describe('nenhuma porta de ação decide por PA cru', () => {
 
   it('o botão Ação do token usa temAcaoRestante', () => {
     // 23/10/2026: os botões nomeados do painel guardam a trava numa variável.
-    expect(fonte).toMatch(/(disabled=\{|const travado = )salvando \|\| !catalogos \|\| !temAcaoRestante\(p\)/);
+    // 18/11/2026: o "sem ação" saiu da trava geral e virou `semAcao`, porque
+    // item e magia instantânea não custam PA.
+    expect(fonte).toMatch(/semAcao=\{!temAcaoRestante\(p\)\}/);
   });
 });
 

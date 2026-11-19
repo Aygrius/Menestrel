@@ -67,13 +67,14 @@ describe('statusPorPools — o status segue as pools', () => {
     expect(M.statusPorPools(p({ ef: EF_MORTE })).status).toBe('morto');
   });
 
-  it('EF zerada ou negativa derruba', () => {
-    expect(M.statusPorPools(p({ ef: 0 })).status).toBe('desmaiado');
+  // 18/11/2026, usuário: "O desmaiado é apenas quando a EF fica menos de 0."
+  it('só a EF negativa derruba; zero não', () => {
+    expect(M.statusPorPools(p({ ef: 0 })).status).toBe('ativo');
     expect(M.statusPorPools(p({ ef: -4 })).status).toBe('desmaiado');
   });
 
-  it('EH zerada derruba mesmo com EF cheia', () => {
-    expect(M.statusPorPools(p({ eh: 0 })).status).toBe('desmaiado');
+  it('EH zerada com EF cheia não derruba', () => {
+    expect(M.statusPorPools(p({ eh: 0 })).status).toBe('ativo');
   });
 
   it('quem não tem pool de EH não desmaia por ela', () => {
@@ -81,10 +82,9 @@ describe('statusPorPools — o status segue as pools', () => {
     expect(M.statusPorPools(p({ eh: 0, eh_max: 0 })).status).toBe('ativo');
   });
 
-  it('reanima quando as DUAS causas são sanadas', () => {
+  it('reanima quando a EF volta a 0 ou mais, com ou sem EH', () => {
     expect(M.statusPorPools(p({ status: 'desmaiado', ef: 5, eh: 3 })).status).toBe('ativo');
-    // Só a EF não basta se a EH continua zerada.
-    expect(M.statusPorPools(p({ status: 'desmaiado', ef: 5, eh: 0 })).status).toBe('desmaiado');
+    expect(M.statusPorPools(p({ status: 'desmaiado', ef: 5, eh: 0 })).status).toBe('ativo');
   });
 
   it('morto NÃO ressuscita por edição de pool — é decisão do Mestre', () => {

@@ -106,10 +106,10 @@ describe('as garantias antigas não mudam', () => {
     expect(r.status).toBe('morto');
   });
 
-  it('zerar a EH derruba quem tem pool de EH', () => {
+  it('zerar a EH não derruba mais (18/11/2026: só a EF abaixo de 0)', () => {
     const r = M.aplicarDanoCascata(10, alvo());
     expect(r.eh).toBe(0);
-    expect(r.status).toBe('desmaiado');
+    expect(r.status).toBe('ativo');
   });
 
   it('quem não tem pool de EH não desmaia por EH zero', () => {

@@ -112,14 +112,14 @@ describe('quebrarConcentracaoPorDano — o que quebra', () => {
     expect(r[0].status_temp).toHaveLength(0);
   });
 
-  it('zerar a EH desmaia e quebra, mesmo sem a EF ser tocada', () => {
-    // O buraco nº 2: EH 5, AR 0, dano exatamente 5 → EH zera, EF intacta.
-    // Olhar só a EF deixava passar; desmaiar quebra por si só.
+  it('zerar a EH sem tocar a EF não derruba nem quebra (18/11/2026)', () => {
+    // "O desmaiado é apenas quando a EF fica menos de 0": EH 5, AR 0, dano 5
+    // → EH zera, EF intacta, ele segue de pé e sustentando.
     const arr = [lutador('A', 1, { ar: 0, ar_max: 0, status_temp: [sustentado('A')] })];
     const r = levarDano(arr, 'A', 5);
     expect(r[0].ef).toBe(10);          // EF não foi tocada
-    expect(r[0].status).toBe('desmaiado');
-    expect(r[0].status_temp).toHaveLength(0);
+    expect(r[0].status).toBe('ativo');
+    expect(r[0].status_temp).toHaveLength(1);
   });
 
   it('morrer quebra — com a armadura já vencida', () => {

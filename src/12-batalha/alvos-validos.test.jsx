@@ -89,8 +89,10 @@ describe('quem apanha pode morrer — aplicarDanoCascata', () => {
   });
 
   it('ativo ainda desmaia antes de morrer', () => {
+    // 18/11/2026: desmaia só com a EF abaixo de 0.
     const p = lutador('A', { status: 'ativo', eh: 0, ar: 0, ef: 10 });
-    expect(M.aplicarDanoCascata(5, p, false).status).toBe('desmaiado');
+    expect(M.aplicarDanoCascata(5, p, false).status).toBe('ativo');
+    expect(M.aplicarDanoCascata(11, p, false).status).toBe('desmaiado');
   });
 
   it('dano leve em quem desistiu não muda o status', () => {

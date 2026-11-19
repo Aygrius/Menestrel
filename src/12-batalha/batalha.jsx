@@ -1486,6 +1486,20 @@ function niveisDisponiveis(m, nivelMax) {
   return MAGIA_NIVEIS_ESCADA.filter((n) => n <= (nivelMax || 0) && !!(m && m['nivel_' + n]));
 }
 
+/* A MAGIA NÃO SOME QUANDO O KARMA BAIXA (18/11/2026, usuário: "Depois que o
+   Dragoniano Líder usou a magia Dardos de Gelo uma vez na batalha, a magia
+   sumiu depois"). Ele lança no nível 9, que custa 9, e o poço só paga uma
+   vez: o automático descartava a magia e o painel abria no 9 travado em
+   "karma insuficiente". Agora, sem karma para o nível máximo, o padrão é o
+   maior nível que o karma ainda paga. null = fica no nível da lista. */
+function nivelQueOKarmaPaga(base, karma) {
+  if (!base || base.item || !(Number(base.custo_karma) > 0)) return null;
+  const k = Number(karma) || 0;
+  if (Number(base.custo_karma) <= k) return null;
+  const cabem = (base.niveis || []).filter((n) => n <= k);
+  return cabem.length ? Math.max(...cabem) : null;
+}
+
 /* ── Técnicas conhecidas pelo PJ ──────────────────────────────── */
 /* Hoje a técnica vive como "modificador anexado ao ataque da arma". */
 /* Retornamos os metadados úteis pro select; a mecânica fica TODO    */
@@ -1919,8 +1933,8 @@ function aplicarDanoCascata(dano, p, mods) {
   // Espelha podeSerAtacado: se dá pra atacar, tem que dar pra matar, senão o
   // alvo vira saco de pancada imortal.
   if (ef <= EF_MORTE && status !== 'morto') status = 'morto';
-  else if (!p.desmaio_cumprido && (ef <= 0 || (eh === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
-  // O zz de 4 rodadas quando a EF cai a zero ou menos (ver desmaioPorDanoNaEf).
+  else if (!p.desmaio_cumprido && ef < 0 && status === 'ativo') status = 'desmaiado';
+  // O zz de 4 rodadas quando a EF cai abaixo de 0 (ver desmaioPorDanoNaEf).
   return desmaioPorDanoNaEf({ ...(desg || p), eh, ef, status, sobra: r, res: desg ? desg.res : res }, p.ef);
 }
 
@@ -2122,10 +2136,10 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
         : (persist && Number.isFinite(persist.karma))
           ? Math.max(0, Math.min(kMax, persist.karma))
           : kMax;
-      // Status de entrada espelha a cascata: morto só no piso; EF ≤ 0 ou EH
-      // zerada (com pool) entram desmaiados.
+      // Status de entrada espelha a cascata: morto só no piso; EF abaixo de 0
+      // entra desmaiado (18/11/2026: a EH zerada não derruba mais).
       const status = (efCur <= EF_MORTE) ? 'morto'
-        : ((efCur <= 0 || (ehMax > 0 && ehCur <= 0)) ? 'desmaiado' : 'ativo');
+        : (efCur < 0 ? 'desmaiado' : 'ativo');
       // Condições (Reputação, Sono, Sanidade, Saúde, Hidratação, Sobriedade,
       // Temperatura, Alimentação) — herdam direto de pj.estado_atual.condicoes
       // (NÃO via personagens_pools, que é só pra eh/ar/ef/karma). Escala
@@ -2214,7 +2228,7 @@ async function montarSnapshots(parts, personagensPools, magiasByKey, dataJogo) {
          Ficava caído a luta inteira. Agora entra contando, como quem cai no
          meio da luta; se a ficha já trouxe o zz de uma luta anterior, vale o
          que restava dele (comDesmaioEf não repõe). */
-      const snapEntrada0 = (snapPj.status === 'desmaiado' && efCur <= 0 && efCur > EF_MORTE)
+      const snapEntrada0 = (snapPj.status === 'desmaiado' && efCur < 0 && efCur > EF_MORTE)
         ? comDesmaioEf(snapPj) : snapPj;
       // A armadura da ENTRADA (auditoria item 28): é a ela que o Restaurar do treino volta.
       const snapEntrada = { ...snapEntrada0, armadura_entrada: {
@@ -2401,8 +2415,9 @@ function aplicarEfeitoItemSnapshot(participante, cat, quantidade) {
 /* ── Status derivado das POOLS (puro) ──────────────────────────────
    Recalcula morto/desmaiado/ativo a partir de EF e EH. Regra:
      • EF ≤ EF_MORTE mata;
-     • EF ≤ 0, ou EH zerada em quem TEM pool de EH, derruba;
-     • desmaiado reanima só quando as DUAS causas somem (EF > 0 e EH > 0).
+     • EF abaixo de 0 derruba (18/11/2026, usuário: "O desmaiado é apenas
+       quando a EF fica menos de 0" — a EH zerada não derruba mais);
+     • desmaiado reanima quando a EF volta a 0 ou mais (e o zz acabou).
    Morto não ressuscita sozinho e quem desistiu não é tocado — as duas são
    decisão do Mestre, pelo seletor de estado.
 
@@ -2414,15 +2429,13 @@ function aplicarEfeitoItemSnapshot(participante, cat, quantidade) {
 function statusPorPools(p) {
   const st = p.status || 'ativo';
   const efV = Number(p.ef) || 0;
-  const ehV = Number(p.eh) || 0;
-  const temEH = (Number(p.eh_max) || 0) > 0;
   let out = p;
   // Recuperado de vez (EF e EH de volta): as regras de sempre voltam a valer.
-  if (out.desmaio_cumprido && efV > 0 && (ehV > 0 || !temEH)) {
+  if (out.desmaio_cumprido && efV >= 0) {
     const { desmaio_cumprido, ...resto } = out;
     out = resto;
   }
-  const causa = !out.desmaio_cumprido && (efV <= 0 || (temEH && ehV === 0));
+  const causa = !out.desmaio_cumprido && efV < 0;
   let status = st;
   if (efV <= EF_MORTE && (st === 'ativo' || st === 'desmaiado')) status = 'morto';
   else if (st === 'ativo' && causa) status = 'desmaiado';
@@ -2430,8 +2443,8 @@ function statusPorPools(p) {
   else if (st === 'desmaiado' && !causa && !temDesmaioEf(out)) status = 'ativo';
   if (status === st) return out;
   out = { ...out, status };
-  // A EF editada à mão para zero ou menos também conta o zz (PJ).
-  if (status === 'desmaiado' && efV <= 0) out = comDesmaioEf(out);
+  // A EF editada à mão abaixo de 0 também conta o zz (PJ).
+  if (status === 'desmaiado' && efV < 0) out = comDesmaioEf(out);
   return out;
 }
 
@@ -2441,13 +2454,13 @@ function statusPorPools(p) {
    segue negativa: "Acorda".
 
    Quando um golpe (ou veneno, ou a barra editada) leva a EF do PERSONAGEM
-   a zero ou menos, ele ganha o status `desmaio_ef` de 4 rodadas — o anel no
+   abaixo de 0 (18/11/2026; antes, zero ou menos), ele ganha o status `desmaio_ef` de 4 rodadas — o anel no
    card conta. Enquanto dura, fica desmaiado mesmo curado. Quando acaba, a
    virada o acorda e marca `desmaio_cumprido`: daí em diante nem a EF
    negativa nem a EH zerada (o golpe que leva a EF abaixo de zero quase
    sempre zerou a EH antes, e sem isto ninguém acordaria nunca) o derrubam
    de novo. Só um NOVO dano na EF o derruba — e conta mais 4 rodadas. A
-   marca sai quando EF e EH voltam a ser positivas.
+   marca sai quando a EF volta a 0 ou mais.
 
    Criatura e companheiro animal seguem a regra de antes: o pedido é do
    personagem. */
@@ -2469,13 +2482,13 @@ function comDesmaioEf(p) {
     }],
   };
 }
-/* Depois de um dano: a EF CAIU e ficou em zero ou menos → desmaia e conta o
+/* Depois de um dano: a EF CAIU e ficou abaixo de 0 → desmaia e conta o
    zz (se já não estiver contando). Morto e quem desistiu ficam como estão. */
 function desmaioPorDanoNaEf(depois, efAntes) {
   if (!depois || depois.tipo !== 'pj') return depois;
   if (depois.status === 'morto' || depois.status === 'desistiu') return depois;
   const ef = Number(depois.ef) || 0;
-  if (!(ef <= 0 && ef < (Number(efAntes) || 0))) return depois;
+  if (!(ef < 0 && ef < (Number(efAntes) || 0))) return depois;
   const out = temDesmaioEf(depois) ? depois : comDesmaioEf(depois);
   return { ...out, status: 'desmaiado' };
 }
@@ -3342,6 +3355,21 @@ function rolarIniciativaDosInimigos(participantes, rolar = rolarD10, filtro = eh
     tipos.add(k);
     next = definirIniciativa(next, i, rolar());
   });
+  return next;
+}
+
+/* QUEM CHEGA DEPOIS TAMBÉM ROLA (18/11/2026, usuário: "Iniciativa não está
+   funcionando para personagens que entraram depois"). O d10 da iniciativa
+   extra só existia na montagem; o reforço entrava com 0 e ia para o fim da
+   fila. Agora, ao adicionar: um d10 por tipo de criatura do Mestre (como na
+   montagem) e um por personagem e por animal de personagem. Quem já trouxe
+   um número fica com ele. */
+function rolarIniciativaDosReforcos(crus, rolar = rolarD10) {
+  const lista = Array.isArray(crus) ? crus : [];
+  const semNumero = (p) => !(bonusIniciativaDe(p) > 0);
+  let next = rolarIniciativaDosInimigos(lista, rolar, (p) => criaturaDoMestre(p) && semNumero(p));
+  next = next.map((p) => ((p && (p.tipo === 'pj' || p.dono_pj != null) && semNumero(p))
+    ? { ...p, bonus_iniciativa: rolar() } : p));
   return next;
 }
 
@@ -4942,8 +4970,8 @@ function decidirJogadaAutomatica(ator, participantes, catalogos, tecnicasUsadas 
   // Magia de ataque que dê para pagar e que alcance.
   const karma = Number(ator.karma) || 0;
   // Só com PA de verdade: o ataque extra não paga magia (paParaAtaque).
-  const magia = paParaAtaque(ator, 'magia') && magiasOfensivasDoAtor(ator, catalogos).find((m) => !m.evocacao_bloqueada && !m.bloqueio_milagre
-    && (Number(m.custo_karma) || 0) <= karma && alcanca({ magia: m }));
+  const magia = magiasOfensivasDoAtor(ator, catalogos).find((m) => paParaAtaque(ator, 'magia', m) && !m.evocacao_bloqueada && !m.bloqueio_milagre
+    && ((Number(m.custo_karma) || 0) <= karma || nivelQueOKarmaPaga(m, karma) != null) && alcanca({ magia: m }));
   // A arma de mais dano que alcança.
   const arma = armas.filter((a) => alcanca({ arma: a }))
     .sort((a, b) => (Number(b.dano_100 != null ? b.dano_100 : b.dano) || 0) - (Number(a.dano_100 != null ? a.dano_100 : a.dano) || 0))[0];
@@ -5439,7 +5467,7 @@ function aplicarDanoDiretoEF(dano, p) {
   }
   let status = p.status;
   if (ef <= EF_MORTE && status !== 'morto') status = 'morto';
-  else if (!p.desmaio_cumprido && (ef <= 0 || ((p.eh || 0) === 0 && (p.eh_max || 0) > 0)) && status === 'ativo') status = 'desmaiado';
+  else if (!p.desmaio_cumprido && ef < 0 && status === 'ativo') status = 'desmaiado';
   return desmaioPorDanoNaEf({ ...p, ef, status, sobra: r }, p.ef);
 }
 
@@ -5561,6 +5589,8 @@ function acoesDaRodadaNova(p) {
               // REGRA NOVA: a cota de 1 ativação livre (0 PA) de técnica
               // modo 'total' é POR RODADA — mesmo padrão de moveu_na_rodada.
               tecnica_livre_usada: false,
+              // A magia instantânea gratuita também é uma POR RODADA (18/11/2026).
+              instantanea_usada: false,
               // Fase 2: o contador de ataque extra (Golpe Duplo/Contra-Ataque/
               // Flechadas Múltiplas) também é POR RODADA — zera na virada.
               pa_ataque_extra: 0 };
@@ -6457,14 +6487,46 @@ function alvosExtrasEfetivos(arr, atacante, alvoIdx, ids) {
    arma. Sem esta conta o painel deixava lançar magia com pa_rest 0 quando
    sobrava um pa_ataque_extra, e o débito caía num pa_rest já zerado — a
    magia saía de graça (auditoria 13/11/2026, item 7). */
-function paParaAtaque(p, tipo) {
+/* ── EVOCAÇÃO INSTANTÂNEA NÃO GASTA PA (18/11/2026) ─────────────────
+   Usuário: "Magias de Evocação Instantânea não gastam ponto de ação, mas
+   limitado em uma magia na rodada." A instantânea sai de graça, uma por
+   rodada (`instantanea_usada`, zerada em acoesDaRodadaNova); a segunda da
+   mesma rodada fica travada, com ou sem PA. Canalização (1+ rodadas) segue
+   pagando 1 PA. Como o ponto de técnica, a instantânea NÃO segura a vez:
+   quem quer usá-la usa antes de gastar o último PA. */
+function ehMagiaInstantanea(magia) {
+  const cat = (magia && magia.catalogo) || magia;
+  if (!cat) return false;
+  const ev = evocacaoEmRodadas(cat);
+  return !ev.bloqueada && ev.rodadas === 0;
+}
+function instantaneaJaUsada(p, magia) {
+  return ehMagiaInstantanea(magia) && !!(p && p.instantanea_usada);
+}
+// Sobrou a instantânea grátis da rodada, e ele tem uma de ataque para usá-la?
+function temInstantaneaLivre(p, catalogos) {
+  if (!p || !catalogos || p.instantanea_usada || evocacaoPrendeAcao(p)) return false;
+  return magiasOfensivasDoAtor(p, catalogos).some((m) => ehMagiaInstantanea(m) && !m.evocacao_bloqueada);
+}
+// O débito da ação de uma magia: a instantânea marca a cota, as outras pagam 1 PA.
+function debitarAcaoDaMagia(p, magia) {
+  if (!p) return p;
+  if (ehMagiaInstantanea(magia)) return { ...p, instantanea_usada: true };
+  return { ...p, pa_rest: Math.max(0, (p.pa_rest || 0) - 1) };
+}
+
+function paParaAtaque(p, tipo, magia) {
   if (!p) return false;
+  if (tipo === 'magia' && magia && ehMagiaInstantanea(magia)) return !p.instantanea_usada;
   if ((p.pa_rest || 0) > 0) return true;
   return tipo === 'arma' && (p.pa_ataque_extra || 0) > 0;
 }
 
-function debitarCustoAtaque(p, tipo, custoKarma) {
+function debitarCustoAtaque(p, tipo, custoKarma, magia) {
   const k = Math.max(0, custoKarma || 0);
+  if (tipo === 'magia' && magia && ehMagiaInstantanea(magia)) {
+    return { ...p, instantanea_usada: true, karma: Math.max(0, (p.karma || 0) - k) };
+  }
   const usaExtra = tipo === 'arma' && (p.pa_ataque_extra || 0) > 0;
   return {
     ...p,
@@ -7220,9 +7282,9 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu, falhou
     const { evocando, ...semEvocacao } = ator;
     next[atorIdx] = semEvocacao;
   } else {
+    // A instantânea não gasta PA, só a cota da rodada (debitarAcaoDaMagia).
     next[atorIdx] = {
-      ...ator,
-      pa_rest: Math.max(0, (ator.pa_rest || 0) - 1),
+      ...debitarAcaoDaMagia(ator, magia),
       karma:   Math.max(0, (ator.karma   || 0) - k),
     };
   }
@@ -8348,6 +8410,26 @@ function listaParaConsulta(tipo, ator, catalogos) {
   }).filter(Boolean).sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt'));
 }
 
+/* A MAGIA E O NÍVEL NO PAINEL (18/11/2026, usuário: "Incluir descrição da
+   magia, e do nível"). Aba Magia e aba Apoio: o que a magia é (descrição do
+   catálogo) e o que ela faz no nível escolhido (nivel_N, já em magia.descricao). */
+function DescricaoDaMagia({ magia, isEn }) {
+  if (!magia) return null;
+  const geral = (magia.catalogo && magia.catalogo.descricao) || '';
+  const doNivel = magia.descricao || '';
+  if (!geral && !doNivel) return null;
+  return (
+    <>
+      {geral && <p className="acao-efeito-texto acao-magia-descricao">{geral}</p>}
+      {doNivel && (
+        <p className="acao-efeito-texto acao-magia-nivel">
+          <strong>{isEn ? 'Level' : 'Nível'} {magia.nivel}:</strong> {doNivel}
+        </p>
+      )}
+    </>
+  );
+}
+
 function ConsultaModal({ tipo, ator, catalogos, isEn, lang, onClose }) {
   const lista = listaParaConsulta(tipo, ator, catalogos);
   const TITULO = { magia: isEn ? 'Spells' : 'Magias', tecnica: isEn ? 'Techniques' : 'Técnicas', habilidade: isEn ? 'Skills' : 'Habilidades' };
@@ -8397,13 +8479,16 @@ function tecnicaNoEscopo(t, escopo) {
 }
 
 function BotoesDoTurno({ ator, catalogos, isEn, tb, travado, motivoTravado, onAcao, mover, onEncerrar,
-  encerrarDesativado, abrirTip, fecharTip, escopo = null }) {
+  encerrarDesativado, abrirTip, fecharTip, escopo = null, semAcao = false }) {
   const pessoal = escopo === 'pessoal';
   const temArma = !pessoal && !!catalogos && ataquesDoAtor(ator, catalogos).length > 0;
   const temMagia = !pessoal && !!catalogos && magiasOfensivasDoAtor(ator, catalogos).length > 0;
   const temApoio = !!catalogos && magiasDeApoioDoAtor(ator, catalogos).some((m) => apoioNoEscopo(m, escopo));
   const temTecnica = !!catalogos && tecnicasDoAtor(ator, catalogos).some((t) => tecnicaNoEscopo(t, escopo));
   const temItem = !!catalogos && itensDeCombateDoAtor(ator, catalogos).length > 0;
+  const instantaneaLivre = semAcao && !!catalogos && !(ator && ator.instantanea_usada)
+    && (pessoal ? [] : magiasOfensivasDoAtor(ator, catalogos)).concat(magiasDeApoioDoAtor(ator, catalogos))
+      .some((m) => ehMagiaInstantanea(m) && !m.evocacao_bloqueada);
   const motivoDe = {
     arma: !temArma ? (isEn ? 'No weapon in hand.' : 'Nenhuma arma empunhada.')
       : !podeAtacarAgora(ator) ? tb.semAtacarBloqueado : null,
@@ -8432,9 +8517,12 @@ function BotoesDoTurno({ ator, catalogos, isEn, tb, travado, motivoTravado, onAc
       {ACOES.map(([aba, icone]) => {
         const rot = rotuloDaAcao(aba, isEn);
         const motivo = motivoDe[aba];
+        /* Sem PA, só o que não custa PA (18/11/2026): o item, e a magia
+           instantânea ainda não usada na rodada. */
+        const livreSemPa = !evocacaoPrendeAcao(ator) && (aba === 'item' || (aba === 'magia' && instantaneaLivre));
         return (
           <BotaoAcaoMenu key={aba} icone={icone} rotulo={rot} comRotulo extraClasse={'batalha-turno-' + aba}
-            disabled={travado || !!motivo}
+            disabled={travado || (semAcao && !livreSemPa) || !!motivo}
             onClick={() => onAcao(aba === 'magia' && !temMagia ? 'apoio' : aba)}
             motivo={motivoDoBotao(motivo)} abrirTip={abrirTip} fecharTip={fecharTip} />
         );
@@ -9440,7 +9528,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     setError(null);
     try {
       const { pools, magiasByKey, dataJogo } = await carregarBaseDosSnapshots();
-      const snaps0 = await montarSnapshots(crus, pools, magiasByKey, dataJogo);
+      // O d10 da iniciativa extra de quem chega (rolarIniciativaDosReforcos).
+      const snaps0 = await montarSnapshots(rolarIniciativaDosReforcos(crus), pools, magiasByKey, dataJogo);
       // O reforço converte o prazo pela rodada que vai encontrar: a mesa + ele.
       const snaps = prazosDaFichaEmRodadas(snaps0, dataJogo, segundosDaRodada([...participantes, ...snaps0]));
       const next = [...participantes, ...prepararReforcos(snaps, rodada)];
@@ -9757,7 +9846,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       // A pendente já pagou na vez do conjurador; aqui ela só sai dele.
       const { magia_pendente, ...semPendente } = next[atorIdx];
       next[atorIdx] = semPendente;
-    } else next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k);
+    } else next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k, tipo === 'magia' ? magia : null);
     // Magia ofensiva tambem queima a Oferenda: ela vale para UMA magia, seja
     // ela de ataque ou de apoio.
     if (tipo === 'magia' && !resolvendoPendente) next[atorIdx] = consumirOferenda(next[atorIdx], magia);
@@ -10248,8 +10337,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     // Aplica o efeito (se houver) no snapshot do ator.
     next[atorIdx] = aplicarEfeitoItemSnapshot(next[atorIdx], cat, qtd);
-    // Debita 1 PA (mesmo custo de qualquer ação do turno).
-    next[atorIdx] = { ...next[atorIdx], pa_rest: Math.max(0, (next[atorIdx].pa_rest || 0) - 1) };
+    // Usar item NÃO gasta PA (18/11/2026, usuário: "Usar item não gasta ação").
 
     // PA zerado OU ator incapacitado pelo próprio item (efeito negativo
     // derrubou/matou) → auto-passa a vez (mesmo comportamento do lado do
@@ -11442,7 +11530,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                 {/* UMA AÇÃO POR MODAL (08/11/2026): os botões do turno são os mesmos
                     do jogador (BotoesDoTurno); cada um abre só a ação dele. */}
                 {estado === 'ativa' && p.atual && !aguardandoRevelar && (() => {
-                  const travado = salvando || !catalogos || !temAcaoRestante(p) || rolagemPendente;
+                  const travado = salvando || !catalogos || rolagemPendente;
                   /* O card de quem age é de USO PESSOAL (10/11/2026, usuário: "Ao
                      selecionar o avatar do próprio combatente durante sua ação,
                      aparece o menu de ataque. Mas o menu de ataque só aparece ao
@@ -11451,6 +11539,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                   return (
                     <BotoesDoTurno ator={p} catalogos={catalogos} isEn={isEn} tb={tb}
                       travado={travado} motivoTravado={rolagemPendente ? tb.concluaARolagemPendente : null}
+                      semAcao={!temAcaoRestante(p)}
                       onAcao={abrirAba} mover={mover} escopo="pessoal"
                       onEncerrar={() => { fechar(); passarVez(); }}
                       encerrarDesativado={salvando || rolagemPendente}
@@ -11513,7 +11602,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                       {temMagia && (
                         <BotaoAcaoMenu icone="ti-comet" comRotulo
                           rotulo={isEn ? 'Attack with spell' : 'Atacar com magia'}
-                          disabled={bloqueado} onClick={() => abrir('magia')}
+                          disabled={salvando || rolagemPendente || (!temAcaoRestante(current) && !temInstantaneaLivre(current, catalogos))} onClick={() => abrir('magia')}
                           abrirTip={abrirTip} fecharTip={fecharTip} />
                       )}
                       {temTecnica && (
@@ -12707,7 +12796,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const [nivelApoioSel, setNivelApoioSel] = useState(Number.isFinite(selSalva.nivelApoioSel) ? selSalva.nivelApoioSel
     : (evApoioIdx >= 0 ? evNivel : null));
   const magiaBase = magias[magiaIdx] || null;
-  const magia = magiaNoNivel(magiaBase, nivelMagiaSel);
+  const magia = magiaNoNivel(magiaBase, nivelMagiaSel != null ? nivelMagiaSel : nivelQueOKarmaPaga(magiaBase, ator.karma));
   /* KARMA NA COLUNA (07/11/2026, usuário): "Ao selecionar uma magia para
      usar, é necessário perguntar ao evocador qual nível a ser usado e quanto
      de karma será usado na magia. O karma define a coluna de ataque da
@@ -12731,7 +12820,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
 
   // ── Tab APOIO ──────────────────────────────────────────────
   const apoioBase = magiasApoio[apoioIdx] || null;
-  const apoioSel = magiaNoNivel(apoioBase, nivelApoioSel);
+  const apoioSel = magiaNoNivel(apoioBase, nivelApoioSel != null ? nivelApoioSel : nivelQueOKarmaPaga(apoioBase, ator.karma));
 
   /* ── ABA MAGIAS (13/09/2026) ────────────────────────────────────
      "Porque temos um menu chamado 'apoio'? Ele deve se chamar magias." Eram
@@ -13062,7 +13151,12 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   const temPaTecnica = (ator.pa_tecnica_rest || 0) > 0;
   const semPaParaTecnica = semPA && !temPaTecnica;
   // Arma pode pagar com o ataque extra; magia, não (paParaAtaque).
-  const semPaParaAtaque = (tab === 'arma' || tab === 'magia') && !paParaAtaque(ator, tab);
+  const semPaParaAtaque = (tab === 'arma' || tab === 'magia') && !paParaAtaque(ator, tab, tab === 'magia' ? magia : null);
+  // Instantânea: não pede PA, mas é uma por rodada (ehMagiaInstantanea).
+  const magiaDaAba = tab === 'magia' ? magia : (tab === 'apoio' ? apoioSel : null);
+  const abaInstantanea = !!magiaDaAba && ehMagiaInstantanea(magiaDaAba);
+  const instantaneaUsada = abaInstantanea && !!ator.instantanea_usada;
+  const semPaParaApoio = abaInstantanea ? instantaneaUsada : semPA;
 
   // Resultado primário que exige segundo dado:
   //   q=0 (FC, verde) → consequência contra SI MESMO (FALHA_CRITICA_TABELA,
@@ -13190,7 +13284,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
          O karma NÃO é cobrado de novo na resolução (passoDeApoio sabe disso),
          então quem está concluindo uma canalização não precisa ter o karma
          outra vez — daí a checagem só valer na largada. */
-      ? (!semPA && !!apoioSel && !!alvoApoio
+      ? (!semPaParaApoio && !!apoioSel && !!alvoApoio
          && !apoioSel.evocacao_bloqueada
          && !apoioSel.bloqueio_milagre
          && !apoioForaDeAlcance
@@ -13201,7 +13295,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             quando o conjurador não tem a habilidade na ficha. */
          && (!magiaPedeTeste || (!semHabDoTeste && d20 != null)))
     : (tab === 'item')
-      ? (!semPA && !!itemSelecionado && itemQtd >= 1 && itemQtd <= itemSelecionado.quantidade)
+      ? (!!itemSelecionado && itemQtd >= 1 && itemQtd <= itemSelecionado.quantidade)
     : false;
 
   // Rolagem comprometida: a partir do momento em que existe um resultado de
@@ -13886,9 +13980,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             {acaoNaLinha}
           </div>
 
-          {magia && magia.descricao && (
-            <p className="acao-efeito-texto">{magia.descricao}</p>
-          )}
+          <DescricaoDaMagia magia={magia} isEn={isEn} />
 
           {/* Evocação pronta: o que fazer agora (13/09/2026). */}
           {resolvendoEvocacao && (
@@ -14234,6 +14326,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
               )}
               {acaoNaLinha}
             </div>
+            <DescricaoDaMagia magia={apoioSel} isEn={isEn} />
             {apoioSel && (
               <div className="acao-item-efeito">
                 <strong>{tb.efeito}:</strong>{' '}
@@ -14492,7 +14585,13 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           aqui com pa_rest 0 e ainda pode atacar, e o aviso vermelho dizia
           que não podia fazer nada. Agora as duas situações têm textos
           diferentes: sem nada, e só-o-extra. */}
-      {semPA && (
+      {instantaneaUsada ? (
+        <div className="acao-karma-line">
+          <strong className="neg">
+            {isEn ? 'Already cast an instant spell this round.' : 'Já usou a magia instantânea desta rodada.'}
+          </strong>
+        </div>
+      ) : semPA && tab !== 'item' && !abaInstantanea && (
         <div className="acao-karma-line">
           <strong className="neg">
             {(ator.pa_ataque_extra || 0) > 0 ? tb.soAtaqueExtraDisponivel
@@ -15133,7 +15232,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Flechadas Múltiplas) consome pa_ataque_extra em vez de pa_rest — só
     // na aba Arma. Técnica, magia, habilidade e item continuam pagando
     // pa_rest (ver aplicarTeste/aplicarEfeitoItem, que não tocam este bloco).
-    next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k);
+    next[atorIdx] = debitarCustoAtaque(next[atorIdx], tipo, k, tipo === 'magia' ? magia : null);
     // Magia ofensiva tambem queima a Oferenda: ela vale para UMA magia, seja
     // ela de ataque ou de apoio.
     if (tipo === 'magia') next[atorIdx] = consumirOferenda(next[atorIdx], magia);
@@ -15460,7 +15559,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Usar item é uma ação: quebra a concentração — espelha aplicarItem.
     next = [...quebrarConcentracao(next, next[idx].inst_id)];
     next[idx] = aplicarEfeitoItemSnapshot(next[idx], cat, qtd);
-    next[idx] = { ...next[idx], pa_rest: Math.max(0, (next[idx].pa_rest || 0) - 1) };
+    // Usar item NÃO gasta PA (18/11/2026) — espelha aplicarItem.
     const rVez = autoPassarSeNecessario(next, meuParticipante);
     next = rVez.participantes;
     const rodadaNova = rVez.rodadaNova;
@@ -15935,7 +16034,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                               })()}
                               {naVez && (
                                 <BotoesDoTurno ator={p} catalogos={catalogos} isEn={isEn} tb={tb}
-                                  travado={salvando || rolagemPendente || !temAcaoRestante(p)}
+                                  travado={salvando || rolagemPendente}
+                                  semAcao={!temAcaoRestante(p)}
                                   motivoTravado={rolagemPendente ? tb.concluaARolagemPendente : null}
                                   onAcao={(aba) => abrirAcao(aba, undefined, 'pessoal')} mover={mover} escopo="pessoal"
                                   onEncerrar={() => { fechar(); handlePassar(); }}
@@ -16001,7 +16101,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                                   )}
                                   {temMagia && (
                                     <BotaoAcaoMenu icone="ti-sparkles" comRotulo rotulo={rotuloDaAcao('magia', isEn)}
-                                      disabled={bloqueado} onClick={() => abrirAcao('magia', p.inst_id)}
+                                      disabled={salvando || rolagemPendente || (!temAcaoRestante(meuParticipante) && !temInstantaneaLivre(meuParticipante, catalogos))} onClick={() => abrirAcao('magia', p.inst_id)}
                                       abrirTip={abrirTip} fecharTip={fecharTip} />
                                   )}
                                   {temTecnica && (
@@ -16320,7 +16420,7 @@ Object.assign(window, {
     efeitoAncoraNoAtacante,
     tetoDeAlvos,
     alvosExtrasEfetivos,
-    debitarCustoAtaque, paParaAtaque, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel, condicoesAoEncerrar,
+    debitarCustoAtaque, paParaAtaque, rolarIniciativaDosReforcos, ehMagiaInstantanea, temInstantaneaLivre, nivelQueOKarmaPaga, instantaneaJaUsada, debitarAcaoDaMagia, acoesDaRodadaNova, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel, condicoesAoEncerrar,
     itemAindaNaMochila,
     // O tempo da batalha (14/11/2026): 30 s × combatentes por rodada.
     SEGUNDOS_POR_ACAO, combatentesQueAgem, segundosDaRodada, duracaoDaBatalhaSegundos,

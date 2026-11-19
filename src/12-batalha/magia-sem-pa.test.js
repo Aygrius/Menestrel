@@ -53,9 +53,40 @@ describe('modo automático com só o ataque extra', () => {
   it('com PA, começa pela magia (controle)', () => {
     expect(M.decidirJogadaAutomatica(mago(), [mago(), alvo], CAT)).toMatchObject({ aba: 'magia' });
   });
-  it('com pa_rest 0 e um extra, ataca com a arma em vez da magia', () => {
-    const eu = mago({ pa_rest: 0, pa_ataque_extra: 1 });
+  it('com pa_rest 0, um extra e a instantânea já usada, ataca com a arma', () => {
+    const eu = mago({ pa_rest: 0, pa_ataque_extra: 1, instantanea_usada: true });
     expect(M.decidirJogadaAutomatica(eu, [eu, alvo], CAT)).toMatchObject({ tipo: 'acao', aba: 'arma' });
+  });
+  it('com pa_rest 0 e a instantânea livre, lança a magia (18/11/2026)', () => {
+    const eu = mago({ pa_rest: 0, pa_ataque_extra: 1 });
+    expect(M.decidirJogadaAutomatica(eu, [eu, alvo], CAT)).toMatchObject({ tipo: 'acao', aba: 'magia' });
+  });
+});
+
+/* 18/11/2026 — "Magias de Evocação Instantânea não gastam ponto de ação, mas
+   limitado em uma magia na rodada." */
+describe('evocação instantânea: sem PA, uma por rodada', () => {
+  const INST = { key: 'dardos', nome: 'Dardos', evocacao: 'Instantânea' };
+  const CANAL = { key: 'meteoros', nome: 'Meteoros', evocacao: '5 rodadas' };
+  it('reconhece a instantânea (e a sem evocação), não a canalizada nem o ritual', () => {
+    expect(M.ehMagiaInstantanea(INST)).toBe(true);
+    expect(M.ehMagiaInstantanea({ key: 'x' })).toBe(true);
+    expect(M.ehMagiaInstantanea({ catalogo: INST })).toBe(true);
+    expect(M.ehMagiaInstantanea(CANAL)).toBe(false);
+    expect(M.ehMagiaInstantanea({ evocacao: 'Ritual' })).toBe(false);
+  });
+  it('a instantânea paga sem PA, uma vez; a segunda trava', () => {
+    expect(M.paParaAtaque({ pa_rest: 0 }, 'magia', INST)).toBe(true);
+    const r = M.debitarCustoAtaque({ pa_rest: 1, karma: 5 }, 'magia', 2, INST);
+    expect(r).toMatchObject({ pa_rest: 1, karma: 3, instantanea_usada: true });
+    expect(M.paParaAtaque(r, 'magia', INST)).toBe(false);
+  });
+  it('a canalizada segue pagando 1 PA', () => {
+    expect(M.paParaAtaque({ pa_rest: 0 }, 'magia', CANAL)).toBe(false);
+    expect(M.debitarCustoAtaque({ pa_rest: 1, karma: 5 }, 'magia', 0, CANAL)).toMatchObject({ pa_rest: 0 });
+  });
+  it('a virada devolve a cota', () => {
+    expect(M.acoesDaRodadaNova({ pa_max: 1, instantanea_usada: true }).instantanea_usada).toBe(false);
   });
 });
 
@@ -63,7 +94,7 @@ describe('modo automático com só o ataque extra', () => {
 describe('AcaoPanel exige PA para lançar magia', () => {
   const fonte = fs.readFileSync(path.resolve(__dirname, 'batalha.jsx'), 'utf8');
   it('semPaParaAtaque nasce de paParaAtaque', () => {
-    expect(fonte).toMatch(/const semPaParaAtaque = \(tab === 'arma' \|\| tab === 'magia'\) && !paParaAtaque\(ator, tab\);/);
+    expect(fonte).toMatch(/const semPaParaAtaque = \(tab === 'arma' \|\| tab === 'magia'\) && !paParaAtaque\(ator, tab, tab === 'magia' \? magia : null\);/);
   });
   it('o Atacar (resolução) e o dado de arma e de magia conferem', () => {
     expect(fonte).toMatch(/!!res && !semKarma && !semPaParaAtaque && alvo/);
