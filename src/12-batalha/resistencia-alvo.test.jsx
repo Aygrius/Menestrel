@@ -109,3 +109,41 @@ describe('a janela: 2d10 de uma vez', () => {
     expect(screen.queryByRole('button', { name: /cancelar/i })).toBeNull();
   });
 });
+
+/* 18/11/2026: "Sim, o alvo. Se ele quiser, se não quiser rolar, o efeito é
+   aplicado automaticamente." A magia de apoio que pede resistência também
+   espera o alvo, e a janela tem "Não resistir". */
+describe('o apoio espera o alvo; não resistir aplica o efeito', () => {
+  const SONO = { key: 'sono', nome: 'Sono', evocacao: 'Instantânea', alcance: '10 metros',
+    descricao: 'Com esta magia, o alvo adormece, se falhar em um teste de resistência mágica.',
+    nivel_1: 'O alvo dorme por 2 rodadas.' };
+  const mago = { tipo: 'pj', inst_id: 'pj:1', ref_id: 1, nome: 'Mago', status: 'ativo', pa_rest: 1, karma: 5 };
+  const orc = { tipo: 'criatura', inst_id: 'cri:9', ref_id: 9, nome: 'Orc', status: 'ativo', rm: 2, status_temp: [] };
+  const magia = { key: 'sono', nome: 'Sono', nivel: 1, resistencia: 'rm', catalogo: SONO };
+  it('passoDeApoio deixa a pendência no alvo, sem o efeito', () => {
+    const r = M.passoDeApoio([mago, orc], 0, 1, magia, 1, false, false, false);
+    expect(r.fase).toBe('resolveu');
+    const [pend] = M.resistenciasPendentes(r.participantes[1]);
+    expect(pend).toMatchObject({ tipo: 'rm', forca_ataque: 1, efeito: { kind: 'apoio', magia: { key: 'sono', nivel: 1 } } });
+    expect(r.participantes[1].status_temp).toEqual([]);
+  });
+  it('não resistir tira a pendência e aplica o efeito', () => {
+    const r = M.passoDeApoio([mago, orc], 0, 1, magia, 1, false, false, false);
+    const alvo = r.participantes[1];
+    const [pend] = M.resistenciasPendentes(alvo);
+    const out = M.aceitarResistenciaPendente(alvo, pend.id, { magiasByKey: { sono: SONO } });
+    expect(out.participante.resistencias_pendentes).toBeUndefined();
+    expect(M.entradaLogAceitou(alvo, pend, 2)).toMatchObject({ tipo_teste: 'resistencia', resultado: 'falhou', aceitou: true });
+  });
+  it('a janela oferece "Não resistir" antes de rolar', () => {
+    const onAceitar = vi.fn();
+    render(<div className="menestrel-ui"><M.RolagemResistencia alvo={{ nome: 'Orc' }} lang="pt"
+      pend={{ id: 'r', tipo: 'rm', forca_ataque: 3, forca_defesa: 2, alvo_resist: 12, nome: 'Sono' }}
+      onResultado={() => {}} onAceitar={onAceitar} /></div>);
+    fireEvent.click(screen.getByRole('button', { name: 'Não resistir' }));
+    expect(onAceitar).toHaveBeenCalled();
+  });
+  it('a aba Resistência rola na mesma janela', () => {
+    expect(fonte).toMatch(/overlayAberto === 'primario' && tab === 'resistencia' && alvoResist != null && \(\s+<RolagemResistencia/);
+  });
+});

@@ -2657,7 +2657,7 @@ function forcaDeDefesaDe(alvo, tipo) {
   const v = tipo === 'rm' ? rmEfetivo(alvo) : rfEfetivo(alvo);
   return Math.max(1, Math.min(20, Math.round(Number(v) || 0)));
 }
-function criarResistenciaPendente(alvo, { tipo, forca, nome, autor, rodada, efeito }) {
+function criarResistenciaPendente(alvo, { tipo, forca, nome, autor, rodada, efeito, aliado = false }) {
   const fa = Math.max(1, Math.min(20, Math.round(Number(forca) || 1)));
   const fd = forcaDeDefesaDe(alvo, tipo);
   const resolver = typeof resolverResistencia === 'function' ? resolverResistencia : null;
@@ -2670,6 +2670,8 @@ function criarResistenciaPendente(alvo, { tipo, forca, nome, autor, rodada, efei
     autor_nome: (autor && autor.nome) || null,
     autor_inst_id: (autor && autor.inst_id) || null,
     rodada: rodada != null ? rodada : null,
+    // Veio de alguém do mesmo lado (um reforço): o automático aceita sem rolar.
+    ...(aliado ? { aliado: true } : {}),
     efeito: efeito || null,
   };
 }
@@ -2695,6 +2697,12 @@ function aplicarEfeitoNaoResistido(p, pend, catalogos) {
       return { ...p, status_temp: [...(Array.isArray(p.status_temp) ? p.status_temp : []), st] };
     }
     return aplicarDanoDiretoEF(ef, p);
+  }
+  if (e.kind === 'apoio') {
+    // A magia de apoio (Sono, Medo…): o mesmo efeito que aplicarEfeitoApoio dava na hora.
+    const cat = catalogos && catalogos.magiasByKey ? catalogos.magiasByKey[e.magia && e.magia.key] : null;
+    if (!cat || p.status === 'morto') return p;
+    return aplicarEfeitoApoio(p, { ...e.magia, catalogo: cat }, e.fonte_inst_id || null);
   }
   if (e.kind === 'magia') {
     const cat = catalogos && catalogos.magiasByKey ? catalogos.magiasByKey[e.magia_key] : null;
@@ -2727,6 +2735,28 @@ function entradaLogResistencia(p, pend, soma, desfecho, rodada) {
   };
 }
 // Quem rola a resistência deste combatente: 'mestre' (criatura sem dono) ou o id do PJ.
+/* NÃO RESISTIR (18/11/2026, usuário: "Se ele quiser, se não quiser rolar, o
+   efeito é aplicado automaticamente"): o efeito entra sem rolagem. */
+function aceitarResistenciaPendente(p, id, catalogos) {
+  const lista = resistenciasPendentes(p);
+  const pend = lista.find((x) => x && x.id === id) || null;
+  if (!pend) return { participante: p, pend: null };
+  const resto = lista.filter((x) => x && x.id !== id);
+  const { resistencias_pendentes, ...semLista } = p;
+  const sem = resto.length ? { ...semLista, resistencias_pendentes: resto } : semLista;
+  return { participante: aplicarEfeitoNaoResistido(sem, pend, catalogos), pend };
+}
+// A pendência de uma magia de apoio: o efeito vai inteiro, guardado para depois.
+function pendenciaDoApoio(alvo, magia, autor) {
+  const cat = (magia && magia.catalogo) || magia || {};
+  return criarResistenciaPendente(alvo, {
+    tipo: magia.resistencia, forca: magia.nivel, nome: magia.nome || cat.nome, autor,
+    aliado: !!autor && ladoNaBatalha(autor) === ladoNaBatalha(alvo),
+    efeito: { kind: 'apoio', fonte_inst_id: (autor && autor.inst_id) || null,
+      magia: { key: magia.key, nome: magia.nome || cat.nome, nivel: magia.nivel, mod_vb: magia.mod_vb,
+        rodadas: magia.rodadas, concentracao: !!magia.concentracao } },
+  });
+}
 function quemRolaResistencia(p) {
   if (!p) return null;
   if (p.tipo === 'pj') return String(p.ref_id);
@@ -4514,7 +4544,9 @@ function resumoDaUltimaRodada(p, log, isEn = false) {
       const nome = e.tipo_teste === 'resistencia'
         ? (isEn ? 'Resistance test' : 'Teste de resistência') + (e.resistencia_de ? ' · ' + e.resistencia_de : '') : e.nome;
       const res = e.tipo_teste === 'resistencia'
-        ? (e.resultado === 'resistiu' ? (isEn ? 'Resisted' : 'Resistiu') : e.resultado === 'falhou' ? (isEn ? 'Did not resist' : 'Não resistiu') : null)
+        ? (e.resultado === 'resistiu' ? (isEn ? 'Resisted' : 'Resistiu')
+          : e.aceitou ? (isEn ? 'Did not roll' : 'Não rolou')
+          : e.resultado === 'falhou' ? (isEn ? 'Did not resist' : 'Não resistiu') : null)
         : (e.passou === true ? (isEn ? 'Passed' : 'Passou') : e.passou === false ? (isEn ? 'Failed' : 'Falhou') : resultado);
       return { icone: 'ti-dice-5', acao: nome, alvo: null, resultado: res, critico: !!e.critico };
     }
@@ -7566,6 +7598,8 @@ function textoPassoDeApoio(fase, nomeAtor, magia, nomeAlvo, resistiu) {
       ? `${nomeAtor} lançou ${magia.nome} — falhou no teste de ${t.habilidade}`
       : `${nomeAtor} lançou ${magia.nome} — falhou no teste`;
   }
+  // A resistência agora é do alvo (18/11/2026): ainda não se sabe se pegou.
+  if (magia.resistencia) return `${nomeAtor} lançou ${magia.nome} em ${nomeAlvo} — falta o teste de resistência`;
   if (resistiu) return `${nomeAtor} lançou ${magia.nome} em ${nomeAlvo} — resistiu`;
   return `${nomeAtor} lançou ${magia.nome} em ${nomeAlvo} (${textoEfeitoMagia(magia)})`;
 }
@@ -7659,13 +7693,18 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu, falhou
   if (falhouTeste) return { participantes: next, fase: 'falhou_teste' };
 
   const reg = magiaEfeitoDe(magia.key);
+  /* A RESISTÊNCIA É DO ALVO (18/11/2026): com teste no texto, o alvo rola
+     2d10 depois (ou aceita) — ver A RESISTÊNCIA DO ALVO. */
+  const efeitoEm = (p) => (magia.resistencia
+    ? comResistenciaPendente(p, pendenciaDoApoio(p, magia, next[atorIdx]))
+    : aplicarEfeitoApoio(p, magia, next[atorIdx].inst_id));
   if (reg && reg.area === 'aura') {
     const atingidos = alvosDeAura(cat, next[atorIdx], next, magia.nivel);
     if (atingidos && atingidos.length) {
       const ids = new Set(atingidos.map((p) => p.inst_id));
       for (let i = 0; i < next.length; i++) {
         if (ids.has(next[i].inst_id)) {
-          next[i] = aplicarEfeitoApoio(next[i], magia, next[atorIdx].inst_id);
+          next[i] = efeitoEm(next[i]);
         }
       }
       return { participantes: next, fase: 'resolveu', atingidos: atingidos.map((p) => p.nome) };
@@ -7677,15 +7716,15 @@ function passoDeApoio(arr, atorIdx, alvoIdx, magia, custoKarma, resistiu, falhou
   const alvoP = next[alvoIdx];
   const alvoSumiu = !alvoP || alvoP.status === 'morto' || alvoP.status === 'desistiu'
     || !alvoPermitidoParaMagia(alvoP, magia.key, cat, magia.nivel).pode;
-  if (resistiu || alvoSumiu) {
+  if (resistiu === true || alvoSumiu) {
     return { participantes: next, fase: alvoSumiu ? 'perdeu' : 'resolveu' };
   }
-  next[alvoIdx] = aplicarEfeitoApoio(alvoP, magia, next[atorIdx].inst_id);
+  next[alvoIdx] = efeitoEm(alvoP);
   /* ATÉ N ALVOS (10/11/2026: Restauração Coletiva, Súplica à Ganis, Espírito
      Felino, Peso de Selimon). O alvo escolhido e mais N−1 do mesmo lado dele,
      dentro do alcance — ver extrasDoApoio. */
   const extras = (reg && reg.alvos_auto) ? extrasDoApoio(next, atorIdx, alvoIdx, magia, cat) : [];
-  extras.forEach((i) => { next[i] = aplicarEfeitoApoio(next[i], magia, next[atorIdx].inst_id); });
+  extras.forEach((i) => { next[i] = efeitoEm(next[i]); });
   if (extras.length) {
     return { participantes: next, fase: 'resolveu', extras: extras.map((i) => next[i].inst_id),
       atingidos: [alvoP.nome, ...extras.map((i) => next[i].nome)] };
@@ -9897,13 +9936,31 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     }
     persistir({ participantes: next, log: novoLog /* a rolagem é de quem está agindo */ }, () => { setParticipantes(next); setLog(novoLog); });
   };
+  const aceitarResistenciaDoAlvo = (alvo, pendId) => {
+    const idx = participantes.findIndex((q) => mesmoParticipante(q, alvo));
+    if (idx < 0) return;
+    const antes = participantes[idx];
+    const r = aceitarResistenciaPendente(antes, pendId, catalogos);
+    if (!r.pend) return;
+    const next = participantes.map((q, i) => (i === idx ? r.participante : q));
+    const novoLog = [...log, entradaLogAceitou(antes, r.pend, rodada)];
+    if (historia && historia.id) {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historia.id, p_tipo: 'teste', p_texto: textoResistenciaNaMesa(antes, r.pend, null, 'falhou'),
+        p_meta: { batalha_id: batalha.id, rodada, resistencia_tipo: r.pend.tipo, resultado: 'falhou', aceitou: true },
+      }).then(({ error: rpcErr }) => { if (rpcErr) console.error('[batalha] registrar_evento_mesa (resistência) falhou:', rpcErr); }));
+    }
+    persistir({ participantes: next, log: novoLog /* a rolagem é de quem está agindo */ }, () => { setParticipantes(next); setLog(novoLog); });
+  };
   const resistAgora = estado === 'ativa' ? proximaResistencia(participantes, resistenciaDoMestre) : null;
   // Quem joga no automático resiste sozinho: a mesa não para esperando um clique.
   const chaveResistAuto = resistAgora && resistAgora.alvo.auto ? resistAgora.pend.id : null;
   useEffect(() => {
     if (!chaveResistAuto || salvando || !resistAgora) return undefined;
-    const t = setTimeout(() => resolverResistenciaDoAlvo(resistAgora.alvo, resistAgora.pend.id,
-      somaAutomaticaDaResistencia(resistAgora.pend)), 600);
+    // O que vem de aliado (um reforço) o automático aceita; o resto, resiste.
+    const t = setTimeout(() => (resistAgora.pend.aliado
+      ? aceitarResistenciaDoAlvo(resistAgora.alvo, resistAgora.pend.id)
+      : resolverResistenciaDoAlvo(resistAgora.alvo, resistAgora.pend.id, somaAutomaticaDaResistencia(resistAgora.pend))), 600);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chaveResistAuto, salvando]);
@@ -12139,7 +12196,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     )}
     {resistAgora && !resistAgora.alvo.auto && (
       <RolagemResistencia key={resistAgora.pend.id} alvo={resistAgora.alvo} pend={resistAgora.pend} lang={lang}
-        ocupado={salvando} onResultado={(soma) => resolverResistenciaDoAlvo(resistAgora.alvo, resistAgora.pend.id, soma)} />
+        ocupado={salvando} onResultado={(soma) => resolverResistenciaDoAlvo(resistAgora.alvo, resistAgora.pend.id, soma)}
+        onAceitar={() => aceitarResistenciaDoAlvo(resistAgora.alvo, resistAgora.pend.id)} />
     )}
     {iniReforco && (
       <ModalDadoReal key={iniReforco.valores.length} faces={10} lang={lang}
@@ -12576,7 +12634,14 @@ function somaAutomaticaDaResistencia(pend) {
   }
   return 20;
 }
+function entradaLogAceitou(p, pend, rodada) {
+  return { ...entradaLogResistencia(p, pend, null, 'falhou', rodada), aceitou: true, dados: null };
+}
 function textoResistenciaNaMesa(alvo, pend, soma, desfecho) {
+  if (soma == null) {
+    const q = typeof primeiroNome === 'function' ? primeiroNome(alvo.nome) : alvo.nome;
+    return `${q} não resistiu a ${pend.nome} (não rolou)`;
+  }
   const quem = typeof primeiroNome === 'function' ? primeiroNome(alvo.nome) : alvo.nome;
   return `${quem} ${desfecho === 'resistiu' ? 'resistiu' : 'não resistiu'} a ${pend.nome} (${pend.tipo === 'rm' ? 'RM' : 'RF'} · 2d10: ${soma}, precisava de mais de ${pend.alvo_resist})`;
 }
@@ -12587,7 +12652,7 @@ function textoResistenciaNaMesa(alvo, pend, soma, desfecho) {
    resistir é a regra, não uma escolha. Os dois d10 rolam juntos no 3D
    (Dado3D.rolarVarios); sem 3D, os dois 2D lado a lado. Com dado real, quem
    rola informa a soma que caiu na mesa. Empate: rola de novo. */
-function RolagemResistencia({ alvo, pend, lang, ocupado = false, onResultado }) {
+function RolagemResistencia({ alvo, pend, lang, ocupado = false, onResultado, onAceitar = null }) {
   const isEn = lang === 'en';
   const dadoReal = !!React.useContext(DadosReaisCtx);
   const [soma, setSoma] = useState(null);           // a soma, depois de rolar ou informar
@@ -12631,6 +12696,12 @@ function RolagemResistencia({ alvo, pend, lang, ocupado = false, onResultado }) 
     <ModalShell lang={lang} size="sm" extraClass="modal-resistencia"
       title={<>{tipoTxt} · {alvo.nome}</>}
       onClose={null}
+      /* "Se não quiser rolar, o efeito é aplicado" (18/11/2026). */
+      {...(onAceitar && soma == null && !rolando ? {
+        onCancel: () => { if (!ocupado) onAceitar(); },
+        cancelLabel: isEn ? 'Do not resist' : 'Não resistir',
+        cancelDisabled: ocupado,
+      } : {})}
       onConfirm={aoConfirmar}
       confirmLabel={confirmLabel}
       confirmDisabled={ocupado || rolando || (dadoReal && !desfecho && digitado == null)}>
@@ -13648,18 +13719,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
        avisa em vez de deixar rolar. */
     coluna = habTesteDaMagia.total + modColunaAtor;
     colunaClamped = Math.max(-7, Math.min(50, coluna));
-  } else if (tab === 'apoio' && apoioSel && apoioSel.resistencia && alvoApoio) {
-    // Força de ATAQUE = nível efetivo da magia; força de DEFESA = o RF/RM do
-    // alvo. Ambas presas em 1..20, que é o intervalo que resolverResistencia
-    // aceita (ele mesmo já faz o clamp, mas explicitar deixa o cálculo legível).
-    const fAtk = Math.max(1, Math.min(20, apoioSel.nivel));
-    // RF/RM EFETIVAS (Fase 1 das técnicas): Resistência à Dor / Extrema /
-    // Fúria sobem estes números enquanto o status durar.
-    const fDefBruta = apoioSel.resistencia === 'rm' ? rmEfetivo(alvoApoio) : rfEfetivo(alvoApoio);
-    const fDef = Math.max(1, Math.min(20, fDefBruta));
-    alvoResist = (typeof resolverResistencia === 'function')
-      ? resolverResistencia(fAtk, fDef) : null;
   } else if (tab === 'resistencia') {
+    // (A resistência da magia de APOIO saiu daqui em 18/11/2026: quem rola é
+    // o alvo, depois — ver A RESISTÊNCIA DO ALVO e pendenciaDoApoio.)
     alvoResist = (typeof resolverResistencia === 'function')
       ? resolverResistencia(forcaAtaque, forcaDefesa) : null;
   }
@@ -13838,7 +13900,6 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
          && !apoioForaDeAlcance
          && !evocacaoPendente
          && (evocandoAgora || (ator.karma || 0) >= apoioSel.custo_karma)
-         && (!apoioSel.resistencia || (d20 != null && resResist !== 'empate'))
          /* Magia com teste de habilidade só aplica depois de rolado — e nunca
             quando o conjurador não tem a habilidade na ficha. */
          && (!magiaPedeTeste || (!semHabDoTeste && d20 != null)))
@@ -13865,8 +13926,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
   // ficar pendente, e travar o painel aqui só prenderia o Mestre.
   // Apoio SEM dado: nem teste de resistência do alvo, nem teste de habilidade
   // do conjurador. Com qualquer um dos dois, o painel mostra o dado.
+  // A resistência é do alvo desde 18/11/2026: só o teste de habilidade rola aqui.
   const apoioSemDado = tab === 'apoio'
-    && !(apoioSel && (apoioSel.resistencia || apoioSel.teste_habilidade));
+    && !(apoioSel && apoioSel.teste_habilidade);
   const temRolagemPendente = tab !== 'item' && !apoioSemDado && d20 != null && !semAlvoPossivel;
 
   /* TERCEIRA saída: rolagem feita com o alvo FORA DE ALCANCE (13/09/2026).
@@ -13984,8 +14046,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
         ator, alvo: alvoApoio, magia: apoioSel,
         custo_karma: apoioSel.custo_karma,
         resistencia: apoioSel.resistencia || null,
-        d20: apoioSel.resistencia ? d20 : null,
-        resistiu: apoioSel.resistencia ? (resResist === 'resistiu') : false,
+        // Quem resiste é o alvo, depois (18/11/2026): o conjurador não rola.
+        d20: null,
+        resistiu: false,
         // Teste do conjurador: reprovado, a magia sai e não pega em ninguém.
         teste_habilidade: apoioSel.teste_habilidade || null,
         falhou_teste: magiaPedeTeste ? (passouTesteMagia === false) : false,
@@ -14942,8 +15005,13 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             {apoioSel && apoioSel.parcial === 'elo_animal' && (
               <p className="acao-karma-line">{tb.magiaParcialElo}</p>
             )}
-            {apoioSel && apoioSel.resistencia && resResist === 'resistiu' && (
-              <div className="err-msg">{tb.alvoResistiu}</div>
+            {/* Quem resiste é o alvo (18/11/2026): ele rola 2d10 ou aceita. */}
+            {apoioSel && apoioSel.resistencia && (
+              <p className="acao-karma-line">
+                {isEn
+                  ? `The target tests ${apoioSel.resistencia === 'rm' ? 'magic' : 'physical'} resistance afterwards — it may roll or accept.`
+                  : `O alvo testa a resistência ${apoioSel.resistencia === 'rm' ? 'mágica' : 'física'} depois — pode rolar ou aceitar.`}
+              </p>
             )}
             {/* De onde a magia vem, e o que isso custa. O karma zero precisa
                 de explicação na tela, senão parece bug. */}
@@ -15071,7 +15139,29 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
       )}
 
       {/* Overlay do dado primário */}
-      {overlayAberto === 'primario' && ((tab === 'resistencia' || tab === 'apoio') ? alvoResist != null : colunaClamped != null) && (
+      {/* A ABA RESISTÊNCIA ROLA 2d10 (18/11/2026): a mesma janela do alvo. */}
+      {overlayAberto === 'primario' && tab === 'resistencia' && alvoResist != null && (
+        <RolagemResistencia alvo={ator} lang={lang}
+          pend={{ id: 'aba', tipo: resTipo, forca_ataque: forcaAtaque, forca_defesa: forcaDefesa, alvo_resist: alvoResist,
+            nome: resTipo === 'rf' ? (tb.resistenciaFisica) : (tb.resistenciaMagica) }}
+          onResultado={(soma, desfecho) => {
+            setOverlayAberto(null);
+            onAplicarTeste && onAplicarTeste({
+              tipo_teste: 'resistencia', testador: ator, resistencia_tipo: resTipo,
+              forca_ataque: forcaAtaque, forca_defesa: forcaDefesa, alvo_resist: alvoResist,
+              d20: soma, dados: '2d10', resultado: desfecho,
+            });
+          }}
+          onAceitar={() => {
+            setOverlayAberto(null);
+            onAplicarTeste && onAplicarTeste({
+              tipo_teste: 'resistencia', testador: ator, resistencia_tipo: resTipo,
+              forca_ataque: forcaAtaque, forca_defesa: forcaDefesa, alvo_resist: alvoResist,
+              d20: null, resultado: 'falhou', aceitou: true,
+            });
+          }} />
+      )}
+      {overlayAberto === 'primario' && tab !== 'resistencia' && ((tab === 'apoio') ? alvoResist != null : colunaClamped != null) && (
         <DadoOverlay
           titulo={
             tab === 'arma' ? `${arma ? arma.nome : '?'} → ${alvo ? alvo.nome : '?'}`
@@ -16131,6 +16221,22 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     }
     persistJogador({ participantes: next, log: [...log, entradaLogResistencia(antes, r.pend, soma, r.desfecho, rodada)] /* a rolagem é de quem está agindo */ });
   };
+  const aceitarResistenciaDoAlvo = (alvo, pendId) => {
+    const idx = participantes.findIndex((q) => mesmoParticipante(q, alvo));
+    if (idx < 0) return;
+    const antes = participantes[idx];
+    const r = aceitarResistenciaPendente(antes, pendId, catalogos);
+    if (!r.pend) return;
+    const next = participantes.map((q, i) => (i === idx ? r.participante : q));
+    const historiaId = batalha && batalha.historia_id;
+    if (historiaId) {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId, p_tipo: 'teste', p_texto: textoResistenciaNaMesa(antes, r.pend, null, 'falhou'),
+        p_meta: { batalha_id: batalha.id, rodada, resistencia_tipo: r.pend.tipo, resultado: 'falhou', aceitou: true },
+      }).then(({ error: rpcErr }) => { if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (resistência) falhou:', rpcErr); }));
+    }
+    persistJogador({ participantes: next, log: [...log, entradaLogAceitou(antes, r.pend, rodada)] /* a rolagem é de quem está agindo */ });
+  };
 
   // ── Item — espelha aplicarItem (inclui baixa no PRÓPRIO inventário, RLS ok) ──
   const handleItem = (payload) => {
@@ -16772,7 +16878,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
         const r = proximaResistencia(participantes, (p) => !resistenciaDoMestre(p) && quemRolaResistencia(p) === String(pjAtivoId));
         return r ? (
           <RolagemResistencia key={r.pend.id} alvo={r.alvo} pend={r.pend} lang={lang} ocupado={salvando}
-            onResultado={(soma) => resolverResistenciaDoAlvo(r.alvo, r.pend.id, soma)} />
+            onResultado={(soma) => resolverResistenciaDoAlvo(r.alvo, r.pend.id, soma)}
+            onAceitar={() => aceitarResistenciaDoAlvo(r.alvo, r.pend.id)} />
         ) : null;
       })()}
       {consulta && meuPj && catalogos && (
@@ -17018,7 +17125,7 @@ Object.assign(window, {
     alvosExtrasEfetivos,
     debitarCustoAtaque, paParaAtaque,
     resistenciasPendentes, criarResistenciaPendente, comResistenciaPendente, desfechoDaResistencia, aplicarEfeitoNaoResistido,
-    resolverResistenciaPendente, entradaLogResistencia, quemRolaResistencia, proximaResistencia, resistenciaDoMestre,
+    resolverResistenciaPendente, entradaLogResistencia, quemRolaResistencia, aceitarResistenciaPendente, pendenciaDoApoio, entradaLogAceitou, proximaResistencia, resistenciaDoMestre,
     somaAutomaticaDaResistencia, textoResistenciaNaMesa, RolagemResistencia, RESIST_DADOS, RESIST_FACES, PERFIS_AUTO, perfilAutoDe, rotuloPerfilAuto, ehMagiaDeCura, apoioMiraEm, ultimoQueAtacouUmAliado, itemJaUsado, acaoExtraPorFalhaCritica, entradaLogAcaoExtraFc, TETO_ACOES_RODADA, rolarIniciativaDosReforcos, pedidosDeIniciativaDosReforcos, ehMagiaInstantanea, temInstantaneaLivre, nivelQueOKarmaPaga, instantaneaJaUsada, debitarAcaoDaMagia, acoesDaRodadaNova, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel, condicoesAoEncerrar,
     itemAindaNaMochila,
     // O tempo da batalha (14/11/2026): 30 s × combatentes por rodada.

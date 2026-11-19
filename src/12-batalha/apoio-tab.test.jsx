@@ -225,10 +225,13 @@ describe('aba Apoio — rolagem só quando a magia exige', () => {
     expect(btn(/Rolar d20/i)).toBeFalsy();
   });
 
-  it('magia COM teste de resistência oferece a rolagem', () => {
+  // 18/11/2026: a resistência é do ALVO (rola 2d10 depois, ou aceita) —
+  // o conjurador não rola mais nada por ela.
+  it('magia COM teste de resistência não rola no conjurador e avisa', () => {
     montarComTeste({ bravura: 1 });
     fireEvent.click(abaApoio());
-    expect(btn(/Rolar d20/i)).toBeTruthy();
+    expect(btn(/Rolar d20/i)).toBeFalsy();
+    expect(screen.getByText(/O alvo testa a resistência/)).toBeTruthy();
   });
 
   // Instantânea: sem PA desde 18/11/2026 — o botão diz "sem Ponto de Ação".
@@ -242,11 +245,12 @@ describe('aba Apoio — rolagem só quando a magia exige', () => {
 
   // Dado na linha (14/09/2026): com teste, a ação É o dado — não há Usar à
   // parte para apertar antes de rolar.
-  it('magia com teste só age pelo dado', () => {
+  it('magia com teste de resistência se usa direto', () => {
     montarComTeste({ bravura: 1 });
     fireEvent.click(abaApoio());
-    expect(document.querySelector('.atacar-confirmar')).toBeNull();
-    expect(btn(/Rolar d20 · Usar sem Ponto de Ação/i)).toBeTruthy();
+    const usar = btn(/Usar sem Ponto de Ação/i);
+    expect(usar).toBeTruthy();
+    expect(usar.disabled).toBe(false);
   });
 });
 
