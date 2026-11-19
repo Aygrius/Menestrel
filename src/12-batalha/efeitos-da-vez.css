@@ -67,3 +67,14 @@
   box-shadow: inset 0 0 0 1px rgba(232, 131, 106, 0.55), 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 #root .menestrel-ui .batalha-revelar-centro .btn-primary { height: 38px; padding: 0 16px; }
+
+/* ── A JANELA DA RESISTÊNCIA (18/11/2026) ────────────────────────────
+   Os dois d10 lado a lado (no 2D; no 3D eles rolam por cima da tela) e o
+   desfecho numa linha: ouro quando resistiu, brasa quando o efeito entrou. */
+#root .menestrel-ui .modal-resistencia .resistencia-dados { display: flex; justify-content: center; gap: 24px; padding: 8px 0 4px; }
+#root .menestrel-ui .modal-resistencia .resistencia-passe { margin: 10px 0; }
+#root .menestrel-ui .modal-resistencia .resistencia-desfecho {
+  margin: 6px 0 0; text-align: center; font-size: var(--fs-lg); font-weight: 700; color: var(--tinta);
+}
+#root .menestrel-ui .modal-resistencia .resistencia-desfecho.is-resistiu { color: var(--vivo); }
+#root .menestrel-ui .modal-resistencia .resistencia-desfecho.is-falhou { color: var(--alerta); }

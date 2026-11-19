@@ -1091,6 +1091,13 @@ function evocacaoEmRodadas(magia) {
    descrição da magia Velocidade — que NÃO pede teste nenhum. Erro cometido de
    verdade na investigação; há teste de regressão pra ele. */
 const RE_RESIST = /teste\s+de\s+resist[êe]ncia\s+(m[áa]gica|f[íi]sica)/i;
+/* 18/11/2026: o texto também diz "tem direito a resistência mágica", "caso
+   não obtenha êxito em uma resistência mágica", "fazer uma resistência
+   mágica" — e diz NÃO: "sem direito a resistência mágica" (Ira Divina, Aura
+   Divina), "Não existe teste de resistência mágica" (Escuridão). Vale a
+   primeira frase que não vem negada. */
+const RE_RESIST_FRASES = /(?:teste\s+de\s+resist[êe]ncia|direito\s+(?:a|à)\s+(?:um\s+)?(?:teste\s+de\s+)?resist[êe]ncia|[êe]xito\s+em\s+(?:uma\s+)?resist[êe]ncia|fazer\s+uma\s+resist[êe]ncia)\s+(m[áa]gica|f[íi]sica)/gi;
+const RE_RESIST_NEGADA = /(?:\bsem|n[ãa]o\s+(?:existe|h[áa]|tem|possui))\s+$/i;
 
 /* ── Passou no teste de habilidade? (puro) ─────────────────────────
    O dado já foi rolado e resolvido em resolverAcao, que devolve uma QUALIDADE
@@ -1111,9 +1118,13 @@ function passouNoTesteDeHabilidade(qualidade, dificuldade) {
 
 function exigeResistencia(magia) {
   const txt = (magia && magia.descricao) || '';
-  const m = RE_RESIST.exec(txt);
-  if (!m) return null;
-  return /m[áa]gica/i.test(m[1]) ? 'rm' : 'rf';
+  RE_RESIST_FRASES.lastIndex = 0;
+  let m;
+  while ((m = RE_RESIST_FRASES.exec(txt))) {
+    if (RE_RESIST_NEGADA.test(txt.slice(Math.max(0, m.index - 30), m.index))) continue;
+    return /m[áa]gica/i.test(m[1]) ? 'rm' : 'rf';
+  }
+  return null;
 }
 
 /* ── Quais magias este combatente conhece, e em que nível ──────────
@@ -2618,29 +2629,151 @@ function consumirItemDaMagia(ator, magia, catalogos) {
   });
 }
 
+/* ══ A RESISTÊNCIA DO ALVO (18/11/2026) ════════════════════════════════════
+   Usuário: "Os testes de resistência física e resistência mágica estão
+   funcionando? Para não contrair veneno, o alvo pode usar resistência
+   física, e alguns efeitos de magia podem ser resistidos com resistência à
+   magia." Não estavam: o veneno da arma entrava sem teste (e como um golpe
+   único, ignorando o "por rodada, durante N rodadas" do item), e o efeito
+   secundário da magia de dano (queimadura, afogamento, atordoamento, fuga)
+   entrava sempre.
+
+   Agora o efeito fica PENDENTE no alvo (`resistencias_pendentes`), e quem
+   controla o alvo rola — "O alvo rola 2 dados de 10 faces, de uma só vez na
+   tela" (usuário): o jogador pelo personagem e pelo animal dele, o Mestre
+   pelas criaturas. A soma enfrenta o número da Tabela de Resistência
+   (resolverResistencia: força de ataque × RF/RM efetiva do alvo); acima,
+   resistiu; abaixo, o efeito entra; igual, rola de novo — a mesma regra do
+   teste de resistência de sempre.
+
+     veneno    força de ataque do item (itens.forca_ataque); RF
+     magia     força de ataque = nível da magia; RM (ou RF, se o texto pedir) */
+const RESIST_DADOS = 2;
+const RESIST_FACES = 10;
+function resistenciasPendentes(p) {
+  return Array.isArray(p && p.resistencias_pendentes) ? p.resistencias_pendentes : [];
+}
+function forcaDeDefesaDe(alvo, tipo) {
+  const v = tipo === 'rm' ? rmEfetivo(alvo) : rfEfetivo(alvo);
+  return Math.max(1, Math.min(20, Math.round(Number(v) || 0)));
+}
+function criarResistenciaPendente(alvo, { tipo, forca, nome, autor, rodada, efeito }) {
+  const fa = Math.max(1, Math.min(20, Math.round(Number(forca) || 1)));
+  const fd = forcaDeDefesaDe(alvo, tipo);
+  const resolver = typeof resolverResistencia === 'function' ? resolverResistencia : null;
+  return {
+    id: 'res:' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    tipo: tipo === 'rm' ? 'rm' : 'rf',
+    forca_ataque: fa, forca_defesa: fd,
+    alvo_resist: resolver ? resolver(fa, fd) : 11,
+    nome: nome || '',
+    autor_nome: (autor && autor.nome) || null,
+    autor_inst_id: (autor && autor.inst_id) || null,
+    rodada: rodada != null ? rodada : null,
+    efeito: efeito || null,
+  };
+}
+function comResistenciaPendente(p, pend) {
+  if (!p || !pend) return p;
+  return { ...p, resistencias_pendentes: [...resistenciasPendentes(p), pend] };
+}
+function desfechoDaResistencia(soma, alvoResist) {
+  const s = Number(soma), a = Number(alvoResist);
+  if (s === a) return 'empate';
+  return s > a ? 'resistiu' : 'falhou';
+}
+/* O efeito que o alvo não resistiu. O veneno com "por rodada" vira o status
+   Envenenado (o mesmo do Mestre); sem, é o dano direto na EF de antes. */
+function aplicarEfeitoNaoResistido(p, pend, catalogos) {
+  const e = (pend && pend.efeito) || {};
+  if (e.kind === 'veneno') {
+    const ef = Math.max(0, Number(e.ef) || 0);
+    if (!ef) return p;
+    if (Number(e.rodadas) > 0) {
+      const st = statusAplicadoPeloMestre('veneno', ef, e.rodadas, {});
+      if (e.nome) st.nome = 'Envenenado (' + e.nome + ')';
+      return { ...p, status_temp: [...(Array.isArray(p.status_temp) ? p.status_temp : []), st] };
+    }
+    return aplicarDanoDiretoEF(ef, p);
+  }
+  if (e.kind === 'magia') {
+    const cat = catalogos && catalogos.magiasByKey ? catalogos.magiasByKey[e.magia_key] : null;
+    if (!cat || p.status === 'morto') return p;
+    return aplicarEfeitoMagia(p, { ...cat, key: e.magia_key, nome: cat.nome }, e.nivel, { fonteInstId: e.fonte_inst_id || null });
+  }
+  return p;
+}
+/* A rolagem do alvo: devolve { participante, desfecho, pend }. No empate a
+   pendência fica (rola de novo). */
+function resolverResistenciaPendente(p, id, soma, catalogos) {
+  const lista = resistenciasPendentes(p);
+  const pend = lista.find((x) => x && x.id === id) || null;
+  if (!pend) return { participante: p, desfecho: null, pend: null };
+  const desfecho = desfechoDaResistencia(soma, pend.alvo_resist);
+  if (desfecho === 'empate') return { participante: p, desfecho, pend };
+  const resto = lista.filter((x) => x && x.id !== id);
+  const { resistencias_pendentes, ...semLista } = p;
+  const sem = resto.length ? { ...semLista, resistencias_pendentes: resto } : semLista;
+  const out = desfecho === 'falhou' ? aplicarEfeitoNaoResistido(sem, pend, catalogos) : sem;
+  return { participante: out, desfecho, pend };
+}
+function entradaLogResistencia(p, pend, soma, desfecho, rodada) {
+  return {
+    rodada, ts: Date.now(),
+    autor_tipo: p.tipo, autor_ref_id: p.ref_id, autor_nome: p.nome, autor_inst_id: p.inst_id || null,
+    acao: 'teste', tipo_teste: 'resistencia', resistencia_de: pend.nome || null,
+    resistencia_tipo: pend.tipo, forca_ataque: pend.forca_ataque, forca_defesa: pend.forca_defesa,
+    alvo_resist: pend.alvo_resist, d20: soma, dados: RESIST_DADOS + 'd' + RESIST_FACES, resultado: desfecho,
+  };
+}
+// Quem rola a resistência deste combatente: 'mestre' (criatura sem dono) ou o id do PJ.
+function quemRolaResistencia(p) {
+  if (!p) return null;
+  if (p.tipo === 'pj') return String(p.ref_id);
+  if (p.dono_pj != null) return String(p.dono_pj);
+  return 'mestre';
+}
+
 /* ── Veneno do golpe de ARMA (28/09/2026) ──────────────────────────
    "Afeta a EF, apenas se o golpe acertar a EF. Ou seja, tem que passar pela
    EH e pela Armadura." (usuário) De onde vem o veneno: da flecha disparada
    (arma.flecha.venenoEf) ou da arma untada (arma.veneno.ef, ver
    envenenarNoInventario em 01-core). Zero = golpe sem veneno. */
-function venenoDoGolpe(tipo, arma) {
-  if (tipo !== 'arma' || !arma) return 0;
-  if (arma.flecha) return Math.max(0, Number(arma.flecha.venenoEf) || 0);
-  return arma.veneno ? Math.max(0, Number(arma.veneno.ef) || 0) : 0;
+/* 18/11/2026: devolve o veneno inteiro — { ef, rodadas, forca, nome } — ou
+   null. "Por rodada, durante N rodadas" sai do texto do item (antes só o
+   número da EF entrava, num golpe único), e a força de ataque, da coluna
+   itens.forca_ataque (VENENO_FORCA_PADRAO sem ela). */
+const VENENO_FORCA_PADRAO = 5;
+function venenoDoGolpe(tipo, arma, catalogos) {
+  if (tipo !== 'arma' || !arma) return null;
+  let ef = 0, slug = null, nome = null;
+  if (arma.flecha) { ef = Number(arma.flecha.venenoEf) || 0; slug = arma.flecha.slug; nome = arma.flecha.venenoNome || null; }
+  else if (arma.veneno) { ef = Number(arma.veneno.ef) || 0; slug = arma.veneno.slug; nome = arma.veneno.nome || null; }
+  if (!(ef > 0)) return null;
+  const cat = (catalogos && catalogos.catalogoBySlug && slug) ? catalogos.catalogoBySlug[slug] : null;
+  const m = /por\s+rodada,?\s+durante\s+(\d+)\s+rodadas?/i.exec(String((cat && cat.efeito_negativo) || ''));
+  return { ef, rodadas: m ? Number(m[1]) : 0, forca: Number(cat && cat.forca_ataque) || VENENO_FORCA_PADRAO,
+    nome: nome || (cat && cat.nome) || null };
 }
 
 /* Pura: o golpe já foi aplicado (aplicarGolpeEmAlvo); se ele tirou EF do
    alvo, o veneno tira mais `venenoEf` de EF — direto, sem EH nem armadura,
    que o golpe já furou. Devolve { next, aplicado }. */
-function aplicarVenenoSeChegouEf(next, alvoIdx, alvoAntes, venenoEf) {
+/* 18/11/2026: o veneno que chegou à EF não entra mais na hora — vira uma
+   resistência pendente de RF no alvo (ver A RESISTÊNCIA DO ALVO). Devolve
+   { next, aplicado: 0, pendente }. */
+function aplicarVenenoSeChegouEf(next, alvoIdx, alvoAntes, veneno, ctx) {
   const depois = next[alvoIdx];
-  if (!(venenoEf > 0) || !alvoAntes || !depois) return { next, aplicado: 0 };
+  if (!veneno || !(veneno.ef > 0) || !alvoAntes || !depois) return { next, aplicado: 0, pendente: false };
   const naEf = (Number(alvoAntes.ef) || 0) - (Number(depois.ef) || 0);
-  if (!(naEf > 0)) return { next, aplicado: 0 };
+  if (!(naEf > 0) || depois.status === 'morto') return { next, aplicado: 0, pendente: false };
   const out = [...next];
-  out[alvoIdx] = aplicarDanoDiretoEF(venenoEf, depois);
-  const aplicado = Math.max(0, (Number(depois.ef) || 0) - (Number(out[alvoIdx].ef) || 0));
-  return { next: out, aplicado };
+  out[alvoIdx] = comResistenciaPendente(depois, criarResistenciaPendente(depois, {
+    tipo: 'rf', forca: veneno.forca, nome: veneno.nome ? 'Veneno (' + veneno.nome + ')' : 'Veneno',
+    autor: ctx && ctx.autor, rodada: ctx && ctx.rodada,
+    efeito: { kind: 'veneno', ef: veneno.ef, rodadas: veneno.rodadas, nome: veneno.nome },
+  }));
+  return { next: out, aplicado: 0, pendente: true };
 }
 
 /* Efeito colateral do golpe de ARMA no inventário do PJ: o arco gasta a
@@ -2668,6 +2801,12 @@ async function gastarMunicaoEVeneno(ator, arma, catalogos) {
 
 // A frase do veneno que vai junto do golpe na mesa.
 function textoVenenoDoGolpe(arma, aplicado, isEn) {
+  // A pendência de RF (18/11/2026): o veneno chegou, falta o alvo resistir.
+  if (aplicado && typeof aplicado === 'object') {
+    if (!aplicado.pendente) return '';
+    return isEn ? ' The poison reached physical energy: a physical resistance test is pending.'
+      : ' O veneno chegou à energia física: falta o teste de resistência física.';
+  }
   if (!(aplicado > 0)) return '';
   const nome = (arma && arma.flecha && arma.flecha.venenoNome) || (arma && arma.veneno && arma.veneno.nome) || (isEn ? 'The poison' : 'O veneno');
   return isEn
@@ -4372,7 +4511,8 @@ function resumoDaUltimaRodada(p, log, isEn = false) {
       return { icone: 'ti-sparkles', acao: e.arma_nome, alvo: emQuem, resultado: fase };
     }
     if (e.acao === 'teste') {
-      const nome = e.tipo_teste === 'resistencia' ? (isEn ? 'Resistance test' : 'Teste de resistência') : e.nome;
+      const nome = e.tipo_teste === 'resistencia'
+        ? (isEn ? 'Resistance test' : 'Teste de resistência') + (e.resistencia_de ? ' · ' + e.resistencia_de : '') : e.nome;
       const res = e.tipo_teste === 'resistencia'
         ? (e.resultado === 'resistiu' ? (isEn ? 'Resisted' : 'Resistiu') : e.resultado === 'falhou' ? (isEn ? 'Did not resist' : 'Não resistiu') : null)
         : (e.passou === true ? (isEn ? 'Passed' : 'Passou') : e.passou === false ? (isEn ? 'Failed' : 'Falhou') : resultado);
@@ -6880,6 +7020,17 @@ function efeitoDaMagiaNoGolpe(arr, atorIdx, alvoIdx, alvoAntes, magia) {
   const cat = magia.catalogo || magia;
   const completa = { ...cat, key: magia.key, nome: magia.nome || cat.nome };
   const out = [...arr];
+  /* "Se o alvo falhar em um teste de resistência mágica, sofre os efeitos
+     secundários" (18/11/2026): com o teste no texto, o efeito espera a
+     rolagem do alvo (A RESISTÊNCIA DO ALVO). O dano já entrou. */
+  const resist = exigeResistencia(cat);
+  if (resist) {
+    out[alvoIdx] = comResistenciaPendente(depois, criarResistenciaPendente(depois, {
+      tipo: resist, forca: magia.nivel, nome: completa.nome, autor: arr[atorIdx],
+      efeito: { kind: 'magia', magia_key: magia.key, nivel: magia.nivel, fonte_inst_id: (arr[atorIdx] && arr[atorIdx].inst_id) || null },
+    }));
+    return out;
+  }
   out[alvoIdx] = aplicarEfeitoMagia(depois, completa, magia.nivel, { fonteInstId: arr[atorIdx] && arr[atorIdx].inst_id });
   return out;
 }
@@ -9728,6 +9879,34 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     concluirInvocacao(e.conjInstId, e.pend, novos, escolhidos.length ? 'mas a convocação falhou' : 'mas nenhum animal atendeu');
   };
 
+  /* A RESISTÊNCIA DO ALVO (18/11/2026): o Mestre rola pelas criaturas (e por
+     quem está no automático, sem janela). Ver RolagemResistencia. */
+  const resolverResistenciaDoAlvo = (alvo, pendId, soma) => {
+    const idx = participantes.findIndex((q) => mesmoParticipante(q, alvo));
+    if (idx < 0) return;
+    const antes = participantes[idx];
+    const r = resolverResistenciaPendente(antes, pendId, soma, catalogos);
+    if (!r.pend || r.desfecho === 'empate') return;
+    const next = participantes.map((q, i) => (i === idx ? r.participante : q));
+    const novoLog = [...log, entradaLogResistencia(antes, r.pend, soma, r.desfecho, rodada)];
+    if (historia && historia.id) {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historia.id, p_tipo: 'teste', p_texto: textoResistenciaNaMesa(antes, r.pend, soma, r.desfecho),
+        p_meta: { batalha_id: batalha.id, rodada, resistencia_tipo: r.pend.tipo, resultado: r.desfecho, soma },
+      }).then(({ error: rpcErr }) => { if (rpcErr) console.error('[batalha] registrar_evento_mesa (resistência) falhou:', rpcErr); }));
+    }
+    persistir({ participantes: next, log: novoLog /* a rolagem é de quem está agindo */ }, () => { setParticipantes(next); setLog(novoLog); });
+  };
+  const resistAgora = estado === 'ativa' ? proximaResistencia(participantes, resistenciaDoMestre) : null;
+  // Quem joga no automático resiste sozinho: a mesa não para esperando um clique.
+  const chaveResistAuto = resistAgora && resistAgora.alvo.auto ? resistAgora.pend.id : null;
+  useEffect(() => {
+    if (!chaveResistAuto || salvando || !resistAgora) return undefined;
+    const t = setTimeout(() => resolverResistenciaDoAlvo(resistAgora.alvo, resistAgora.pend.id,
+      somaAutomaticaDaResistencia(resistAgora.pend)), 600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaveResistAuto, salvando]);
   /* DADO REAL NO REFORÇO (18/11/2026): com a batalha em dado real, o Mestre
      informa o d10 de cada um que chega (um por tipo de criatura, um por
      personagem), um de cada vez; depois o reforço entra como sempre. */
@@ -10021,8 +10200,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       ef: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.ef) || 0) - (Number(next[alvoIdx] && next[alvoIdx].ef) || 0)),
     };
     // Veneno (flecha ou arma untada): só se o golpe chegou à EF (28/09/2026).
-    const venenoEf = venenoDoGolpe(tipo, arma);
-    const venenoPrincipal = aplicarVenenoSeChegouEf(next, alvoIdx, alvoAntesDoGolpe, venenoEf);
+    const venenoEf = venenoDoGolpe(tipo, arma, catalogos);
+    const venenoPrincipal = aplicarVenenoSeChegouEf(next, alvoIdx, alvoAntesDoGolpe, venenoEf, { autor: next[atorIdx], rodada });
     next = venenoPrincipal.next;
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
@@ -10041,7 +10220,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
       fxDoGolpeAnotado(fxAlvos, exAntes, next[exIdx], danoPraGolpe, catalogos);
       if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, exIdx, exAntes, magia);
-      next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf).next;
+      next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf, { autor: next[atorIdx], rodada }).next;
     });
     // O arco gasta a flecha; a arma untada, uma ação do veneno — só com a luta gravada.
     if (tipo === 'arma') {
@@ -10110,6 +10289,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       ...(Object.keys(fxAlvos).length ? { fx_alvos: fxAlvos } : {}),
       arma_nome: nomeAcao,                       // mantém nome do campo p/ retrocompat do render
       ...(venenoPrincipal.aplicado > 0 ? { veneno_ef: venenoPrincipal.aplicado } : {}),
+      ...(venenoPrincipal.pendente ? { veneno_pendente: true } : {}),
       coluna, d20,
       resultado: resultado ? resultado.codigo : null,
       resultado_nome: resultado ? resultado.pt : null,
@@ -10138,7 +10318,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       const texto = textoGolpeNaMesa({
         ator: participantes[atorIdx], alvoNome: alvo.nome, acaoNome: nomeAcao, tipo,
         resultado, dano, alvosExtras: nomesAlvosExtras, msgCritico: msg_critico, ondeDano,
-      }) + textoVenenoDoGolpe(arma, venenoPrincipal.aplicado, lang === 'en');
+      }) + textoVenenoDoGolpe(arma, venenoPrincipal, lang === 'en');
       const meta = {
           batalha_id:     batalha.id,
           rodada,
@@ -10875,6 +11055,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
   }, []);
   useEffect(() => {
     if (!autoChave || salvando || acaoOpen || rolagemPendente || !catalogos || aguardandoRevelar) return undefined;
+    // Uma resistência por rolar segura a mesa (18/11/2026).
+    if (proximaResistencia(participantes, resistenciaDoMestre)) return undefined;
     /* Com a aprovação do Mestre (10/11/2026, usuário: "Sim, substitui a
        pausa"), os cards da vez só saem na revelação: entre os passos basta o
        tempo de a mesa assentar. Sem a cortina, a pausa do card continua. */
@@ -11955,6 +12137,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         />
       </ModalShell>
     )}
+    {resistAgora && !resistAgora.alvo.auto && (
+      <RolagemResistencia key={resistAgora.pend.id} alvo={resistAgora.alvo} pend={resistAgora.pend} lang={lang}
+        ocupado={salvando} onResultado={(soma) => resolverResistenciaDoAlvo(resistAgora.alvo, resistAgora.pend.id, soma)} />
+    )}
     {iniReforco && (
       <ModalDadoReal key={iniReforco.valores.length} faces={10} lang={lang}
         titulo={(isEn ? 'Initiative · ' : 'Iniciativa · ') + iniReforco.pedidos[iniReforco.valores.length].nome}
@@ -12370,6 +12556,111 @@ function ValorDoDadoReal({ faces, isEn, onInformar, desativado = false, semBotao
 /* A janela do d10 da iniciativa no dado real: quem clica em rolar (o jogador
    no preparo, o Mestre pelos inimigos ou por um jogador ausente) informa o
    número. Informar no rodapé, como toda confirmação de janela. */
+/* A próxima resistência que ESTA tela rola: { alvo, pend } ou null. */
+function proximaResistencia(participantes, ehMinha) {
+  for (const p of (participantes || [])) {
+    const l = resistenciasPendentes(p);
+    if (l.length && ehMinha(p)) return { alvo: p, pend: l[0] };
+  }
+  return null;
+}
+// O Mestre rola pelas criaturas, e por quem está no automático ou ausente.
+function resistenciaDoMestre(p) {
+  return !!p && (quemRolaResistencia(p) === 'mestre' || !!p.auto || !!p.ausente);
+}
+// O d20 virtual da resistência de quem joga sozinho: 2d10, de novo no empate.
+function somaAutomaticaDaResistencia(pend) {
+  for (let k = 0; k < 20; k++) {
+    const soma = 2 + Math.floor(Math.random() * RESIST_FACES) + Math.floor(Math.random() * RESIST_FACES);
+    if (desfechoDaResistencia(soma, pend.alvo_resist) !== 'empate') return soma;
+  }
+  return 20;
+}
+function textoResistenciaNaMesa(alvo, pend, soma, desfecho) {
+  const quem = typeof primeiroNome === 'function' ? primeiroNome(alvo.nome) : alvo.nome;
+  return `${quem} ${desfecho === 'resistiu' ? 'resistiu' : 'não resistiu'} a ${pend.nome} (${pend.tipo === 'rm' ? 'RM' : 'RF'} · 2d10: ${soma}, precisava de mais de ${pend.alvo_resist})`;
+}
+
+/* ══ A JANELA DA RESISTÊNCIA (18/11/2026) ══════════════════════════════════
+   "O alvo rola 2 dados de 10 faces, de uma só vez na tela" (usuário). Abre na
+   tela de quem controla o alvo (quemRolaResistencia) e não fecha sem rolar:
+   resistir é a regra, não uma escolha. Os dois d10 rolam juntos no 3D
+   (Dado3D.rolarVarios); sem 3D, os dois 2D lado a lado. Com dado real, quem
+   rola informa a soma que caiu na mesa. Empate: rola de novo. */
+function RolagemResistencia({ alvo, pend, lang, ocupado = false, onResultado }) {
+  const isEn = lang === 'en';
+  const dadoReal = !!React.useContext(DadosReaisCtx);
+  const [soma, setSoma] = useState(null);           // a soma, depois de rolar ou informar
+  const [rolando, setRolando] = useState(false);
+  const [digitado, setDigitado] = useState(null);   // dado real: o valor no campo
+  const d1 = useRef(null), d2 = useRef(null);
+  const prontoRef = useRef(null);
+  const D10 = window.DadoD10;
+  const desfecho = soma != null ? desfechoDaResistencia(soma, pend.alvo_resist) : null;
+  const tipoTxt = pend.tipo === 'rm' ? (isEn ? 'Magic resistance' : 'Resistência mágica') : (isEn ? 'Physical resistance' : 'Resistência física');
+  const rolar = async () => {
+    if (rolando) return;
+    const a = 1 + Math.floor(Math.random() * RESIST_FACES), b = 1 + Math.floor(Math.random() * RESIST_FACES);
+    setRolando(true); setSoma(null);
+    const D3 = window.Dado3D;
+    if (D3 && D3.disponivel() && D3.rolarVarios) {
+      const r = await D3.rolarVarios({ valores: [a, b], faces: RESIST_FACES });
+      if (r) { setSoma(a + b); setRolando(false); return; }
+    }
+    if (d1.current && d2.current) {
+      let n = 0;
+      prontoRef.current = () => { n += 1; if (n === 2) { prontoRef.current = null; setSoma(a + b); setRolando(false); } };
+      d1.current.roll(a); d2.current.roll(b);
+      return;
+    }
+    setSoma(a + b); setRolando(false);
+  };
+  const aoConfirmar = () => {
+    if (ocupado || rolando) return;
+    if (desfecho === 'empate') { setSoma(null); setDigitado(null); return; }
+    if (desfecho) { onResultado(soma, desfecho); return; }
+    if (dadoReal) { if (digitado != null) setSoma(digitado); return; }
+    rolar();
+  };
+  const ROT = { resistiu: isEn ? 'Resisted' : 'Resistiu', falhou: isEn ? 'Did not resist' : 'Não resistiu',
+    empate: isEn ? 'Tie — roll again' : 'Empate — role de novo' };
+  const confirmLabel = desfecho === 'empate' ? (isEn ? 'Roll again' : 'Rolar de novo')
+    : desfecho ? (isEn ? 'Continue' : 'Concluir')
+    : dadoReal ? (isEn ? 'Enter value' : 'Informar') : (isEn ? 'Roll 2d10' : 'Rolar 2d10');
+  return (
+    <ModalShell lang={lang} size="sm" extraClass="modal-resistencia"
+      title={<>{tipoTxt} · {alvo.nome}</>}
+      onClose={null}
+      onConfirm={aoConfirmar}
+      confirmLabel={confirmLabel}
+      confirmDisabled={ocupado || rolando || (dadoReal && !desfecho && digitado == null)}>
+      <p className="acao-efeito-texto">
+        {isEn
+          ? <>{pend.nome}{pend.autor_nome ? ` from ${pend.autor_nome}` : ''}. Roll 2d10: above <strong>{pend.alvo_resist}</strong> resists.</>
+          : <>{pend.nome}{pend.autor_nome ? `, de ${pend.autor_nome}` : ''}. Role 2d10: acima de <strong>{pend.alvo_resist}</strong>, resiste.</>}
+      </p>
+      <div className="mn-passe resistencia-passe">
+        <div className="mn-celula"><span className="mn-rotulo">{isEn ? 'Attack strength' : 'Força de ataque'}</span><span className="mn-celula-valor">{pend.forca_ataque}</span></div>
+        <div className="mn-celula"><span className="mn-rotulo">{pend.tipo === 'rm' ? 'RM' : 'RF'}</span><span className="mn-celula-valor">{pend.forca_defesa}</span></div>
+        <div className="mn-celula"><span className="mn-rotulo">{isEn ? 'Total' : 'Soma'}</span><span className="mn-celula-valor">{soma != null ? soma : '—'}</span></div>
+      </div>
+      {dadoReal ? (
+        soma == null && <ValorDoDadoReal faces={20} isEn={isEn} semBotao onMudar={setDigitado} desativado={ocupado}
+          onInformar={(v) => setSoma(v)} />
+      ) : (
+        D10 && (
+          /* inert: o clique no dado 2D sortearia por conta própria. */
+          <span className="resistencia-dados" inert>
+            <D10 ref={d1} size={88} initialValue={10} onRoll={() => prontoRef.current && prontoRef.current()} />
+            <D10 ref={d2} size={88} initialValue={10} onRoll={() => prontoRef.current && prontoRef.current()} />
+          </span>
+        )
+      )}
+      {desfecho && <p className={'resistencia-desfecho is-' + desfecho} role="status">{ROT[desfecho]}</p>}
+    </ModalShell>
+  );
+}
+
 function ModalDadoReal({ faces = 10, titulo, lang, onInformar, onClose, ocupado = false }) {
   const isEn = lang === 'en';
   const [valor, setValor] = useState(null);
@@ -15460,8 +15751,8 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       ef: Math.max(0, (Number(alvoAntesDoGolpe && alvoAntesDoGolpe.ef) || 0) - (Number(next[alvoIdx] && next[alvoIdx].ef) || 0)),
     };
     // Veneno (flecha ou arma untada): só se o golpe chegou à EF (28/09/2026).
-    const venenoEf = venenoDoGolpe(tipo, arma);
-    const venenoPrincipal = aplicarVenenoSeChegouEf(next, alvoIdx, alvoAntesDoGolpe, venenoEf);
+    const venenoEf = venenoDoGolpe(tipo, arma, catalogos);
+    const venenoPrincipal = aplicarVenenoSeChegouEf(next, alvoIdx, alvoAntesDoGolpe, venenoEf, { autor: next[atorIdx], rodada });
     next = venenoPrincipal.next;
     // Golpe Giratório: o MESMO golpe alcançando os alvos extras declarados
     // no painel (Ruling T6b-A). Cada alvo resolve a própria esquiva,
@@ -15480,7 +15771,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       next = aplicarGolpeEmAlvo(next, atorIdx, exIdx, danoPraGolpe, critico, elementoDoGolpe, drenaGolpe, furaEhGolpe);
       fxDoGolpeAnotado(fxAlvos, exAntes, next[exIdx], danoPraGolpe, catalogos);
       if (tipo === 'magia') next = efeitoDaMagiaNoGolpe(next, atorIdx, exIdx, exAntes, magia);
-      next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf).next;
+      next = aplicarVenenoSeChegouEf(next, exIdx, exAntes, venenoEf, { autor: next[atorIdx], rodada }).next;
     });
     // O arco gasta a flecha; a arma untada, uma ação do veneno — só com a luta gravada.
     if (tipo === 'arma') {
@@ -15538,6 +15829,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       ...(Object.keys(fxAlvos).length ? { fx_alvos: fxAlvos } : {}),
       arma_nome: nomeAcao, coluna, d20,
       ...(venenoPrincipal.aplicado > 0 ? { veneno_ef: venenoPrincipal.aplicado } : {}),
+      ...(venenoPrincipal.pendente ? { veneno_pendente: true } : {}),
       resultado: resultado ? resultado.codigo : null,
       resultado_nome: resultado ? resultado.pt : null,
       dano, critico,
@@ -15558,7 +15850,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       const texto = textoGolpeNaMesa({
         ator: meuParticipante, alvoNome: alvo.nome, acaoNome: nomeAcao, tipo,
         resultado, dano, alvosExtras: nomesAlvosExtras, msgCritico: msg_critico, ondeDano,
-      }) + textoVenenoDoGolpe(arma, venenoPrincipal.aplicado, lang === 'en');
+      }) + textoVenenoDoGolpe(arma, venenoPrincipal, lang === 'en');
       aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
         p_historia_id: historiaId,
         p_tipo: tipo === 'magia' ? 'magia' : 'ataque',
@@ -15819,6 +16111,25 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       // MESMO log — senão a EF cai sozinha, sem nada explicando.
       log: registrarViradaNoLog([...log, entry], eventosVirada, rodadaNova),
       ...(rodadaNova != null ? { rodada: rodadaNova } : {}) });
+  };
+
+  /* A RESISTÊNCIA DO ALVO (18/11/2026): o jogador rola pelo personagem e pelo
+     animal dele — depois do "Revelar", para não adiantar o resultado. */
+  const resolverResistenciaDoAlvo = (alvo, pendId, soma) => {
+    const idx = participantes.findIndex((q) => mesmoParticipante(q, alvo));
+    if (idx < 0) return;
+    const antes = participantes[idx];
+    const r = resolverResistenciaPendente(antes, pendId, soma, catalogos);
+    if (!r.pend || r.desfecho === 'empate') return;
+    const next = participantes.map((q, i) => (i === idx ? r.participante : q));
+    const historiaId = batalha && batalha.historia_id;
+    if (historiaId) {
+      aposGravar(() => supabaseClient.rpc('registrar_evento_mesa', {
+        p_historia_id: historiaId, p_tipo: 'teste', p_texto: textoResistenciaNaMesa(antes, r.pend, soma, r.desfecho),
+        p_meta: { batalha_id: batalha.id, rodada, resistencia_tipo: r.pend.tipo, resultado: r.desfecho, soma },
+      }).then(({ error: rpcErr }) => { if (rpcErr) console.error('[batalha-jogador] registrar_evento_mesa (resistência) falhou:', rpcErr); }));
+    }
+    persistJogador({ participantes: next, log: [...log, entradaLogResistencia(antes, r.pend, soma, r.desfecho, rodada)] /* a rolagem é de quem está agindo */ });
   };
 
   // ── Item — espelha aplicarItem (inclui baixa no PRÓPRIO inventário, RLS ok) ──
@@ -16456,6 +16767,14 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           <span>{tb.avisoVezAtacar || (isEn ? 'Your turn to strike!' : 'É sua vez de atacar!')}</span>
         </div>
       )}
+      {(() => {
+        if (aguardandoRevelar || !catalogos || pjAtivoId == null) return null;
+        const r = proximaResistencia(participantes, (p) => !resistenciaDoMestre(p) && quemRolaResistencia(p) === String(pjAtivoId));
+        return r ? (
+          <RolagemResistencia key={r.pend.id} alvo={r.alvo} pend={r.pend} lang={lang} ocupado={salvando}
+            onResultado={(soma) => resolverResistenciaDoAlvo(r.alvo, r.pend.id, soma)} />
+        ) : null;
+      })()}
       {consulta && meuPj && catalogos && (
         <ConsultaModal tipo={consulta} ator={meuPj} catalogos={catalogos} isEn={isEn} lang={lang}
           onClose={() => setConsulta(null)} />
@@ -16697,7 +17016,10 @@ Object.assign(window, {
     efeitoAncoraNoAtacante,
     tetoDeAlvos,
     alvosExtrasEfetivos,
-    debitarCustoAtaque, paParaAtaque, PERFIS_AUTO, perfilAutoDe, rotuloPerfilAuto, ehMagiaDeCura, apoioMiraEm, ultimoQueAtacouUmAliado, itemJaUsado, acaoExtraPorFalhaCritica, entradaLogAcaoExtraFc, TETO_ACOES_RODADA, rolarIniciativaDosReforcos, pedidosDeIniciativaDosReforcos, ehMagiaInstantanea, temInstantaneaLivre, nivelQueOKarmaPaga, instantaneaJaUsada, debitarAcaoDaMagia, acoesDaRodadaNova, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel, condicoesAoEncerrar,
+    debitarCustoAtaque, paParaAtaque,
+    resistenciasPendentes, criarResistenciaPendente, comResistenciaPendente, desfechoDaResistencia, aplicarEfeitoNaoResistido,
+    resolverResistenciaPendente, entradaLogResistencia, quemRolaResistencia, proximaResistencia, resistenciaDoMestre,
+    somaAutomaticaDaResistencia, textoResistenciaNaMesa, RolagemResistencia, RESIST_DADOS, RESIST_FACES, PERFIS_AUTO, perfilAutoDe, rotuloPerfilAuto, ehMagiaDeCura, apoioMiraEm, ultimoQueAtacouUmAliado, itemJaUsado, acaoExtraPorFalhaCritica, entradaLogAcaoExtraFc, TETO_ACOES_RODADA, rolarIniciativaDosReforcos, pedidosDeIniciativaDosReforcos, ehMagiaInstantanea, temInstantaneaLivre, nivelQueOKarmaPaga, instantaneaJaUsada, debitarAcaoDaMagia, acoesDaRodadaNova, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel, condicoesAoEncerrar,
     itemAindaNaMochila,
     // O tempo da batalha (14/11/2026): 30 s × combatentes por rodada.
     SEGUNDOS_POR_ACAO, combatentesQueAgem, segundosDaRodada, duracaoDaBatalhaSegundos,

@@ -39,7 +39,7 @@ const COLUNAS = {
   /* `porte` (29/10/2026): as CASAS do recipiente — pequeno 3, médio 6,
      grande 9, muito grande 15. Vive ao lado de `armazena`, que é o peso: os
      dois limitam, e o que estourar primeiro trava. */
-  itens: ['slug','nome','base','grupo','ocupa','armazena','porte','tipo','valor_latao','efeito','efeito_positivo','efeito_negativo','tipo_item','magia','nivel_magia',
+  itens: ['slug','nome','base','grupo','ocupa','armazena','porte','tipo','valor_latao','efeito','efeito_positivo','efeito_negativo','forca_ataque','tipo_item','magia','nivel_magia',
     // Técnica que o pergaminho ensina (22/10/2026).
     'tecnica','descricao','magico','categoria_equip','slot_equip','grupo_equipamento','maos_pequenino','maos_anao','maos_outras','forca_req','dano','alcance','ajuste_atributo','defesa','absorcao','tipo_armadura','dano_l','dano_m','dano_p','grupo_armas','origem','resistencia','icone','consumiveis','consumiveis_peso','doc_url','criatura_id',
     // As peças de um conjunto de armadura e o kit (30/10/2026).

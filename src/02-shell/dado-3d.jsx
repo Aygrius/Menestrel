@@ -30,7 +30,8 @@
    WebGL, com "reduzir movimento" no sistema, nos testes (jsdom) e com a mesa
    jogando sozinha (html[data-mesa-auto], quando as janelas nem aparecem).
 
-   window.Dado3D = { disponivel(), preparar(), rolar({ valor, faces }) → Promise, limpar() }
+   window.Dado3D = { disponivel(), preparar(), rolar({ valor, faces }) → Promise,
+                     rolarVarios({ valores, faces }) → Promise, limpar() }
    Quem chama: o DadoD20 (dado-d20.jsx) e o DadoD10 (dado-d10.jsx).
    ============================================================ */
 
@@ -322,6 +323,11 @@ function dado3dMontar(THREE, CANNON, RoomEnvironment) {
     return { max, verts, faces, normais, numeroDaFace, lay, malha, mats, forma,
       faceDoNumero: (n) => numeroDaFace.indexOf(n) };
   };
+  const layoutD10 = (pts) => {
+    const ladoY = (pts[1][1] + pts[3][1]) / 2, largura = Math.abs(pts[3][0] - pts[1][0]);
+    const ny = ladoY + (pts[0][1] - ladoY) * 0.22;
+    return { nx: (pts[0][0] + pts[2][0]) / 2, ny, tam: Math.round(largura * 0.42), maxL: largura * 0.5 };
+  };
   const dados = {
     // d20: o número no centro do triângulo, um pouco abaixo (o centro óptico).
     20: montarDado(dado3dSolidoD20(THREE), 20, (pts) => {
@@ -329,11 +335,9 @@ function dado3dMontar(THREE, CANNON, RoomEnvironment) {
       return { nx: 256, ny: cy + 14, tam: 160, maxL: 236 };
     }),
     // d10: o número na parte larga da pipa, entre as pontas laterais e o ápice.
-    10: montarDado(dado3dSolidoD10(THREE), 10, (pts) => {
-      const ladoY = (pts[1][1] + pts[3][1]) / 2, largura = Math.abs(pts[3][0] - pts[1][0]);
-      const ny = ladoY + (pts[0][1] - ladoY) * 0.22;
-      return { nx: (pts[0][0] + pts[2][0]) / 2, ny, tam: Math.round(largura * 0.42), maxL: largura * 0.5 };
-    }),
+    10: montarDado(dado3dSolidoD10(THREE), 10, layoutD10),
+    // O segundo d10 (18/11/2026): a resistência rola 2d10 de uma vez.
+    '10b': montarDado(dado3dSolidoD10(THREE), 10, layoutD10),
   };
   let atual = dados[20];
 
@@ -407,7 +411,10 @@ function dado3dMontar(THREE, CANNON, RoomEnvironment) {
 
   /* ── A física: o lançamento inteiro, antes de mostrar ── */
   const sorteio = ([a, b]) => a + Math.random() * (b - a);
-  const simular = (d) => {
+  const simular = (d) => simularVarios([d])[0];
+  /* Vários dados no MESMO mundo (18/11/2026): batem entre si e nas bordas, e
+     o lançamento acaba quando todos dormem. Cada um sai de um canto. */
+  const simularVarios = (ds) => {
     const mundo = new CANNON.World({ gravity: new CANNON.Vec3(0, -32, 0) });
     mundo.allowSleep = true;
     const mDado = new CANNON.Material('dado'), mMesa = new CANNON.Material('mesa'), mBorda = new CANNON.Material('borda');
@@ -423,35 +430,47 @@ function dado3dMontar(THREE, CANNON, RoomEnvironment) {
     plano(mBorda, [0, 0, MEIA_P], [0, Math.PI, 0]);
     plano(mBorda, [0, 0, -MEIA_P], [0, 0, 0]);
     const est = DADO3D_ESTILOS[Math.floor(Math.random() * DADO3D_ESTILOS.length)];
-    const corpo = new CANNON.Body({ mass: 1, material: mDado, shape: d.forma, linearDamping: 0.08, angularDamping: 0.1 });
-    corpo.sleepSpeedLimit = 0.3; corpo.sleepTimeLimit = 0.25;
     const r = () => Math.random() * 2 - 1;
     const mL = MEIA_L - 1.3, mP = MEIA_P - 1.3;
-    const pos = [[-mL, r() * mP], [mL, r() * mP], [r() * mL, -mP], [r() * mL, mP]][Math.floor(Math.random() * 4)];
-    corpo.position.set(pos[0], sorteio(est.h), pos[1]);
-    const dir = new CANNON.Vec3(r() * MEIA_L * 0.3 - pos[0], 0, r() * MEIA_P * 0.3 - pos[1]); dir.normalize();
-    const v = sorteio(est.vel) * THREE.MathUtils.clamp(MEIA_L / 6, 0.8, 1.6);
-    corpo.velocity.set(dir.x * v, sorteio(est.vy), dir.z * v);
-    const eixo = new CANNON.Vec3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); eixo.normalize();
-    const g = sorteio(est.giro); corpo.angularVelocity.set(eixo.x * g, eixo.y * g, eixo.z * g);
-    corpo.quaternion.setFromEuler(Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28);
-    mundo.addBody(corpo);
-    const quadros = [], batidas = [];
-    corpo.addEventListener('collide', (e) => {
-      const vi = Math.abs(e.contact.getImpactVelocityAlongNormal());
-      if (vi > 1.0) batidas.push({ q: quadros.length, v: vi, borda: e.body.material === mBorda });
+    const cantos = [[-mL, r() * mP], [mL, r() * mP], [r() * mL, -mP], [r() * mL, mP]];
+    const ini = Math.floor(Math.random() * 4);
+    const batidas = [];
+    let nQuadro = 0;
+    const corpos = ds.map((d, k) => {
+      const corpo = new CANNON.Body({ mass: 1, material: mDado, shape: d.forma, linearDamping: 0.08, angularDamping: 0.1 });
+      corpo.sleepSpeedLimit = 0.3; corpo.sleepTimeLimit = 0.25;
+      // O segundo dado sai do canto oposto, um pouco deslocado: não nascem um dentro do outro.
+      const pos = cantos[(ini + k * 2) % 4];
+      corpo.position.set(pos[0] + k * 0.6, sorteio(est.h) + k * 0.8, pos[1]);
+      const dir = new CANNON.Vec3(r() * MEIA_L * 0.3 - pos[0], 0, r() * MEIA_P * 0.3 - pos[1]); dir.normalize();
+      const v = sorteio(est.vel) * THREE.MathUtils.clamp(MEIA_L / 6, 0.8, 1.6);
+      corpo.velocity.set(dir.x * v, sorteio(est.vy), dir.z * v);
+      const eixo = new CANNON.Vec3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); eixo.normalize();
+      const g = sorteio(est.giro); corpo.angularVelocity.set(eixo.x * g, eixo.y * g, eixo.z * g);
+      corpo.quaternion.setFromEuler(Math.random() * 6.28, Math.random() * 6.28, Math.random() * 6.28);
+      mundo.addBody(corpo);
+      corpo.addEventListener('collide', (e) => {
+        const vi = Math.abs(e.contact.getImpactVelocityAlongNormal());
+        if (vi > 1.0) batidas.push({ q: nQuadro, v: vi, borda: e.body.material === mBorda });
+      });
+      return corpo;
     });
+    const quadrosDe = ds.map(() => []);
     // Passo de 1/60 s, até 7 s de rolagem: leve o bastante para não travar a tela.
     for (let i = 0; i < 60 * 7; i++) {
       mundo.step(1 / 60);
-      quadros.push({ p: new THREE.Vector3(corpo.position.x, corpo.position.y, corpo.position.z),
-        q: new THREE.Quaternion(corpo.quaternion.x, corpo.quaternion.y, corpo.quaternion.z, corpo.quaternion.w) });
-      if (corpo.sleepState === CANNON.Body.SLEEPING) break;
+      nQuadro = i + 1;
+      corpos.forEach((corpo, k) => quadrosDe[k].push({ p: new THREE.Vector3(corpo.position.x, corpo.position.y, corpo.position.z),
+        q: new THREE.Quaternion(corpo.quaternion.x, corpo.quaternion.y, corpo.quaternion.z, corpo.quaternion.w) }));
+      if (corpos.every((c) => c.sleepState === CANNON.Body.SLEEPING)) break;
     }
-    const qf = quadros[quadros.length - 1].q;
-    let melhor = 0, my = -2;
-    d.normais.forEach((n, i) => { const y = n.clone().applyQuaternion(qf).y; if (y > my) { my = y; melhor = i; } });
-    return { quadros, batidas, pousou: melhor, deFace: my };
+    return ds.map((d, k) => {
+      const quadros = quadrosDe[k];
+      const qf = quadros[quadros.length - 1].q;
+      let melhor = 0, my = -2;
+      d.normais.forEach((n, i) => { const y = n.clone().applyQuaternion(qf).y; if (y > my) { my = y; melhor = i; } });
+      return { quadros, batidas: k === 0 ? batidas : [], pousou: melhor, deFace: my };
+    });
   };
 
   /* ── O estalo da resina em cada batida ── */
@@ -486,19 +505,27 @@ function dado3dMontar(THREE, CANNON, RoomEnvironment) {
     reservaId = setTimeout(vai, 120);
   }
   const concluir = () => {
-    const { sim, valor, resolver } = rolagem;
-    const fim = sim.quadros[sim.quadros.length - 1];
-    const m = atual.mats[atual.faceDoNumero(valor)];
-    m.emissive.set(valor === 1 ? corAtual.alerta : corAtual.vivo);
-    brilho = { m, t0: performance.now(), forte: valor === atual.max };
-    if (valor === atual.max) clarao.position.set(fim.p.x, 2.2, fim.p.z);
+    const { itens, resolver } = rolagem;
+    const fins = itens.map((it) => it.sim.quadros[it.sim.quadros.length - 1]);
+    // O ponto de foco: o meio entre os dados (um só, o dele).
+    const fim = { p: fins.reduce((a, q) => a.add(q.p), new THREE.Vector3()).multiplyScalar(1 / fins.length) };
+    const ms = itens.map((it) => {
+      const m = it.d.mats[it.d.faceDoNumero(it.valor)];
+      m.emissive.set(it.valor === 1 ? corAtual.alerta : corAtual.vivo);
+      return m;
+    });
+    const algumMax = itens.some((it) => it.valor === it.d.max);
+    brilho = { ms, t0: performance.now(), forte: algumMax };
+    if (algumMax) clarao.position.set(fim.p.x, 2.2, fim.p.z);
+    const valor = itens.length === 1 ? itens[0].valor : itens.map((it) => it.valor);
+    const afasta = itens.length > 1 ? 0.55 : 0.36;
     /* O ZOOM NO RESULTADO (17/11/2026, usuário: "Quando o dado parar de rolar,
        dê um zoom para mostrar o resultado e só avance depois que o jogador
        clicar"). A câmera desce sobre a face vencedora e a rolagem fica parada
        ali; o clique (ou Enter, espaço, Esc) afasta a câmera e só então entrega
        o valor — é aí que a janela mostra o resultado e os botões. */
     const perto = fim.p.clone().setY(0);
-    moverCamera(perto.clone().add(DIR_FIM.clone().multiplyScalar(distBase * 0.36)), perto, 1000);
+    moverCamera(perto.clone().add(DIR_FIM.clone().multiplyScalar(distBase * afasta)), perto, 1000);
     rolagem = null;
     esperarClique(() => {
       moverCamera(perto.clone().add(DIR_FIM.clone().multiplyScalar(distBase * 0.85)), perto, 450);
@@ -531,8 +558,9 @@ function dado3dMontar(THREE, CANNON, RoomEnvironment) {
   };
   function quadro(agora) {
     if (rolagem) {
-      const { sim, R } = rolagem;
-      const n = sim.quadros.length - 1;
+      const { itens } = rolagem;
+      const n = Math.max(...itens.map((it) => it.sim.quadros.length)) - 1;
+      const sim = itens[0].sim;
       /* CÂMERA LENTA NO 1 E NO MÁXIMO (17/11/2026, usuário: "Sempre que o dado
          cair 1 ou 20, ele vai rolar em câmera lenta"): o lançamento sai no ritmo
          de sempre e, no último segundo e pouco antes de parar, desacelera até
@@ -545,16 +573,19 @@ function dado3dMontar(THREE, CANNON, RoomEnvironment) {
       rolagem.f += ((agora - rolagem.ult) / 1000) * 60 * vel;
       rolagem.ult = agora;
       const f = rolagem.f;
-      const malha = atual.malha;
+      // Cada dado no seu quadro; o que parou antes fica no último.
+      const pousar = (it, ff) => {
+        const qs = it.sim.quadros, ult = qs.length - 1;
+        if (ff >= ult) { it.d.malha.position.copy(qs[ult].p); it.d.malha.quaternion.copy(qs[ult].q.clone().multiply(it.R)); return; }
+        const i = Math.floor(ff), k = ff - i;
+        it.d.malha.position.lerpVectors(qs[i].p, qs[i + 1].p, k);
+        it.d.malha.quaternion.copy(qs[i].q.clone().slerp(qs[i + 1].q, k).multiply(it.R));
+      };
       if (f >= n) {
-        const ult = sim.quadros[n];
-        malha.position.copy(ult.p); malha.quaternion.copy(ult.q.clone().multiply(R));
+        itens.forEach((it) => pousar(it, n));
         concluir();
       } else {
-        const i = Math.floor(f), k = f - i;
-        const a = sim.quadros[i], b = sim.quadros[i + 1];
-        malha.position.lerpVectors(a.p, b.p, k);
-        malha.quaternion.copy(a.q.clone().slerp(b.q, k).multiply(R));
+        itens.forEach((it) => pousar(it, f));
         while (rolagem.batida < sim.batidas.length && sim.batidas[rolagem.batida].q <= f) {
           const bt = sim.batidas[rolagem.batida++]; estalo(bt.v, bt.borda);
         }
@@ -562,7 +593,8 @@ function dado3dMontar(THREE, CANNON, RoomEnvironment) {
     }
     if (brilho) {
       const t = (agora - brilho.t0) / 1000;
-      brilho.m.emissiveIntensity = t < 0.25 ? (t / 0.25) * 1.6 : 0.55 + 1.05 * Math.exp(-(t - 0.25) * 3);
+      const intens = t < 0.25 ? (t / 0.25) * 1.6 : 0.55 + 1.05 * Math.exp(-(t - 0.25) * 3);
+      brilho.ms.forEach((m) => { m.emissiveIntensity = intens; });
       clarao.intensity = brilho.forte ? (t < 0.2 ? (t / 0.2) * 40 : 40 * Math.exp(-(t - 0.2) * 2.2)) : 0;
     }
     if (camAnim) {
@@ -578,23 +610,29 @@ function dado3dMontar(THREE, CANNON, RoomEnvironment) {
   }
 
   return {
-    rolar(valor, faces) {
+    rolar(valor, faces) { return this.rolarVarios([valor], faces); },
+    /* Vários dados de uma vez (18/11/2026) — hoje até dois d10. Resolve com o
+       número (um dado) ou a lista (vários). */
+    rolarVarios(valores, faces) {
       // Uma rolagem nova encerra a anterior (a promessa dela não fica pendurada).
       if (rolagem) { const r0 = rolagem.resolver; rolagem = null; r0(null); }
       pararEspera();
       aplicarPaleta();
       Object.values(dados).forEach((d) => { d.malha.visible = false; d.mats.forEach((m) => { m.emissiveIntensity = 0; }); });
-      atual = dados[faces] || dados[20];
-      let sim = null;
-      for (let k = 0; k < 3; k++) { sim = simular(atual); if (sim.deFace > 0.97) break; }
-      const R = rotacaoEntre(atual, atual.faceDoNumero(valor), sim.pousou);
+      const lista = faces === 10 && valores.length > 1 ? [dados[10], dados['10b']] : [dados[faces] || dados[20]];
+      const vals = valores.slice(0, lista.length);
+      atual = lista[0];
+      let sims = null;
+      for (let k = 0; k < 3; k++) { sims = simularVarios(lista); if (sims.every((x) => x.deFace > 0.97)) break; }
+      const itens = lista.map((d, k) => ({ d, sim: sims[k], valor: vals[k], R: rotacaoEntre(d, d.faceDoNumero(vals[k]), sims[k].pousou) }));
       clarao.intensity = 0; brilho = null;
       camAnim = null;
       camera.position.copy(camBase.pos); camOlhar.copy(camBase.olhar); camera.lookAt(camOlhar);
       camada.style.display = 'block';
-      atual.malha.visible = true;
+      lista.forEach((d) => { d.malha.visible = true; });
       return new Promise((resolver) => {
-        rolagem = { sim, R, valor, resolver, f: 0, ult: performance.now(), lenta: valor === 1 || valor === atual.max, batida: 0 };
+        rolagem = { itens, resolver, f: 0, ult: performance.now(), batida: 0,
+          lenta: itens.some((it) => it.valor === 1 || it.valor === it.d.max) };
         acordar();
       });
     },
@@ -621,6 +659,14 @@ const Dado3D = {
     if (!cena) return null;
     const f = faces === 10 ? 10 : 20;
     return cena.rolar(Math.max(1, Math.min(f, Math.round(valor))), f);
+  },
+  /* Dois d10 de uma vez (18/11/2026, a resistência do alvo). Resolve com a
+     lista dos valores, ou null sem 3D. */
+  async rolarVarios({ valores, faces = 10 }) {
+    const cena = await dado3dPreparar();
+    if (!cena) return null;
+    const f = faces === 10 ? 10 : 20;
+    return cena.rolarVarios((valores || []).map((v) => Math.max(1, Math.min(f, Math.round(v)))), f);
   },
   limpar() { if (_dado3dCena) _dado3dCena.limpar(); },
 };

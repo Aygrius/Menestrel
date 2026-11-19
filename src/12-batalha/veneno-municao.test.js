@@ -125,23 +125,53 @@ describe('veneno no golpe', () => {
   const alvo = { inst_id: 'a', nome: 'Lobo', ef: 30, eh: 0, ar: 0, status: 'ativo' };
 
   it('de onde vem: flecha antes da arma; magia não tem', () => {
-    expect(M().venenoDoGolpe('arma', { flecha: { venenoEf: 10 }, veneno: { ef: 5 } })).toBe(10);
-    expect(M().venenoDoGolpe('arma', { veneno: { ef: 5, acoes: 3 } })).toBe(5);
-    expect(M().venenoDoGolpe('magia', { veneno: { ef: 5 } })).toBe(0);
+    expect(M().venenoDoGolpe('arma', { flecha: { venenoEf: 10 }, veneno: { ef: 5 } }).ef).toBe(10);
+    expect(M().venenoDoGolpe('arma', { veneno: { ef: 5, acoes: 3 } }).ef).toBe(5);
+    expect(M().venenoDoGolpe('magia', { veneno: { ef: 5 } })).toBe(null);
   });
 
-  it('golpe que chegou à EF: o veneno tira mais EF', () => {
+  /* 18/11/2026: "Para não contrair veneno, o alvo pode usar resistência
+     física." O veneno que chegou à EF vira resistência pendente de RF; o
+     "por rodada, durante N rodadas" e a força de ataque vêm do item. */
+  it('o item dá as rodadas e a força de ataque', () => {
+    const cat = { catalogoBySlug: { secrecao_leopis: { slug: 'secrecao_leopis', nome: 'Toxina', forca_ataque: 8,
+      efeito_negativo: 'Diminui 2 de Energia Física por rodada, durante 5 rodadas; aumenta 75 de Doença.' } } };
+    expect(M().venenoDoGolpe('arma', { veneno: { slug: 'secrecao_leopis', nome: 'Toxina', ef: 2 } }, cat))
+      .toEqual({ ef: 2, rodadas: 5, forca: 8, nome: 'Toxina' });
+  });
+
+  it('golpe que chegou à EF: o veneno fica pendente de RF, sem dano na hora', () => {
     const antes = alvo;
-    const next = [{ ...alvo, ef: 20 }];               // o golpe tirou 10 de EF
-    const r = M().aplicarVenenoSeChegouEf(next, 0, antes, 5);
-    expect(r.aplicado).toBe(5);
-    expect(r.next[0].ef).toBe(15);
+    const next = [{ ...alvo, ef: 20, rf: 4 }];        // o golpe tirou 10 de EF
+    const r = M().aplicarVenenoSeChegouEf(next, 0, antes, { ef: 2, rodadas: 5, forca: 8, nome: 'Toxina' });
+    expect(r).toMatchObject({ aplicado: 0, pendente: true });
+    expect(r.next[0].ef).toBe(20);
+    const [pend] = M().resistenciasPendentes(r.next[0]);
+    expect(pend).toMatchObject({ tipo: 'rf', forca_ataque: 8, efeito: { kind: 'veneno', ef: 2, rodadas: 5 } });
+  });
+
+  it('não resistiu: entra Envenenado por rodada; resistiu: nada', () => {
+    const next = [{ ...alvo, ef: 20, rf: 4, status_temp: [] }];
+    const r = M().aplicarVenenoSeChegouEf(next, 0, alvo, { ef: 2, rodadas: 5, forca: 8, nome: 'Toxina' });
+    const p = r.next[0];
+    const pend = M().resistenciasPendentes(p)[0];
+    const falhou = M().resolverResistenciaPendente(p, pend.id, 2, {});
+    expect(falhou.desfecho).toBe('falhou');
+    expect(falhou.participante.status_temp[0]).toMatchObject({ nome: 'Envenenado (Toxina)', rodadas_rest: 5,
+      efeito: { tipo: 'dano_por_rodada', valor: 2 } });
+    expect(falhou.participante.resistencias_pendentes).toBeUndefined();
+    const resistiu = M().resolverResistenciaPendente(p, pend.id, 20, {});
+    expect(resistiu.desfecho).toBe('resistiu');
+    expect(resistiu.participante.status_temp).toEqual([]);
+    const empate = M().resolverResistenciaPendente(p, pend.id, pend.alvo_resist, {});
+    expect(empate.desfecho).toBe('empate');
+    expect(M().resistenciasPendentes(empate.participante)).toHaveLength(1);
   });
 
   it('golpe segurado pela EH ou pela armadura: o veneno não age', () => {
     const antes = { ...alvo, eh: 10 };
     const next = [{ ...alvo, eh: 2 }];                // só a EH perdeu
-    const r = M().aplicarVenenoSeChegouEf(next, 0, antes, 15);
+    const r = M().aplicarVenenoSeChegouEf(next, 0, antes, { ef: 15, rodadas: 0, forca: 5 });
     expect(r.aplicado).toBe(0);
     expect(r.next[0].ef).toBe(30);
   });

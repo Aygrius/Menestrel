@@ -529,6 +529,11 @@ const CATALOGO_DESCRITORES = {
         ocultoSe: (form) => gradeCobre(form) },
       { col: 'efeito_negativo', grupos: ['Consumíveis', 'Serviços', 'Vestimentas', 'Itens'], tipo: 'area', rotuloKey: 'campoEfeitoNegativo',  linhas: 2,
         ocultoSe: (form) => gradeCobre(form) },
+      /* A FORÇA DE ATAQUE DO VENENO (18/11/2026): o número que enfrenta a RF
+         de quem é atingido (Tabela de Resistência). Aparece no item que tira
+         Energia Física — os venenos e as flechas envenenadas. */
+      { col: 'forca_ataque', grupos: ['Consumíveis', 'Itens', 'Armas'], tipo: 'numero', rotuloKey: 'campoForcaAtaque', min: 1, max: 20, largura: 'quarto',
+        ocultoSe: (form) => !/energias+f[ií]sica/i.test(String((form && form.efeito_negativo) || '')) },
       /* 'consumiveis' e 'consumiveis_peso' SAÍRAM em 28/09/2026: a carne do
          abate sai do tipo e do peso da CRIATURA ligada (RPC abater_animal) —
          "não precisa de um dropdown para isso, a conversão é automática". As
