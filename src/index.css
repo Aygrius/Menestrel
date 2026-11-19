@@ -20753,3 +20753,133 @@ html:has(.fp-card.batalha-mng-page .batalha-mesa > .batalha-ini-col) .menestrel-
 #root .cal-overlay .menestrel-ui .cal-header { padding: 8px 18px 12px; border-bottom: 1px solid var(--regua-forte); }
 #root .cal-overlay .menestrel-ui .cal-corpo { padding-top: 16px; }
 
+
+/* ══ REVISÃO DO DESIGN SYSTEM (19/11/2026) ═════════════════════════════════
+   Usuário: "aplique nosso padrão nas áreas que ainda precisam de atenção,
+   principalmente nos modais, padronizando o tamanho dos campos de
+   preenchimento [...]. Onde há um trilho superior dentro do modal, revise os
+   espaçamentos, adicione uma linha separadora para ele. [...] Padronize o
+   tooltip de todas as páginas, o efeito dos botões, as barras de rolagem."
+   Este bloco fecha as divergências medidas no navegador; fica no fim de
+   propósito, para vencer as regras antigas de mesma força sem mexer nelas
+   uma a uma. */
+
+/* ── 1. UM CAMPO, UMA ALTURA: 40px ───────────────────────────────────────
+   Havia três: 32px (o Campo Único), 40px (busca e seletor de quantidade) e
+   46px (o painel de ação da batalha), além do canto de 6–10px em listas
+   suspensas. Fica 40px para todo campo de texto, número, data, lista
+   suspensa e seletor de quantidade — a altura do botão médio, e o alvo de
+   toque do tablet na mesa. Pílula sempre ("tudo que se aperta é pílula");
+   a área de texto segue com o canto de 12px. */
+#root .menestrel-ui { --campo-h: 40px; }
+#root .menestrel-ui :is(
+  .diario-input, .cal-campo, .cv-input,
+  .motor-field input, .motor-field select, .wiz-field input, .wiz-field select,
+  .best-search input, .loja-mng-v3-search input, .loja-comercio-modal-input,
+  .det-armazenar select, .det-transf select, .det-venda-lugar input,
+  .estoque-nova input, .estoque-campo, .dar-item-busca input
+):not([type="checkbox"]):not([type="radio"]):not([type="range"]) {
+  height: var(--campo-h); box-sizing: border-box;
+}
+#root .menestrel-ui .wiz-field select { border-radius: var(--campo-raio); padding-top: 0; padding-bottom: 0; }
+#root .menestrel-ui .wiz-field input[type="date"] { padding-top: 0; padding-bottom: 0; }
+#root .menestrel-ui #fp-acoes-ficha .fp-trilho-slot :is(.best-search, .best-search input) { height: var(--campo-h); }
+/* select nativo solto no corpo da janela: a mesma pílula, sem o respiro de 10px. */
+#root .menestrel-ui .ms-body select:not([multiple]):not([size]) {
+  height: var(--campo-h); box-sizing: border-box; padding-top: 0; padding-bottom: 0; border-radius: var(--campo-raio);
+}
+/* As listas suspensas (SelectPill e o MenestrelSelect da ficha). */
+#root .menestrel-ui button.select-pill-btn,
+#root .menestrel-ui .acao-modal button.select-pill-btn {
+  height: var(--campo-h); border-radius: var(--campo-raio);
+}
+#root .menestrel-ui .acao-modal button.select-pill-btn { padding: 0 14px 0 16px; }
+#root .menestrel-ui .mn-select-trigger {
+  height: var(--campo-h); box-sizing: border-box; padding: 0 12px 0 16px;
+  border-radius: var(--campo-raio); background: var(--campo-bg);
+}
+#root .menestrel-ui .mn-select-trigger:hover { background: var(--campo-bg-hover); }
+/* O seletor de quantidade e o que mora ao lado dele no painel de ação. */
+#root .menestrel-ui .fp-pop-stepper,
+#root .menestrel-ui .dar-item-qtd.fp-pop-stepper,
+#root .menestrel-ui .part-qty-stepper .fp-pop-stepper,
+#root .menestrel-ui .acao-modal .atacar-row-acao .fp-pop-stepper,
+#root .menestrel-ui .acao-modal .karma-coluna .fp-pop-stepper { height: var(--campo-h); }
+#root .menestrel-ui .acao-modal .karma-coluna-max { height: var(--campo-h); border-radius: var(--campo-raio); }
+#root .cal-overlay .menestrel-ui .cal-input { height: var(--campo-h); border-radius: var(--campo-raio); }
+
+/* Foco por teclado na lista suspensa: o SelectPill apagava todo contorno
+   (!important) e quem navega pelo teclado não via onde estava. A borda
+   acende como a do Campo Único. */
+#root .menestrel-ui button.select-pill-btn:focus-visible { border-color: var(--campo-borda-foco) !important; }
+
+/* ── 2. O TRILHO NO TOPO DA JANELA ───────────────────────────────────────
+   A barra de abas dos editores, do Compêndio e do Editar história encostava
+   nos campos (14px) e não tinha separação do corpo. Ganha a régua de ponta a
+   ponta e o respiro do sistema: 14px em cima e embaixo da pílula, 20px até o
+   primeiro campo. */
+/* Ela gruda (sticky): com top 0 o navegador a empurrava os 20px do respiro
+   do corpo para baixo, por cima do primeiro campo. Gruda 20px acima — rente
+   à régua do cabeçalho — e o primeiro campo fica 20px abaixo da dela. */
+#root .menestrel-ui .form-abas-barra {
+  top: -20px; margin: -20px -24px 20px; padding: 14px 24px;
+  border-bottom: 1px solid var(--regua-forte);
+}
+#root .menestrel-ui .ms-modal > .form-abas-barra { top: auto; padding: 14px 24px; border-bottom: 1px solid var(--regua-forte); }
+@media (max-width: 640px) {
+  #root .menestrel-ui .form-abas-barra { top: -16px; margin: -16px -16px 16px; padding: 12px 16px; }
+}
+/* As abas do Estudar e o topo do Dar item: a mesma régua sob o trilho. */
+#root .menestrel-ui .modal-estudar .nb-paginas.estudar-abas { margin: 0 -24px 18px; padding: 0 24px 14px; border-bottom: 1px solid var(--regua-forte); border-radius: 0; }
+#root .menestrel-ui .dar-item-topo { margin: 0 -24px 6px; padding: 0 24px 16px; border-bottom: 1px solid var(--regua-forte); }
+
+/* ── 3. O EFEITO DOS BOTÕES ──────────────────────────────────────────────
+   O sistema .btn-* já tinha o trio (hover, clique que afunda 1px, contorno
+   de foco em ouro), mas 85 classes de botão com pele própria (fechar da
+   janela, paginação, abas, cartões…) não tinham foco de teclado nenhum, e
+   quase nenhuma afundava no clique. Base para todas, com força zero
+   (:where) — quem já tem a sua continua com ela. O clique usa `translate`
+   solto, que não briga com o `transform` de quem se posiciona por ele; o
+   tabuleiro fica de fora (o token se anima por translate). */
+#root .menestrel-ui :where(button, [role="button"], a[href], summary, [tabindex]:not([tabindex="-1"])):where(:focus-visible) {
+  outline: 2px solid rgba(var(--ouro-rgb),0.65); outline-offset: 2px;
+}
+#root .menestrel-ui :where(button:not(:disabled)):where(:active):not(:where(.batalha-mesa-centro *, [data-fx-chave])) {
+  translate: 0 1px;
+}
+
+/* ── 4. AS BARRAS DE ROLAGEM ─────────────────────────────────────────────
+   Eram 92 regras feitas à mão, em cinco cores e cantos, e as áreas sem regra
+   caíam na barra clara do sistema. Uma só: fina, trilho transparente,
+   polegar na régua forte. Pelas propriedades padrão (Edge, Chrome e Firefox
+   as respeitam); quem esconde a barra continua escondendo
+   (scrollbar-width: none ganha pela força). */
+html, body,
+#root .menestrel-ui, #root .menestrel-ui :where(*) {
+  scrollbar-width: thin;
+  scrollbar-color: var(--regua-forte, rgba(138,110,64,0.5)) transparent;
+}
+#root .menestrel-ui .mc-nav { scrollbar-width: none; }
+/* As três listas que pintavam o polegar de ouro voltam ao padrão. */
+.menestrel-ui.cdj-root .cdj-local-lista,
+.menestrel-ui.at-root .at-lista,
+.menestrel-ui.amg-root .amg-lista { scrollbar-color: var(--regua-forte) transparent; }
+
+/* ── 5. O TOOLTIP ────────────────────────────────────────────────────────
+   Uma pele só (.mn-tip); os balões do bestiário e da loja, que tinham
+   estilo próprio, passaram a usá-la (19/11/2026). O título do balão sai do
+   ouro — ouro é estado vivo, não rótulo — para a tinta, em negrito. */
+#root .menestrel-ui .mn-tip-title,
+#root .menestrel-ui .fp-item-tip-title { color: var(--tinta); font-weight: 700; }
+
+/* O botão de enviar imagem ao lado dos campos (editores do mundo): a mesma
+   altura deles — o .btn-sm o puxava para 32px, desalinhado da linha. */
+#root .menestrel-ui .mundo-imagem-linha .mundo-imagem-enviar.btn-sm { height: var(--campo-h); }
+#root .menestrel-ui .mundo-imagem-linha .mundo-imagem-enviar.btn-icon.btn-sm { width: var(--campo-h); }
+
+/* Formulários em duas colunas, no celular (19/11/2026): empilhados, o vão
+   da grade (16px) somava à margem do campo (10px) dentro de cada par, e o
+   espaço entre os campos alternava. Um ritmo só: a margem do campo. */
+@media (max-width: 640px) {
+  #root .menestrel-ui .wiz-row-2col { row-gap: 0; }
+}

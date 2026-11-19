@@ -72,7 +72,7 @@
    Os dois d10 lado a lado (no 2D; no 3D eles rolam por cima da tela) e o
    desfecho numa linha: ouro quando resistiu, brasa quando o efeito entrou. */
 #root .menestrel-ui .modal-resistencia .resistencia-dados { display: flex; justify-content: center; gap: 24px; padding: 8px 0 4px; }
-#root .menestrel-ui .modal-resistencia .resistencia-passe { margin: 10px 0; }
+#root .menestrel-ui .modal-resistencia .mn-passe.resistencia-passe { margin: 16px 0 6px; }
 #root .menestrel-ui .modal-resistencia .resistencia-desfecho {
   margin: 6px 0 0; text-align: center; font-size: var(--fs-lg); font-weight: 700; color: var(--tinta);
 }

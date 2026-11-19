@@ -1037,28 +1037,19 @@ function useBestTip() {
   const hide = React.useCallback(() => { clearTimeout(timerRef.current); setTip(null); }, []);
   return [tip, show, hide];
 }
+/* O BALÃO NA PELE ÚNICA (19/11/2026, revisão do design system): até aqui
+   este balão tinha estilo próprio escrito no componente (outro fundo, outro
+   aro) e saía no document.body, fora do .menestrel-ui — onde os tokens não
+   alcançam. Agora é o .mn-tip de todo o sistema, virado para baixo. */
 function BestTip({ tip }) {
   if (!tip) return null;
   const { rect, label } = tip;
-  const left = rect.left + rect.width / 2;
-  const top  = rect.bottom + 6;
   return ReactDOM.createPortal(
-    <div style={{
-      position: 'fixed', left, top, transform: 'translateX(-50%)',
-      zIndex: 9999, pointerEvents: 'none', whiteSpace: 'nowrap',
-      background: '#201A0F', borderRadius: 6, padding: '6px 10px',
-      fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', color: 'var(--tinta)',
-      animation: 'fpItemTipIn .12s ease-out',
-    }}>
-      <div style={{
-        position: 'absolute', bottom: '100%', left: '50%', transform: 'translateX(-50%)',
-        borderWidth: 5, borderStyle: 'solid',
-        borderColor: 'transparent transparent #141009 transparent',
-        width: 0, height: 0,
-      }} />
-      {label}
+    <div className="mn-tip" role="tooltip" data-tip-flip="below"
+      style={{ left: rect.left + rect.width / 2, top: rect.top, pointerEvents: 'none' }}>
+      <p className="mn-tip-desc">{label}</p>
     </div>,
-    document.body
+    document.querySelector('.menestrel-ui') || document.body
   );
 }
 

@@ -90,31 +90,20 @@ function BestTip({ tip }) {
   if (!tip) return null;
   const { rect, label } = tip;
   const left = rect.left + rect.width / 2;
-  const top  = rect.bottom + 6;
   const estruturado = label && typeof label === 'object';
   const nome = estruturado ? label.titulo : null;
   const explicacao = estruturado ? label.texto : String(label == null ? '' : label);
+  /* O BALÃO NA PELE ÚNICA (19/11/2026, revisão do design system): até aqui
+     este balão tinha estilo próprio escrito no componente (outro fundo, outro
+     aro) e saía no document.body, fora do .menestrel-ui — onde os tokens não
+     alcançam. Agora é o .mn-tip de todo o sistema, virado para baixo. */
   return ReactDOM.createPortal(
-    <div ref={ref} role="tooltip" style={{
-      position: 'fixed', left: left + desvio, top, transform: 'translateX(-50%)',
-      zIndex: 9999, pointerEvents: 'none',
-      width: 'max-content', maxWidth: 280, whiteSpace: 'normal', textAlign: 'left',
-      background: '#201A0F', border: '1px solid rgba(var(--bronze-rgb),0.45)', borderRadius: 6, padding: '7px 11px',
-      boxShadow: '0 6px 18px rgba(0,0,0,0.45)',
-      fontFamily: "var(--font-body)", fontSize: 'var(--fs-xs)', lineHeight: 1.45, color: 'var(--tinta)',
-      animation: 'fpItemTipIn .12s ease-out',
-    }}>
-      {/* seta apontando para cima — acompanha o rótulo, não o centro do balão */}
-      <div style={{
-        position: 'absolute', bottom: '100%', left: `calc(50% - ${desvio}px)`, transform: 'translateX(-50%)',
-        borderWidth: 5, borderStyle: 'solid',
-        borderColor: 'transparent transparent #201A0F transparent',
-        width: 0, height: 0,
-      }} />
-      {nome && <div style={{ fontWeight: 700, color: 'var(--vivo)', marginBottom: 2 }}>{nome}</div>}
-      <div>{explicacao}</div>
+    <div ref={ref} className="mn-tip" role="tooltip" data-tip-flip="below"
+      style={{ left: left + desvio, top: rect.top, pointerEvents: 'none', '--tip-seta-dx': desvio + 'px' }}>
+      {nome && <div className="mn-tip-title">{nome}</div>}
+      <p className="mn-tip-desc">{explicacao}</p>
     </div>,
-    document.body
+    document.querySelector('.menestrel-ui') || document.body
   );
 }
 

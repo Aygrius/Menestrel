@@ -397,7 +397,8 @@ Um único sistema de botões no console inteiro: quatro variantes, dois tamanhos
 
 ### Inputs / Fields
 **Campo Único.** Uma pele só para todo campo de texto.
-- **Style:** pílula de couro (bronze a 12%), sem borda visível (1px transparente reservado para não mudar a altura), tinta de campo, placeholder `#9C8F73`, 32px de altura; área de texto com 12px de canto.
+- **Style:** pílula de couro (bronze a 12%), sem borda visível (1px transparente reservado para não mudar a altura), tinta de campo, placeholder `#9C8F73`, **40px de altura** (`--campo-h`) — texto, número, data, lista suspensa (SelectPill, MenestrelSelect, select nativo) e seletor de quantidade, também no painel de ação da batalha; área de texto com 12px de canto. Até 19/11/2026 eram três alturas (32, 40 e 46px).
+- **Ao lado de um campo:** o botão que mora na mesma linha (enviar imagem) mede a altura do campo.
 - **Hover:** fundo sobe para bronze a 20%.
 - **Focus:** a borda reservada acende em ouro a 55%.
 - **Select nativo:** mesma pele com seta de ouro desenhada.
@@ -504,6 +505,17 @@ Pinturas no estilo de ícone de inventário de RPG (pincelada visível, luz quen
 
 ### Ícones
 Tabler Icons (webfont), versão filled sempre que existir — `src/tabler-filled.css` faz a troca; escrever `ti ti-nome` normalmente.
+
+### Trilho no topo da janela
+A barra de abas no topo do corpo (editores, Compêndio, Editar história, Estudar, Dar item) gruda no topo, rente à régua do cabeçalho, com 14px acima e abaixo da pílula, uma régua de bronze de ponta a ponta embaixo e 20px até o primeiro campo.
+
+### Tooltip
+Uma pele só: `.mn-tip` (fundo do painel, aro de bronze a 35%, canto 6px, seta com contorno), aberto por `propsTip`/`Tooltip`, nunca pelo `title` nativo. Título do balão em tinta, negrito — não em ouro.
+
+### Foco, clique e rolagem
+- **Foco por teclado:** todo botão, link e elemento focável tem o contorno de 2px em ouro a 65%, afastado 2px (base com força zero; o componente pode ter o seu).
+- **Clique:** todo botão afunda 1px (`translate`), menos o tabuleiro.
+- **Barra de rolagem:** uma só — fina, trilho transparente, polegar na régua forte (`scrollbar-width`/`scrollbar-color`).
 
 ### Pendências conhecidas (não são regras)
 - O corpo da janela de criatura ainda não foi revisto: segue com texto justificado e o desenho antigo até a etapa do bestiário.

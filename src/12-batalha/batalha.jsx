@@ -12719,7 +12719,7 @@ function RolagemResistencia({ alvo, pend, lang, ocupado = false, onResultado, on
         soma == null && <ValorDoDadoReal faces={20} isEn={isEn} semBotao onMudar={setDigitado} desativado={ocupado}
           onInformar={(v) => setSoma(v)} />
       ) : (
-        D10 && (
+        D10 && !(window.Dado3D && window.Dado3D.disponivel()) && (
           /* inert: o clique no dado 2D sortearia por conta própria. */
           <span className="resistencia-dados" inert>
             <D10 ref={d1} size={88} initialValue={10} onRoll={() => prontoRef.current && prontoRef.current()} />
