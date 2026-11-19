@@ -5591,6 +5591,9 @@ function acoesDaRodadaNova(p) {
               tecnica_livre_usada: false,
               // A magia instantânea gratuita também é uma POR RODADA (18/11/2026).
               instantanea_usada: false,
+              // O item também é um por rodada, e as ações ganhas pela falha
+              // crítica do outro time valem só nesta rodada (18/11/2026).
+              item_usado: false, acoes_extra_fc: 0,
               // Fase 2: o contador de ataque extra (Golpe Duplo/Contra-Ataque/
               // Flechadas Múltiplas) também é POR RODADA — zera na virada.
               pa_ataque_extra: 0 };
@@ -6503,6 +6506,42 @@ function ehMagiaInstantanea(magia) {
 function instantaneaJaUsada(p, magia) {
   return ehMagiaInstantanea(magia) && !!(p && p.instantanea_usada);
 }
+/* ── UM ITEM POR RODADA (18/11/2026) ────────────────────────────────
+   Usuário: "O item não gasta PA, mas só pode ser usado 1 por ação, igual
+   magia instantânea." A mesma cota da instantânea: `item_usado`, zerado na
+   virada (acoesDaRodadaNova). */
+function itemJaUsado(p) { return !!(p && p.item_usado); }
+
+/* ── A FALHA CRÍTICA DÁ UMA AÇÃO AO OUTRO TIME (18/11/2026) ─────────
+   Usuário: "Quando alguém rola uma falha crítica, todos os outros inimigos
+   (do outro time) ganham 1 ação extra (respeitando o teto de 2 ações por
+   rodada no máximo)." O teto conta as ações da rodada: as que a virada deu
+   (paDaRodada) mais as já ganhas assim (`acoes_extra_fc`, zerado na virada).
+   Quem já tem 2 na rodada não ganha. Só quem está de pé e em cena (ativo). */
+const TETO_ACOES_RODADA = 2;
+function acaoExtraPorFalhaCritica(participantes, autor) {
+  const lista = Array.isArray(participantes) ? participantes : [];
+  if (!autor) return { participantes: lista, ganharam: [] };
+  const ladoAutor = ladoNaBatalha(autor);
+  const ganharam = [];
+  const out = lista.map((p) => {
+    if (!p || p.status !== 'ativo' || mesmoParticipante(p, autor) || ladoNaBatalha(p) === ladoAutor) return p;
+    const daRodada = paDaRodada(p.pa_max, vbEfetivo(p), p.sem_acao_extra);
+    const extras = Number(p.acoes_extra_fc) || 0;
+    if (daRodada + extras >= TETO_ACOES_RODADA) return p;
+    ganharam.push(p.nome);
+    return { ...p, pa_rest: (Number(p.pa_rest) || 0) + 1, acoes_extra_fc: extras + 1 };
+  });
+  return { participantes: ganharam.length ? out : lista, ganharam };
+}
+function entradaLogAcaoExtraFc(autorNome, ganharam, rodada) {
+  if (!ganharam || !ganharam.length) return null;
+  const quem = ganharam.map((n) => (typeof primeiroNome === 'function' ? primeiroNome(n) : n));
+  const lista = quem.length > 1 ? quem.slice(0, -1).join(', ') + ' e ' + quem[quem.length - 1] : quem[0];
+  return { rodada, ts: Date.now(), acao: 'sistema',
+    texto: `Falha crítica de ${autorNome}: ${lista} ${quem.length > 1 ? 'ganham' : 'ganha'} 1 ação extra` };
+}
+
 // Sobrou a instantânea grátis da rodada, e ele tem uma de ataque para usá-la?
 function temInstantaneaLivre(p, catalogos) {
   if (!p || !catalogos || p.instantanea_usada || evocacaoPrendeAcao(p)) return false;
@@ -8500,7 +8539,8 @@ function BotoesDoTurno({ ator, catalogos, isEn, tb, travado, motivoTravado, onAc
     magia: !temMagia && !temApoio ? (isEn ? 'No spells.' : 'Nenhuma magia.') : null,
     tecnica_teste: !temTecnica ? tb.esteLutadorNaoTem2
       : !podeUsarTecnicaAgora(ator) ? tb.semTecnicasBloqueado : null,
-    item: !temItem ? (isEn ? 'Nothing to use in combat.' : 'Nada para usar em combate.') : null,
+    item: !temItem ? (isEn ? 'Nothing to use in combat.' : 'Nada para usar em combate.')
+      : itemJaUsado(ator) ? (isEn ? 'Already used an item this round.' : 'Já usou um item nesta rodada.') : null,
     habilidade: null,
   };
   const ACOES = [
@@ -9859,6 +9899,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       next[atorIdx] = fc.participante;
       danoSelf = fc.dano;
     }
+    // A falha crítica dá 1 ação a cada um do outro time (acaoExtraPorFalhaCritica).
+    const fcExtra = (resultado && resultado.q === 0)
+      ? acaoExtraPorFalhaCritica(next, next[atorIdx]) : { participantes: next, ganharam: [] };
+    next = fcExtra.participantes;
 
     // PA zerado, incapaz OU sem ações (FC caído) → auto-passa a vez
     let viraRodada = false;
@@ -9909,7 +9953,8 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       ...(tipo === 'magia' ? { magia_key: magia.key, magia_nivel: magia.nivel, custo_karma: k } : {}),
       ...(tecnica ? { tecnica_key: tecnica.key, tecnica_nome: tecnica.nome, tecnica_efeito: tecnica.efeito || null } : {}),
     };
-    const novoLog = [...log, entry];
+    const linhaFc = entradaLogAcaoExtraFc(participantes[atorIdx].nome, fcExtra.ganharam, rodada);
+    const novoLog = linhaFc ? [...log, entry, linhaFc] : [...log, entry];
 
     // Notifica a Central de Mensagens da Mesa via RPC (fire-and-forget).
     // Todos na história (Mestre + Jogadores) recebem via Realtime.
@@ -10337,7 +10382,10 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
     next = [...quebrarConcentracao(next, next[atorIdx].inst_id)];
     // Aplica o efeito (se houver) no snapshot do ator.
     next[atorIdx] = aplicarEfeitoItemSnapshot(next[atorIdx], cat, qtd);
-    // Usar item NÃO gasta PA (18/11/2026, usuário: "Usar item não gasta ação").
+    // Usar item NÃO gasta PA (18/11/2026, usuário: "Usar item não gasta ação"),
+    // mas é um por rodada (itemJaUsado).
+    if (itemJaUsado(next[atorIdx])) return;
+    next[atorIdx] = { ...next[atorIdx], item_usado: true };
 
     // PA zerado OU ator incapacitado pelo próprio item (efeito negativo
     // derrubou/matou) → auto-passa a vez (mesmo comportamento do lado do
@@ -13295,7 +13343,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
             quando o conjurador não tem a habilidade na ficha. */
          && (!magiaPedeTeste || (!semHabDoTeste && d20 != null)))
     : (tab === 'item')
-      ? (!!itemSelecionado && itemQtd >= 1 && itemQtd <= itemSelecionado.quantidade)
+      ? (!itemJaUsado(ator) && !!itemSelecionado && itemQtd >= 1 && itemQtd <= itemSelecionado.quantidade)
     : false;
 
   // Rolagem comprometida: a partir do momento em que existe um resultado de
@@ -14585,7 +14633,11 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           aqui com pa_rest 0 e ainda pode atacar, e o aviso vermelho dizia
           que não podia fazer nada. Agora as duas situações têm textos
           diferentes: sem nada, e só-o-extra. */}
-      {instantaneaUsada ? (
+      {tab === 'item' && itemJaUsado(ator) ? (
+        <div className="acao-karma-line">
+          <strong className="neg">{isEn ? 'Already used an item this round.' : 'Já usou um item nesta rodada.'}</strong>
+        </div>
+      ) : instantaneaUsada ? (
         <div className="acao-karma-line">
           <strong className="neg">
             {isEn ? 'Already cast an instant spell this round.' : 'Já usou a magia instantânea desta rodada.'}
@@ -15243,6 +15295,10 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
       next[atorIdx] = fc.participante;
       danoSelf = fc.dano;
     }
+    // A falha crítica dá 1 ação a cada um do outro time — espelha o Mestre.
+    const fcExtra = (resultado && resultado.q === 0)
+      ? acaoExtraPorFalhaCritica(next, next[atorIdx]) : { participantes: next, ganharam: [] };
+    next = fcExtra.participantes;
     // Se o ATOR zerou PA, ficou incapaz OU está sem ações (FC caído), passa a vez também
     const rAtor = autoPassarSeNecessario(next, next[atorIdx]);
     next = rAtor.participantes;
@@ -15321,7 +15377,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     persistJogador({ participantes: comMinhaRolagem(next, null),
       // Se a ação virou a rodada, o dano por rodada que ela cobrou entra no
       // MESMO log — senão a EF cai sozinha, sem nada explicando.
-      log: registrarViradaNoLog([...log, entry], eventosVirada, rodadaNova),
+      log: registrarViradaNoLog([...log, entry, ...[entradaLogAcaoExtraFc(meuParticipante.nome, fcExtra.ganharam, rodada)].filter(Boolean)], eventosVirada, rodadaNova),
       ...(rodadaNova != null ? { rodada: rodadaNova } : {}) });
   };
 
@@ -15559,7 +15615,9 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     // Usar item é uma ação: quebra a concentração — espelha aplicarItem.
     next = [...quebrarConcentracao(next, next[idx].inst_id)];
     next[idx] = aplicarEfeitoItemSnapshot(next[idx], cat, qtd);
-    // Usar item NÃO gasta PA (18/11/2026) — espelha aplicarItem.
+    // Usar item NÃO gasta PA, mas é um por rodada (18/11/2026) — espelha aplicarItem.
+    if (itemJaUsado(next[idx])) return;
+    next[idx] = { ...next[idx], item_usado: true };
     const rVez = autoPassarSeNecessario(next, meuParticipante);
     next = rVez.participantes;
     const rodadaNova = rVez.rodadaNova;
@@ -16420,7 +16478,7 @@ Object.assign(window, {
     efeitoAncoraNoAtacante,
     tetoDeAlvos,
     alvosExtrasEfetivos,
-    debitarCustoAtaque, paParaAtaque, rolarIniciativaDosReforcos, ehMagiaInstantanea, temInstantaneaLivre, nivelQueOKarmaPaga, instantaneaJaUsada, debitarAcaoDaMagia, acoesDaRodadaNova, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel, condicoesAoEncerrar,
+    debitarCustoAtaque, paParaAtaque, itemJaUsado, acaoExtraPorFalhaCritica, entradaLogAcaoExtraFc, TETO_ACOES_RODADA, rolarIniciativaDosReforcos, ehMagiaInstantanea, temInstantaneaLivre, nivelQueOKarmaPaga, instantaneaJaUsada, debitarAcaoDaMagia, acoesDaRodadaNova, criarTravaDeAcao, rodarEfeitosDaAcao, cortinaIndisponivel, condicoesAoEncerrar,
     itemAindaNaMochila,
     // O tempo da batalha (14/11/2026): 30 s × combatentes por rodada.
     SEGUNDOS_POR_ACAO, combatentesQueAgem, segundosDaRodada, duracaoDaBatalhaSegundos,
