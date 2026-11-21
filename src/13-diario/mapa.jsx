@@ -303,8 +303,15 @@ function criarMotorMapa(raiz, cfg) {
   /* A ORDEM EM QUE OS NOMES SAEM COM O ZOOM (21/11/2026, usuário: "Conforme o
      zoom diminui, quero que o nome dos locais suma, depois das cidades, depois
      das capitais, e por fim dos reinos"). Ponto e marca valem como local. */
+  /* OS MARES CADASTRADOS (21/11/2026, usuário: "Você não adicionou os mares do
+     norte, etc."): o local que é mar, baía, estreito ou recife (pelo nome, como
+     o Mar do Norte que banha Saravossa) fala como os mares do mapa — em
+     qualquer zoom, em itálico azul e sem ícone (mapa.css, data-nivel="mar").
+     Continua um local: o toque abre a ficha, e o Jogador só o vê se conhece. */
+  const AGUA_ABERTA = /^(mar|oceano|ba[ií]a|golfo|estreito|recifes?)\b/i;
   const nivelDoNome = (l) => (l.tipo === 'reino' ? 'reino'
-    : l.tipo === 'cidade' ? (ehCapital(l) ? 'capital' : 'cidade') : 'local');
+    : l.tipo === 'cidade' ? (ehCapital(l) ? 'capital' : 'cidade')
+    : l.tipo === 'local' && AGUA_ABERTA.test(String(l.nome || '').trim()) ? 'mar' : 'local');
   /* CIDADE NOVA NÃO NASCE NO MAPA (15/11/2026). Usuário: "não será criado uma
      'nova cidade' clicando no mapa, a cidade será criada na aba cidades da
      ambientação." A ferramenta Cidade só POSICIONA: o Mestre escolhe uma
@@ -410,9 +417,28 @@ function criarMotorMapa(raiz, cfg) {
      vêm daqui: são o que o Mestre e o Imperador põem, com as regras de quem
      conhece o quê. Nome da geografia que também é um lugar à vista no mapa
      sai daqui, para não aparecer duas vezes. */
-  const aVistaNaFaixa = (l, faixa) => ['local', 'cidade', 'capital', 'reino'].indexOf(nivelDoNome(l)) >= 4 - faixa;
+  const aVistaNaFaixa = (l, faixa) => { const n = nivelDoNome(l); return n === 'mar' || ['local', 'cidade', 'capital', 'reino'].indexOf(n) >= 4 - faixa; };
   const GEO_TIPOS = ['mar', 'lago', 'rio', 'serra', 'floresta', 'deserto', 'ilha', 'regiao', 'planicie', 'vulcao'];
   let vivo = true, semPintura = false, geo = [], geoAssinatura = '';
+  /* OS NOMES SE ARRUMAM NA TELA (21/11/2026, usuário: "Tem textos escritos em
+     lugares errados, como eu posso arrumar? Eu quero fazer isso" e "Eu quero
+     poder arrumar todos os textos"). O Imperador liga a ferramenta Nomes,
+     arrasta um nome para o lugar certo, troca o texto ou o esconde. A correção
+     não mexe no arquivo: fica em catalogo_mundo (tipo 'mapa', slug
+     'geografia'), { [id do nome]: { x?, y?, nome?, oculto? } }, e vale para
+     todos. Cidades, reinos e locais se arrumam pelo "Mover no mapa". */
+  let geoMod = (cfg.geografia && typeof cfg.geografia === 'object') ? { ...cfg.geografia } : {};
+  let geoSel = null;
+  const podeNomes = imperador && !!cfg.base && !!cfg.aoMudarGeografia;
+  const geoEf = (r) => ({ ...r, ...(geoMod[r.id] || {}) });
+  function geoDesenhar() {
+    const el = $('geo'); if (!el) return;
+    el.innerHTML = geo.map((r) => { const e = geoEf(r);
+      return `<span class="mp-geo-nome${geoSel === r.id ? ' sel' : ''}" data-geo="${esc(r.id)}" data-tipo="${r.tipo}" data-imp="${r.importancia}" style="left:${e.x}px;top:${e.y}px">${esc(e.nome)}</span>`; }).join('');
+    geoAssinatura = ''; geoRepetidos();
+  }
+  const guardarGeo = () => { if (cfg.aoMudarGeografia) cfg.aoMudarGeografia(JSON.parse(JSON.stringify(geoMod))); };
+  const geoPorId = (id) => geo.find((r) => r.id === id);
   elMundo.style.width = L + 'px'; elMundo.style.height = A + 'px';
   if (cfg.base) {
     $('arte').innerHTML = `<img class="mp-chao" alt="" draggable="false" decoding="async" src="${esc(cfg.base)}" style="width:${L}px;height:${A}px"><div class="mp-geo" data-el="geo"></div>`;
@@ -424,8 +450,7 @@ function criarMotorMapa(raiz, cfg) {
     fetch(String(cfg.base).replace(/\.svg$/, '-rotulos.json')).then((r) => r.json()).then((d) => {
       if (!vivo) return;
       geo = (d.rotulos || []).filter((r) => GEO_TIPOS.includes(r.tipo));
-      $('geo').innerHTML = geo.map((r) => `<span class="mp-geo-nome" data-tipo="${r.tipo}" data-imp="${r.importancia}" style="left:${r.x}px;top:${r.y}px">${esc(r.nome)}</span>`).join('');
-      geoAssinatura = ''; geoRepetidos();
+      geoDesenhar();
     }).catch(() => { /* sem os nomes, o mapa continua: só a geografia fica muda */ });
   }
   /* O nome da geografia que já é um lugar à vista sai da camada. "Mesmo nome"
@@ -434,13 +459,25 @@ function criarMotorMapa(raiz, cfg) {
      À VISTA quer dizer NESTE ZOOM (21/11/2026, usuário: "Você criou alguns
      mares, como mar do mistério, etc, faça todos"): o Mar da Morte também é um
      local cadastrado, e o local só fala de perto; de longe, o nome do mar volta. */
-  const nomeGeo = (t) => semAcento(t).replace(/(de|do|da|dos|das)/g, '').replace(/[^a-z]/g, '').replace(/s/g, '');
+  const nomeGeo = (t) => semAcento(t).replace(/\b(de|do|da|dos|das)\b/g, '').replace(/[^a-z]/g, '').replace(/s/g, '');
+  /* Repetido só quando PERTO (~650 km): o Mar do Norte do mapa do Império (a
+     oeste dele) e o do cadastro (ao norte dos Reinos) são duas costas do mesmo
+     mar, e as duas ficam com nome. */
+  const GEO_PERTO = 600;
   function geoRepetidos() {
     const el = $('geo'); if (!el || !geo.length) return;
     const faixa = Number(elMapa.dataset.nomes || 4);
-    const vistos = new Set(mesa.lugares.filter((l) => !oculto(l) && aVistaNaFaixa(l, faixa)).map((l) => nomeGeo(l.nome)));
-    const ass = faixa + ':' + [...vistos].sort().join('|'); if (ass === geoAssinatura) return; geoAssinatura = ass;
-    el.querySelectorAll('.mp-geo-nome').forEach((s) => { s.hidden = vistos.has(nomeGeo(s.textContent)); });
+    const vistos = mesa.lugares.filter((l) => !oculto(l) && aVistaNaFaixa(l, faixa));
+    const editando = modo === 'nomes';
+    const ass = faixa + ':' + editando + ':' + vistos.map((l) => l.id).sort().join('|'); if (ass === geoAssinatura) return; geoAssinatura = ass;
+    const porNome = new Map();
+    vistos.forEach((l) => { const k = nomeGeo(l.nome); if (!porNome.has(k)) porNome.set(k, []); porNome.get(k).push(l); });
+    el.querySelectorAll('.mp-geo-nome').forEach((s, i) => {
+      const r = geoEf(geo[i]), ls = porNome.get(nomeGeo(r.nome));
+      const fora = !!r.oculto || (!!ls && ls.some((l) => dist(l, r) < GEO_PERTO));
+      s.hidden = fora && !editando;
+      s.classList.toggle('apagado', fora);
+    });
   }
 
   /* ── Estado ── */
@@ -694,7 +731,7 @@ function criarMotorMapa(raiz, cfg) {
       return `<li><button type="button" class="mp-linha" data-alvo="gente" data-id="${esc(g.id)}" aria-current="${emFoco('gente', g.id) || (!!p && !!a && (foco.tipo === 'aqui' || foco.tipo === 'lugar' || foco.tipo === 'destino') && dist(a, p) < MAPA_PERTO)}">
         ${disco(g)}
         <span class="mp-ln-txt"><span class="mp-ln-nome">${esc(g.nome)}</span></span>
-        <span class="mp-ln-num${p ? '' : ' fora'}">${p ? esc(onde(p)) : (mestre ? tr('Pôr no mapa', 'Place on map') : tr('Fora do mapa', 'Off the map'))}</span></button></li>`;
+        <span class="mp-ln-num${p ? '' : ' fora'}">${p ? esc(onde(p)) : (mestre ? `<i class="ti ti-map-pin" aria-hidden="true"></i><span class="sr-only">${tr('Pôr no mapa', 'Place on map')}</span>` : tr('Fora do mapa', 'Off the map'))}</span></button></li>`;
     }).join(''), mestre ? tr('Esta mesa ainda não tem personagens.', 'This table has no characters yet.') : tr('Ninguém na mesa ainda.', 'Nobody at the table yet.'));
     if (!mestre && cfg.aoMudarMarcas) {
       h += quadro(tr('Marcas', 'Marks'), marcas.length + (J ? 1 : 0), tr('De você', 'From you'),
@@ -752,18 +789,20 @@ function criarMotorMapa(raiz, cfg) {
     reino: ['ti-crown', tr('Reino', 'Kingdom')],
     cidade: ['ti-map-pin', tr('Cidade', 'City')], local: ['ti-map-pin', tr('Local', 'Place')], ponto: ['ti-star', tr('Ponto', 'Point')],
     caminho: ['ti-road', tr('Caminho', 'Path')], rota: ['ti-route', tr('Rota', 'Route')],
+    nomes: ['ti-typography', tr('Nomes', 'Names')],
   };
   function aviso() {
     const el = $('aviso');
     /* Reino, Cidade e Local são do mundo: só o Imperador, dentro ou fora de mesa.
        Fora de mesa não há ponto, caminho nem rota — esses são da história de cada mesa. */
-    const doMundo = imperador ? ['reino', 'cidade', 'local'] : [];
+    const doMundo = imperador ? ['reino', 'cidade', 'local', ...(podeNomes ? ['nomes'] : [])] : [];
     const quais = mestre ? (cfg.semMesa ? ['medir', ...doMundo] : ['medir', ...doMundo, 'ponto', 'caminho', 'rota']) : (cfg.aoMudarMarcas ? ['medir', 'marcar'] : ['medir']);
     $('ferramentas').innerHTML = quais.map((k) =>
       // As peças do trilho do topo (.livro-trilho .mc-acao), não uma cópia delas (15/11/2026).
       `<button type="button" class="mc-acao mp-ferr${modo === k ? ' is-ativo' : ''}" data-modo="${k}" aria-pressed="${modo === k}" aria-label="${FERR[k][1]}"><i class="ti ${FERR[k][0]}" aria-hidden="true"></i><span class="mc-acao-rotulo">${FERR[k][1]}</span></button>`).join('');
     $('barra').classList.toggle('cheia', mestre);
-    elMapa.classList.toggle('ferramenta', !!modo);
+    elMapa.classList.toggle('ferramenta', !!modo && modo !== 'nomes');
+    elMapa.classList.toggle('editando-nomes', modo === 'nomes');
     const botoes = (...b) => `<span class="mp-aviso-acoes">${b.map(([acao, txt]) => `<button type="button" class="mp-acao" data-acao="${acao}">${txt}</button>`).join('')}</span>`;
     let h = '';
     if (modo === 'marcar') h = tr('Toque no mapa onde quer deixar a marca.', 'Tap the map where you want to leave the mark.');
@@ -774,6 +813,12 @@ function criarMotorMapa(raiz, cfg) {
     else if (modo === 'reino') h = pondoCidade ? tr(`Toque no mapa onde fica ${esc(pondoCidade.nome)}.`, `Tap the map where ${esc(pondoCidade.nome)} is.`)
       : tr('Escolha na lista o reino cadastrado que vai para o mapa.', 'Pick from the list the registered kingdom to put on the map.');
     else if (modo === 'ponto') h = tr('Toque no mapa onde fica o ponto.', 'Tap the map where the point is.');
+    else if (modo === 'nomes') {
+      const r = geoSel && geoPorId(geoSel), e = r && geoEf(r);
+      h = !r ? `<span>${tr('Arraste um nome para onde ele deve ficar. Toque num nome para trocar o texto ou escondê-lo.', 'Drag a name to where it belongs. Tap a name to change its text or hide it.')}</span>` + botoes(['sair-nomes', tr('Concluir', 'Done')])
+        : `<input id="mp-geo-texto" class="mp-aviso-campo" type="text" value="${esc(e.nome)}" aria-label="${tr('Texto do nome', 'Name text')}" autocomplete="off">`
+          + botoes(['geo-esconder', e.oculto ? tr('Mostrar', 'Show') : tr('Esconder', 'Hide')], ['geo-restaurar', tr('Restaurar', 'Reset')], ['sair-nomes', tr('Concluir', 'Done')]);
+    }
     else if (modo === 'por') { const g = gente.find((x) => String(x.id) === String(pondo));
       h = pondo === 'todos' ? tr('Toque no mapa onde a comitiva está.', 'Tap the map where the party is.')
         : tr(`Toque no mapa onde ${esc(g ? g.nome : '')} está.`, `Tap the map where ${esc(g ? g.nome : '')} is.`); }
@@ -795,6 +840,7 @@ function criarMotorMapa(raiz, cfg) {
     modo = modo === m ? null : m;
     if (modo !== 'medir') medida = [];
     traco = []; continua = null; pondo = null; pondoCidade = null; movendo = null; recado = null; passa = null; vsel = null;
+    if (geoSel) { geoSel = null; geoDesenhar(); }
     aviso(); desenhar();
   }
   /* Leva o lugar a p; os traçados e os personagens que estavam nele vão junto,
@@ -841,7 +887,7 @@ function criarMotorMapa(raiz, cfg) {
   /* O toque e o apontar só acham o que está à vista: o lugar que a faixa de
      zoom escondeu (data-nomes) não responde (21/11/2026). */
   const ORDEM_NIVEL = ['local', 'cidade', 'capital', 'reino'];
-  const aVista = (l) => ORDEM_NIVEL.indexOf(nivelDoNome(l)) >= 4 - Number(elMapa.dataset.nomes || 4);
+  const aVista = (l) => aVistaNaFaixa(l, Number(elMapa.dataset.nomes || 4));
   const maisPerto = (p, raioTela = 16) => { let m = null, md = raioTela / cam.s;
     for (const l of mesa.lugares) { if (oculto(l) || !aVista(l)) continue; const d = dist(l, p); if (d < md) { md = d; m = l; } } return m; };
   const linhaPerto = (p) => { let m = null, md = 9 / cam.s;
@@ -865,7 +911,11 @@ function criarMotorMapa(raiz, cfg) {
 
   ouvir(elMapa, 'pointerdown', (e) => {
     const { px, py } = local(e);
-    const pega = mestre && !modo && !e.target.closest('.mp-barra, .mp-aviso') ? pegar(noMundo(px, py)) : null;
+    // Com a ferramenta Nomes, o nome tocado vai junto com o dedo.
+    const nomeGeoEl = modo === 'nomes' && e.target.closest && e.target.closest('.mp-geo-nome');
+    const pegaGeo = nomeGeoEl ? (() => { const r = geoPorId(nomeGeoEl.dataset.geo), w = noMundo(px, py), ef = r && geoEf(r);
+      return r ? { tipo: 'geo', id: r.id, dx: w.x - ef.x, dy: w.y - ef.y, el: nomeGeoEl } : null; })() : null;
+    const pega = pegaGeo || (mestre && !modo && !e.target.closest('.mp-barra, .mp-aviso') ? pegar(noMundo(px, py)) : null);
     /* COM FERRAMENTA, O MARCADOR É MAPA (15/11/2026, usuário: "No mapa, não
        estou conseguindo colocar os personagens dentro das cidades"). Toda
        cidade virou um botão (o sinal da casinha), e o toque que começava nele
@@ -892,6 +942,12 @@ function criarMotorMapa(raiz, cfg) {
       if (!arrasto.andou) return;
       const g = arrasto.pega;
       if (!g) { cam.x = arrasto.cx + px - arrasto.px; cam.y = arrasto.cy + py - arrasto.py; pintar(); return; }
+      if (g.tipo === 'geo') {
+        const w = noMundo(px, py), x = r1(w.x - g.dx), y = r1(w.y - g.dy);
+        geoMod[g.id] = { ...(geoMod[g.id] || {}), x, y };
+        g.el.style.left = x + 'px'; g.el.style.top = y + 'px';
+        return;
+      }
       const a = alvo(), w = noMundo(px, py), p = { x: r1(Math.max(0, Math.min(L, w.x))), y: r1(Math.max(0, Math.min(A, w.y))) };
       if (g.tipo === 'lugar') {
         // os traçados e os personagens que estão neste lugar andam junto com ele
@@ -919,6 +975,12 @@ function criarMotorMapa(raiz, cfg) {
     if (dedos.size < 2) pinca = null;
     if (dedos.size === 0) { arrasto = null; elMapa.classList.remove('arrastando'); }
     if (!era) return;
+    if (era.pega && era.pega.tipo === 'geo') {
+      if (era.andou) guardarGeo();
+      geoSel = era.pega.id; geoDesenhar(); aviso();
+      if (!era.andou) { const c = $('geo-texto'); if (c) { c.focus(); c.select(); } }
+      return;
+    }
     if (era.pega) {
       if (era.andou) guardarMesa(); else if (era.pega.tipo === 'v') vsel = vsel === era.pega.i ? null : era.pega.i;
       desenhar(); return;
@@ -926,6 +988,7 @@ function criarMotorMapa(raiz, cfg) {
     if (era.andou || e.type !== 'pointerup') return;
     const { px, py } = local(e), w = noMundo(px, py), p = { x: r1(w.x), y: r1(w.y) };
     if (p.x < 0 || p.y < 0 || p.x > L || p.y > A) return;
+    if (modo === 'nomes') { if (geoSel) { geoSel = null; geoDesenhar(); aviso(); } return; }   // tocar fora de um nome solta o escolhido
     if (modo === 'mover') {          // o ponto exato do toque, sem grudar em outro lugar
       const lg = lugarId(movendo); modo = null; movendo = null;
       if (lg) { moverLugar(lg, p); aviso(); focar({ tipo: 'lugar', id: lg.id }, false); } else { aviso(); desenhar(); }
@@ -985,8 +1048,8 @@ function criarMotorMapa(raiz, cfg) {
   ouvir(document, 'keydown', (e) => {
     if (!raiz.isConnected) return;
     const campo = !!e.target.matches && e.target.matches('input, textarea, select');
-    if (campo && e.key === 'Enter' && e.target.id === 'mp-nome-foco') { e.target.blur(); return; }
-    if (e.key === 'Escape' && modo) trocarModo(modo);
+    if (campo && e.key === 'Enter' && (e.target.id === 'mp-nome-foco' || e.target.id === 'mp-geo-texto')) { e.target.blur(); return; }
+    if (e.key === 'Escape' && modo) { trocarModo(modo); e.preventDefault(); }   // o Esc fica com a ferramenta: não sai da tela cheia
     else if (e.key === 'Enter' && !campo && (modo === 'caminho' || modo === 'rota')) { e.preventDefault(); concluir(); }
   });
 
@@ -1036,12 +1099,23 @@ function criarMotorMapa(raiz, cfg) {
     else if (acao === 'trazer') { porGente('todos', a); desenhar(); }
     else if (acao === 'mover') { if (modo === 'mover') trocarModo('mover'); else { modo = 'mover'; movendo = a.id; medida = []; traco = []; continua = null; pondo = null; recado = null; vsel = null; aviso(); desenhar(); } }
     else if (acao === 'cancelar-mover') trocarModo('mover');
+    else if (acao === 'sair-nomes') trocarModo('nomes');
+    else if (acao === 'geo-esconder' && geoSel) { const m = geoMod[geoSel] || {}; geoMod[geoSel] = { ...m, oculto: !m.oculto }; if (!geoMod[geoSel].oculto) delete geoMod[geoSel].oculto; guardarGeo(); geoDesenhar(); aviso(); }
+    else if (acao === 'geo-restaurar' && geoSel) { delete geoMod[geoSel]; guardarGeo(); geoDesenhar(); aviso(); }
     else if (acao === 'repor') { modo = 'por'; pondo = a.id; medida = []; traco = []; continua = null; recado = null; aviso(); desenhar(); }
     else if (acao === 'tirar-gente' || acao === 'remover') remover();
     else if (acao === 'desfazer') { mesa = mapaNormalizar(JSON.parse(recado.antes), plano); guardarMesa(); recado = null; aviso(); desenhar(); }
     if ($('achados').contains(b) && cfg.aoEscolherAchado) cfg.aoEscolherAchado();
   });
   ouvir(raiz, 'input', (e) => {
+    if (e.target.id === 'mp-geo-texto' && geoSel) {
+      const r = geoPorId(geoSel), v = e.target.value.trim(), m = { ...(geoMod[geoSel] || {}) };
+      if (v && r && v !== r.nome) m.nome = v; else delete m.nome;
+      if (Object.keys(m).length) geoMod[geoSel] = m; else delete geoMod[geoSel];
+      const s = $('geo').querySelector(`[data-geo="${geoSel}"]`); if (s) s.textContent = v || (r && r.nome) || '';
+      guardarGeo(); geoAssinatura = ''; geoRepetidos();
+      return;
+    }
     if (e.target.id !== 'mp-nome-foco') return;
     const a = alvo(); if (!a) return;
     a.nome = e.target.value.trim() || (foco.tipo === 'marca' ? tr('Marca', 'Mark') : tr('Sem nome', 'Unnamed'));
@@ -1109,7 +1183,14 @@ function criarMotorMapa(raiz, cfg) {
       mundo = Array.isArray(lugares) ? lugares : []; ultimoMundo = JSON.stringify(mundo);
       juntarMundo(); acertarNomes(); if (pronto) desenhar();
     },
-    buscar(texto) { busca = texto || ''; listas(); },   // listas() chama achados() e decide se o painel aparece
+    buscar(texto) { busca = texto || ''; listas(); },
+    /* As correções dos nomes chegaram (ou mudaram em outro aparelho). */
+    receberGeografia(o) {
+      if (arrasto && arrasto.pega && arrasto.pega.tipo === 'geo') return;
+      geoMod = (o && typeof o === 'object') ? { ...o } : {}; geoDesenhar(); if (modo === 'nomes') aviso();
+    },
+    /* O mapa inteiro na tela (a tela cheia chama depois de a moldura crescer). */
+    inteiro(ms = 700) { if (vw && vh) voar(L / 2, A / 2, sMin, ms); },   // listas() chama achados() e decide se o painel aparece
     /* As cidades cadastradas chegaram (ou mudaram): religa e redesenha o passe. */
     catalogar(c) { porFichas(c); if (acertarNomes() && mestre) guardarMesa(); if (pronto) desenhar(); },
     falhou() { recado = { txt: tr('O mapa não foi salvo. Confira a conexão e mexa de novo.', 'The map was not saved. Check your connection and try again.') }; aviso(); },
@@ -1215,6 +1296,21 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
   const [catalogo, setCatalogo] = React.useState(null);     // { cidades, nomes, lore }
   const [fichaAberta, setFichaAberta] = React.useState(null);
   const banco = React.useMemo(() => api || mapaApiSupabase(), [api]);
+  /* A TELA CHEIA (21/11/2026, usuário: "O botão 'ver o mapa inteiro' vai fazer
+     com que o mapa fique full-screen, ou seja, igual o campo de batalha, veremos
+     apenas o mapa"). Como a batalha: a página vira a janela inteira, o menu
+     lateral e o trilho de abas somem (mapa.css, .mp-cheia); ferramentas, zoom e
+     régua ficam sobre o mapa, e o painel flutua num cartão quando tem o que
+     mostrar. Ao entrar, o mapa inteiro na tela; o mesmo botão (ou o Esc) sai. */
+  const [cheia, setCheia] = React.useState(false);
+  React.useEffect(() => {
+    if (!cheia) return undefined;
+    // depois de a moldura crescer (o motor remede no ResizeObserver)
+    const t = setTimeout(() => motor.current && motor.current.inteiro(), 90);
+    const sair = (e) => { if (e.key === 'Escape' && !e.defaultPrevented) setCheia(false); };
+    document.addEventListener('keydown', sair);
+    return () => { clearTimeout(t); document.removeEventListener('keydown', sair); };
+  }, [cheia]);
   const pjId = pj ? pj.id : null;
   /* FORA DAS MESAS (15/11/2026, usuário: "O mapa não está aparecendo"): o mapa
      é do mundo antes de ser da mesa. Sem mesa (ou Jogador sem personagem), ele
@@ -1253,11 +1349,32 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
     return () => { vivo = false; };
   }, [banco, plano]);
   React.useEffect(() => { if (motor.current && mundoDoPlano) motor.current.receberMundo(mundoDoPlano); }, [mundoDoPlano, estado]);
+  /* As correções dos nomes da geografia (21/11/2026): catalogo_mundo, tipo
+     'mapa', slug 'geografia'. Só há geografia no plano material. */
+  const [geografia, setGeografia] = React.useState(null);
+  const relogioGeo = React.useRef(0);
+  React.useEffect(() => {
+    let vivo = true;
+    const ler = banco.carregarGeografia || (() => (window.carregarCatalogoMundo ? window.carregarCatalogoMundo() : Promise.resolve(null))
+      .then(() => { const m = (window.mundoVigente ? window.mundoVigente('mapa') : []).find((e) => e.slug === 'geografia'); return (m && m.rotulos) || {}; }));
+    Promise.resolve(ler()).then((g) => { if (vivo) setGeografia(g && typeof g === 'object' ? g : {}); })
+      .catch(() => { if (vivo) setGeografia({}); });
+    return () => { vivo = false; };
+  }, [banco]);
+  React.useEffect(() => { if (motor.current && geografia) motor.current.receberGeografia(geografia); }, [geografia, estado]);
+  const aoMudarGeografia = React.useCallback((rotulos) => {
+    clearTimeout(relogioGeo.current);
+    relogioGeo.current = setTimeout(() => {
+      const salvar = banco.salvarGeografia || ((r) => window.salvarNoMundo('mapa', { slug: 'geografia', rotulos: r }));
+      Promise.resolve(salvar(rotulos)).catch(() => motor.current && motor.current.falhou());
+    }, 500);
+  }, [banco]);
 
   React.useEffect(() => {
     if (!semMesa || !raiz.current) return undefined;
     motor.current = criarMotorMapa(raiz.current, { papel: ehImperador ? 'mestre' : 'jogador', semMesa: true, en, base: baseDoPlano, plano,
       imperador: ehImperador, mundo: mundoDoPlano || [], aoMudarMundo: ehImperador ? aoMudarMundo : null,
+      geografia: geografia || {}, aoMudarGeografia: ehImperador ? aoMudarGeografia : null,
       mesa: null, marcas: [], gente: [], aoEscolherAchado: () => setQuery(''), aoAbrirCidade: setFichaAberta });
     setEstado('pronto');
     return () => { if (motor.current) { motor.current.destruir(); motor.current = null; } };
@@ -1280,6 +1397,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
         mesa: mapaDoPlano(dadosTodos, plano), marcas: (d.marcas || []).filter((m) => (m.plano || 'material') === plano), gente: d.gente,
         aoAbrirLoja: mestre && onLoja ? (nome) => { window.__mnLojaPedida = nome; onLoja(); } : null,
         imperador: ehImperador && mestre, mundo: mundoDoPlano || [], aoMudarMundo: (ehImperador && mestre) ? aoMudarMundo : null,
+        geografia: geografia || {}, aoMudarGeografia: (ehImperador && mestre) ? aoMudarGeografia : null,
         /* Grava com folga: arrastar um ponto dispara dezenas de mudanças. O
            motor entrega só o plano dele; grava-se o mapa inteiro, com os outros. */
         aoMudarMesa: mestre ? (doPlano) => {
@@ -1344,7 +1462,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
     <button type="button" className="mc-acao mp-ferr so-ico" data-zoom={qual} aria-label={rot} data-dica={rot}><i className={'ti ' + ico} aria-hidden="true" /></button>
   );
   return (
-    <div className="pjs diario-pagina mp-pagina">
+    <div className={'pjs diario-pagina mp-pagina' + (cheia ? ' mp-cheia' : '')}>
       <div className={'diario-pagina-barra cartoes-barra' + (trilhoPaginas ? ' livro-trilho trilho-unido' : '')}>
         {Busca && (
           <Busca ac={ac} placeholder={en ? 'Search place' : 'Buscar lugar'} query={query} setQuery={setQuery}
@@ -1392,7 +1510,12 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
               <div className="mp-grupo">
                 {zoom('menos', 'ti-minus', en ? 'Zoom out' : 'Afastar')}
                 {zoom('mais', 'ti-plus', en ? 'Zoom in' : 'Aproximar')}
-                {zoom('tudo', 'ti-arrows-maximize', en ? 'See the whole map' : 'Ver o mapa inteiro')}
+                {(() => { const rot = cheia ? (en ? 'Exit full screen' : 'Sair da tela cheia') : (en ? 'See the whole map' : 'Ver o mapa inteiro');
+                  return (
+                    <button type="button" className={'mc-acao mp-ferr so-ico' + (cheia ? ' is-ativo' : '')} aria-pressed={cheia}
+                      onClick={() => setCheia((c) => !c)} aria-label={rot} data-dica={rot}>
+                      <i className={'ti ' + (cheia ? 'ti-arrows-minimize' : 'ti-arrows-maximize')} aria-hidden="true" />
+                    </button>); })()}
               </div>
             </div>
             <div className="mp-escala" aria-hidden="true"><span data-el="escala-txt" /><i data-el="escala-barra" /></div>

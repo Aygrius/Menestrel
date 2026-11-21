@@ -133,7 +133,7 @@ describe('cidade nova não nasce no mapa', () => {
 describe('os locais no mapa', () => {
   const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
   it('Cidade e Local são do Imperador, dentro ou fora de mesa; o catálogo traz os locais', () => {
-    expect(fonte).toContain("const doMundo = imperador ? ['reino', 'cidade', 'local'] : [];");
+    expect(fonte).toContain("const doMundo = imperador ? ['reino', 'cidade', 'local', ...(podeNomes ? ['nomes'] : [])] : [];");
     expect(fonte).toMatch(/cfg\.semMesa \? \['medir', \.\.\.doMundo\] : \['medir', \.\.\.doMundo, 'ponto', 'caminho', 'rota'\]/);
     expect(fonte).toMatch(/sb\(\)\.rpc\('listar_catalogo_global', \{ p_tipo: 'local' \}\)/);
     expect(fonte).toMatch(/locais: entradas\.filter\(\(e\) => e && e\.tipo === 'local' && e\.nome\)/);
@@ -273,3 +273,59 @@ describe('os planos do mapa', () => {
     expect(svg).toContain(`viewBox="0 0 ${window.MAPA_L} ${window.MAPA_A}"`);
   });
 });
+
+/* A TELA CHEIA (21/11/2026, usuário: "O botão 'ver o mapa inteiro' vai fazer
+   com que o mapa fique full-screen, ou seja, igual o campo de batalha"). */
+describe('o mapa em tela cheia', () => {
+  const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+  const css = readFileSync(join(aqui, 'mapa.css'), 'utf8');
+  it('o botão alterna a tela cheia e, ao entrar, enquadra o mapa inteiro', () => {
+    expect(fonte).toContain("onClick={() => setCheia((c) => !c)}");
+    expect(fonte).toContain("<div className={'pjs diario-pagina mp-pagina' + (cheia ? ' mp-cheia' : '')}>");
+    expect(fonte).toContain('motor.current.inteiro()');
+  });
+  it('o Esc sai, mas antes desliga a ferramenta ligada', () => {
+    expect(fonte).toContain("if (e.key === 'Escape' && modo) { trocarModo(modo); e.preventDefault(); }");
+    expect(fonte).toContain("if (e.key === 'Escape' && !e.defaultPrevented) setCheia(false);");
+  });
+  it('como a batalha: a janela inteira, sem menu lateral nem trilho de abas', () => {
+    expect(css).toContain('.mc-root:has(.mp-pagina.mp-cheia) .mc-sidebar { display: none; }');
+    expect(css.replace(/\r?\n\s*/g, ' ')).toContain('.mp-pagina.mp-cheia { position: fixed; inset: 0;');
+    expect(css).toContain('.mp-pagina.mp-cheia > .diario-pagina-barra { display: none; }');
+  });
+});
+
+/* OS NOMES SE ARRUMAM NA TELA (21/11/2026, usuário: "Eu quero poder arrumar
+   todos os textos"). */
+describe('a ferramenta Nomes', () => {
+  const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+  const css = readFileSync(join(aqui, 'mapa.css'), 'utf8');
+  it('é só do Imperador, no plano com pintura', () => {
+    expect(fonte).toContain("const podeNomes = imperador && !!cfg.base && !!cfg.aoMudarGeografia;");
+    expect(fonte).toContain("const doMundo = imperador ? ['reino', 'cidade', 'local', ...(podeNomes ? ['nomes'] : [])] : [];");
+    expect(fonte).toContain("geografia: geografia || {}, aoMudarGeografia: ehImperador ? aoMudarGeografia : null,");
+    expect(fonte).toContain("geografia: geografia || {}, aoMudarGeografia: (ehImperador && mestre) ? aoMudarGeografia : null,");
+  });
+  it('a correção vai para o catálogo do mundo (mapa / geografia), não para o arquivo', () => {
+    expect(fonte).toContain("window.salvarNoMundo('mapa', { slug: 'geografia', rotulos: r })");
+    expect(fonte).toContain("find((e) => e.slug === 'geografia')");
+  });
+  it('cada nome do arquivo tem um id único, que a correção aponta', () => {
+    const { rotulos } = JSON.parse(readFileSync(join(aqui, '../../public/mapa/tagmar-rotulos.json'), 'utf8'));
+    const ids = rotulos.map((r) => r.id);
+    expect(ids.every(Boolean)).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+  it('com a ferramenta ligada, todo nome fica à vista e agarrável', () => {
+    expect(css).toContain('.mp-mapa.editando-nomes .mp-geo-nome { display: block !important; pointer-events: auto; cursor: grab;');
+  });
+});
+
+/* 21/11/2026, usuário: "Diminua um pouco a largura ao selecionar uma cidade, e
+   onde está a comitiva". */
+it('o painel do lado tem 264px, também em tela cheia', () => {
+  const css = readFileSync(join(aqui, 'mapa.css'), 'utf8');
+  expect(css).toContain('display: grid; grid-template-columns: 264px minmax(0, 1fr);');
+  expect(css).toContain('position: absolute; left: 14px; top: 14px; z-index: 7; width: 264px;');
+});
+

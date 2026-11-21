@@ -27,7 +27,9 @@
      é o contorno dos rótulos de mapa: oito sombras de 1px e um véu de 3px. */
   --mp-lugar: rgb(81, 96, 114);
   --mp-halo: 1px 0 0 #fff, -1px 0 0 #fff, 0 1px 0 #fff, 0 -1px 0 #fff, 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 0 0 3px #fff;
-  display: grid; grid-template-columns: 340px minmax(0, 1fr);
+  /* 264px (21/11/2026, usuário: "Diminua um pouco a largura ao selecionar uma
+     cidade, e onde está a comitiva" e depois "Diminua um pouco mais"): era 340. */
+  display: grid; grid-template-columns: 264px minmax(0, 1fr);
   /* A altura vem do React (--mp-altura): o que sobra da janela abaixo do trilho. */
   height: var(--mp-altura, max(460px, calc(100dvh - 190px)));
   color: var(--tinta);
@@ -145,9 +147,12 @@
 #root .menestrel-ui .mp-geo-nome:is([data-tipo="deserto"], [data-tipo="planicie"]) { color: #86663A; }
 #root .menestrel-ui .mp-geo-nome:is([data-tipo="deserto"], [data-tipo="regiao"]) { font-size: var(--fs-sm); font-style: normal; letter-spacing: .1em; text-transform: uppercase; }
 /* As mesmas faixas de zoom dos lugares (data-nomes): o mar fala sempre;
-   deserto, região e serra a partir de 400 km na régua; lago, rio, floresta,
+   deserto e região a partir de 400 km na régua; serra a partir de 200 km; lago, rio, floresta,
    ilha e vulcão a partir de 100 km; planície só de perto (50 km). */
 #root .menestrel-ui .mp-mapa:is([data-nomes="0"]) .mp-geo-nome[data-imp="2"],
+/* a serra espera um degrau a mais (200 km): de longe, com o mapa todo na
+   tela, ela se amontoava com os reinos */
+#root .menestrel-ui .mp-mapa:is([data-nomes="0"], [data-nomes="1"]) .mp-geo-nome:is([data-tipo="serra"], [data-tipo="vulcao"]),
 #root .menestrel-ui .mp-mapa:is([data-nomes="0"], [data-nomes="1"], [data-nomes="2"]) .mp-geo-nome[data-imp="3"],
 #root .menestrel-ui .mp-mapa:not([data-nomes="4"]) .mp-geo-nome[data-imp="4"] { display: none; }
 #root .menestrel-ui .mp-linhas { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
@@ -236,8 +241,17 @@
    A marca do Jogador fica; só o nome dela sai com os locais. */
 #root .menestrel-ui .mp-mapa[data-nomes="3"] :is(.mp-mk, .mp-etiqueta)[data-nivel="local"],
 #root .menestrel-ui .mp-mapa[data-nomes="2"] :is(.mp-mk, .mp-etiqueta):is([data-nivel="local"], [data-nivel="cidade"]),
-#root .menestrel-ui .mp-mapa[data-nomes="1"] :is(.mp-mk, .mp-etiqueta)[data-nivel]:not([data-nivel="reino"]),
-#root .menestrel-ui .mp-mapa[data-nomes="0"] :is(.mp-mk, .mp-etiqueta)[data-nivel] { display: none; }
+#root .menestrel-ui .mp-mapa[data-nomes="1"] :is(.mp-mk, .mp-etiqueta)[data-nivel]:not([data-nivel="reino"], [data-nivel="mar"]),
+#root .menestrel-ui .mp-mapa[data-nomes="0"] :is(.mp-mk, .mp-etiqueta)[data-nivel]:not([data-nivel="mar"]) { display: none; }
+/* O MAR CADASTRADO (21/11/2026, usuário: "Você não adicionou os mares do norte,
+   etc."): o local que é mar, baía, estreito ou recife (mapa.jsx, AGUA_ABERTA)
+   fala em qualquer zoom, como os mares do mapa (.mp-geo-nome[data-tipo="mar"]):
+   itálico azul, numa linha, sem ícone e centrado no ponto. */
+#root .menestrel-ui .mp-tela .mp-mk[data-nivel="mar"]:not(:has(> .mp-marca.sel)) .mp-etiqueta {
+  translate: -50% -50%; max-width: none; display: block; white-space: nowrap;
+  font: italic 600 var(--fs-md)/1.1 var(--font-body); letter-spacing: .06em;
+  color: #1F5F78; text-shadow: 0 0 2px rgba(255,255,255,.55);
+}
 /* SELECIONADO (21/11/2026, usuário: "Ao selecionar, eu quero o fundo preto com
    círculo e o ícone branco"): o marcador escolhido vira um disco de tinta com o
    ícone branco, e fica à vista em qualquer faixa de zoom. */
@@ -286,6 +300,23 @@
 #root .menestrel-ui .mp-aviso b { color: var(--tinta); font-weight: 700; white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; }
 #root .menestrel-ui .mp-aviso-acoes { display: flex; gap: 2px; margin-left: auto; flex: none; }
 #root .menestrel-ui .mp-tela .mp-aviso .mp-acao { height: 34px; padding: 0 14px; border-radius: 999px; font-size: 15px; font-weight: 700; }
+/* O campo do nome escolhido na ferramenta Nomes, na própria linha do aviso. */
+#root .menestrel-ui .mp-aviso:has(.mp-aviso-campo) { max-width: min(620px, 100%); padding-left: 5px; }
+#root .menestrel-ui .mp-tela .mp-aviso-campo {
+  flex: 1 1 180px; min-width: 0; height: 34px; padding: 0 14px; box-sizing: border-box; border-radius: 999px;
+  border: 1px solid var(--regua-forte); background: var(--chao-celula); color: var(--tinta); font: 600 15px var(--font-body);
+}
+
+/* ══ A FERRAMENTA NOMES (21/11/2026) ════════════════════════════════════════
+   Usuário: "Eu quero poder arrumar todos os textos." Com ela ligada (só o
+   Imperador), os nomes da geografia saem da faixa de zoom e ficam todos à
+   vista, agarráveis; o escondido e o repetido aparecem apagados, para poder
+   voltar; o escolhido ganha o aro do que está vivo. */
+#root .menestrel-ui .mp-mapa.editando-nomes .mp-geo-nome { display: block !important; pointer-events: auto; cursor: grab; border-radius: 4px; }
+#root .menestrel-ui .mp-mapa.editando-nomes .mp-geo-nome:hover { outline: 1.5px dashed var(--mp-lugar); outline-offset: 2px; }
+#root .menestrel-ui .mp-mapa.editando-nomes.arrastando .mp-geo-nome { cursor: grabbing; }
+#root .menestrel-ui .mp-mapa.editando-nomes .mp-geo-nome.apagado { opacity: .45; text-decoration: line-through; }
+#root .menestrel-ui .mp-mapa.editando-nomes .mp-geo-nome.sel { outline: 2px solid var(--vivo); outline-offset: 3px; }
 
 /* A legenda de medida no padrão do trilho (17/11/2026, usuário: "fora do
    padrão de cor de fonte, fundo e borda"): o chão e a borda de .mp-grupo, a
@@ -312,6 +343,36 @@
 #root .menestrel-ui .mp-barra.mp-barra-zoom { top: auto; left: auto; right: 12px; bottom: 12px; }
 @media (max-width: 768px) {
   #root .menestrel-ui .mp-barra.mp-barra-zoom { right: 8px; bottom: 8px; }
+}
+
+/* ══ O MAPA EM TELA CHEIA (21/11/2026) ══════════════════════════════════════
+   Usuário: "O botão 'ver o mapa inteiro' vai fazer com que o mapa fique
+   full-screen, ou seja, igual o campo de batalha, veremos apenas o mapa."
+   O mesmo trato da batalha (index.css, "A BATALHA EM TELA CHEIA"): a página
+   vira a janela inteira, o menu lateral e o trilho de abas somem. Ferramentas,
+   zoom e régua seguem sobre o mapa; o painel, quando tem o que mostrar, flutua
+   num cartão à esquerda, com o fundo sólido das peças da batalha. */
+#root .menestrel-ui.mc-root:has(.mp-pagina.mp-cheia) .mc-sidebar { display: none; }
+#root .menestrel-ui .mp-pagina.mp-cheia {
+  position: fixed; inset: 0; z-index: 30; margin: 0; padding: 0; width: auto; max-width: none; min-height: 0;
+  background: #83D6EA; overflow: hidden;
+}
+#root .menestrel-ui .mp-pagina.mp-cheia > .diario-pagina-barra { display: none; }
+#root .menestrel-ui .mp-pagina.mp-cheia .mp-tela { position: absolute; inset: 0; height: auto; display: block; }
+#root .menestrel-ui .mp-pagina.mp-cheia .mp-mapa { position: absolute; inset: 0; border-radius: 0; }
+#root .menestrel-ui .mp-pagina.mp-cheia .mp-painel {
+  position: absolute; left: 14px; top: 14px; z-index: 7; width: 264px; max-height: calc(100% - 28px);
+  padding: 12px; box-sizing: border-box;
+  background: rgba(20,15,10,.92); border: 1px solid var(--regua-forte); border-radius: 12px; box-shadow: 0 12px 28px rgba(0,0,0,.45);
+}
+/* com o cartão aberto, o trilho das ferramentas e a régua começam depois dele */
+#root .menestrel-ui .mp-pagina.mp-cheia .mp-tela:not(.so-mapa) .mp-barra:not(.mp-barra-zoom) { left: 292px; }
+#root .menestrel-ui .mp-pagina.mp-cheia .mp-tela:not(.so-mapa) .mp-escala { left: 292px; }
+@media (max-width: 768px) {
+  /* Celular: o cartão desce para baixo, como a folha de baixo do mapa. */
+  #root .menestrel-ui .mp-pagina.mp-cheia .mp-painel { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: 44dvh; }
+  #root .menestrel-ui .mp-pagina.mp-cheia .mp-tela:not(.so-mapa) .mp-barra:not(.mp-barra-zoom) { left: 8px; }
+  #root .menestrel-ui .mp-pagina.mp-cheia .mp-tela:not(.so-mapa) :is(.mp-escala, .mp-barra-zoom) { bottom: calc(44dvh + 16px); }
 }
 @media (prefers-reduced-motion: reduce) {
   #root .menestrel-ui :is(.mp-rota-falta, .mp-onda, .mp-valor.assenta) { animation: none; }
