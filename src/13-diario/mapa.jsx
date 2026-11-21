@@ -8,19 +8,20 @@
 
    TRÊS DECISÕES QUE EXPLICAM O ARQUIVO
 
-   1. O chão é a pintura original, sem compressão ("Você pode usar a imagem
-      original sem compressão?"). Ela tem 10050 × 16750 pixels: vai em
-      ladrilhos PNG de 512, em 4 níveis (0 = pixels do arquivo; cada nível
-      acima, a metade), no bucket `mapas` do Storage. Só entram os ladrilhos
-      que a janela vê. Cada ladrilho traz 2 px reais do vizinho em cada lado:
-      sem essa sobra, as bordas de dois níveis caem no mesmo lugar e aparece
-      uma linha escura de 1 px na emenda.
+   1. O chão é o MAPA VETORIAL de Tagmar inteiro (21/11/2026, usuário: "Podemos
+      transformar nosso mapa em um tipo de arquivo [...] para ficar leve no
+      nosso site e não perder resolução?" e "Na tela de mapa"): um SVG em
+      public/mapa/tagmar.svg (~0,6 MB comprimido), nítido em qualquer zoom.
+      Até então eram ladrilhos PNG da pintura oriental (só os Reinos).
+      Por cima dele, os nomes da geografia (mares, serras, rios, florestas…)
+      de public/mapa/tagmar-rotulos.json; cidades, reinos e locais continuam
+      sendo os que o Mestre e o Imperador põem no mapa.
 
-   2. Tudo é medido em UNIDADES DO MAPA (1200 × 2000), não em pixels. "Vou
-      alterar a imagem, com exatamente o mesmo tamanho" (usuário): trocar a
-      pintura é reenviar os ladrilhos (scripts/mapa/) — nada do que o Mestre
-      desenhou se move. A régua da própria pintura mede 152,5 unidades para
-      400 km; daí KM.
+   2. Tudo é medido em UNIDADES DO MAPA (o viewBox do SVG, 5905,5 × 4695,1),
+      não em pixels. O que estava gravado nas unidades da pintura antiga
+      (1200 × 2000) foi convertido por scripts/mapa/migrar-vetorial.mjs. A
+      régua: 365 unidades para 400 km (a dos Reinos dá 352 e a do Império 378
+      no mapa novo; a média); daí KM.
 
    3. O MOTOR é imperativo (criarMotorMapa): arrastar e aproximar repintam
       a cada quadro, e passar isso pelo React custaria um render por pixel.
@@ -36,15 +37,18 @@
      mapa_marcas.marcas = [{ id, nome, x, y, lugar? }]      — do personagem
    ============================================================ */
 
-const MAPA_L = 1200, MAPA_A = 2000;
-const MAPA_ZOOM_NOMES = 1;   // escala da câmera a partir da qual as etiquetas aparecem
-const MAPA_KM = 400 / 152.5;
+const MAPA_L = 5905.5, MAPA_A = 4695.1;
+const MAPA_KM = 400 / 365;
+/* "Perto" em unidades do mapa (~10 km): o lugar onde alguém está, o toque que
+   acha um lugar. Era 4 na pintura antiga, onde 4 unidades davam 10 km. */
+const MAPA_PERTO = 9;
+/* O chão do plano material e os nomes da geografia (21/11/2026). */
+const MAPA_PINTURA = '/mapa/tagmar.svg';
 /* Suposição da tela, não regra do Tagmar: um dia de marcha a pé. */
 const MAPA_KM_DIA_A_PE = 30;
 /* A NÉVOA (17/11/2026, usuário: "o jogador só vai conseguir ver um raio de
    100 km ao redor de seu personagem"). */
 const MAPA_NEVOA_KM = 100;
-const MAPA_LADO = 512, MAPA_SOBRA = 2;
 
 /* As cidades que a pintura já traz escritas: o Mestre parte delas. */
 const MAPA_PINTADAS = {
@@ -63,19 +67,21 @@ const MAPA_PINTADAS = {
   'Timor':[513.3,1254.3],'Eldair':[376.7,1222.3],'Crassia':[611.7,848.3],'Dameste':[390,830],'Ingru':[235,850],
 };
 
-/* O mapa de uma mesa que o Mestre ainda não tocou. */
+/* O mapa de uma mesa que o Mestre ainda não tocou: VAZIO (21/11/2026, usuário:
+   "Pare de criar cidades automáticas"). Até então nascia com as 65 cidades da
+   pintura antiga (MAPA_PINTADAS, marcadas p: 1) — que não batem com a pintura
+   nova e não eram da aba Cidades. Agora só entra no mapa o que alguém pôs. */
 function mapaSemente() {
-  return {
-    lugares: Object.keys(MAPA_PINTADAS).map((nome, i) => ({ id: 'c' + i, tipo: 'cidade', nome, x: MAPA_PINTADAS[nome][0], y: MAPA_PINTADAS[nome][1], p: 1 })),
-    linhas: [], rota: null, gente: {},
-  };
+  return { lugares: [], linhas: [], rota: null, gente: {} };
 }
+// A cidade que a semente antiga criou sozinha: p: 1 e sem ficha ligada.
+const mapaAutomatica = (l) => !!l && l.p === 1 && !l.ficha;
 /* O que veio do banco, com as quatro chaves no lugar. Linha vazia = semente
-   (a pintura do plano material); os outros planos nascem vazios. */
+   (vazia); as cidades automáticas que ficaram gravadas não voltam. */
 function mapaNormalizar(dados, plano = 'material') {
-  if (!dados || !Array.isArray(dados.lugares)) return plano === 'material' ? mapaSemente() : { lugares: [], linhas: [], rota: null, gente: {} };
+  if (!dados || !Array.isArray(dados.lugares)) return mapaSemente();
   return {
-    lugares: dados.lugares,
+    lugares: dados.lugares.filter((l) => !mapaAutomatica(l)),
     linhas: Array.isArray(dados.linhas) ? dados.linhas : [],
     rota: dados.rota || null,
     gente: (dados.gente && typeof dados.gente === 'object') ? dados.gente : {},
@@ -163,7 +169,7 @@ function mapaPlanoDe(dados, pjId) {
 /* ============================================================
    O MOTOR — desenha e escuta dentro da moldura que o React montou
    ============================================================
-   cfg: { papel: 'mestre'|'jogador', en, base (URL dos ladrilhos),
+   cfg: { papel: 'mestre'|'jogador', en, base (URL do SVG do chão),
           mesa, marcas, gente: [{ id, nome, foto, eu }],
           aoMudarMesa(dados), aoMudarMarcas(marcas) }
    devolve { receber(dados), buscar(texto), falhou(), destruir() } */
@@ -228,10 +234,10 @@ function criarMotorMapa(raiz, cfg) {
   const raioNevoa = MAPA_NEVOA_KM / MAPA_KM;
   const meuPosto = () => { const g = gente.find((x) => x.eu); return (g && mesa.gente[g.id]) || null; };
   const naNevoa = (p) => { if (!comNevoa) return false; const eu = meuPosto(); return !eu || dist(eu, p) > raioNevoa; };
-  const ondeEstou = (l) => gente.some((g) => g.eu && mesa.gente[g.id] && dist(mesa.gente[g.id], l) < 4);
-  const oculto = (l) => naNevoa(l) || (!mestre && (l.tipo === 'cidade' || l.tipo === 'local') && !ondeEstou(l)
-    && ((l.tipo === 'local' ? locaisCad : cadastradas) === null || !fichaDe(l)));
-  const perto = (p, raio = 4) => { let m = null, md = raio;
+  const ondeEstou = (l) => gente.some((g) => g.eu && mesa.gente[g.id] && dist(mesa.gente[g.id], l) < MAPA_PERTO);
+  const oculto = (l) => naNevoa(l) || (!mestre && CADASTRADOS.includes(l.tipo) && !ondeEstou(l)
+    && (cadDoTipo(l.tipo) === null || !fichaDe(l)));
+  const perto = (p, raio = MAPA_PERTO) => { let m = null, md = raio;
     for (const l of mesa.lugares) { if (oculto(l)) continue; const d = dist(l, p); if (d < md) { md = d; m = l; } } return m; };
   const onde = (p) => { const l = perto(p); return l ? l.nome : tr('Na estrada', 'On the road'); };
   /* Quem está no mapa, já com a posição. */
@@ -256,6 +262,12 @@ function criarMotorMapa(raiz, cfg) {
      no mapa, além de cidades"). O mesmo trato das cidades: só os cadastrados
      na aba Locais, ligados pelo id da ficha. */
   let locaisCad = null, fichasLocalId = new Map(), capitais = new Set();
+  /* OS REINOS NO MAPA (21/11/2026, usuário: "Quero adicionar um botão para
+     adicionar reinos no mapa"). O mesmo trato de cidades e locais: só os
+     cadastrados na aba Reinos, ligados pelo id da ficha. */
+  let reinosCad = null, fichasReinoId = new Map();
+  const CADASTRADOS = ['cidade', 'local', 'reino'];
+  const cadDoTipo = (tipo) => (tipo === 'local' ? locaisCad : tipo === 'reino' ? reinosCad : cadastradas);
   const chave = (nome) => semAcento(nome).trim();
   const porFichas = (c) => {
     cadastradas = c ? (c.cidades || []) : null;       // null = o catálogo ainda não chegou
@@ -263,34 +275,36 @@ function criarMotorMapa(raiz, cfg) {
     fichasId = new Map((cadastradas || []).map((e) => [String(e.id), e]));
     locaisCad = c ? (c.locais || []) : null;
     fichasLocalId = new Map((locaisCad || []).map((e) => [String(e.id), e]));
+    reinosCad = c ? (c.reinos || []) : null;
+    fichasReinoId = new Map((reinosCad || []).map((e) => [String(e.id), e]));
     nomesLore = (c && c.nomes) || {};
     capitais = new Set(((c && c.capitais) || []).map(String));
   };
   porFichas(cfg.catalogo);
-  const fichaDe = (p) => { const l = p && (p.tipo === 'cidade' || p.tipo === 'local' ? p : perto(p));
+  const fichaDe = (p) => { const l = p && (CADASTRADOS.includes(p.tipo) ? p : perto(p));
     if (l && l.tipo === 'local') return (l.ficha && fichasLocalId.get(String(l.ficha))) || null;
+    if (l && l.tipo === 'reino') return (l.ficha && fichasReinoId.get(String(l.ficha))) || null;
     return (l && l.tipo === 'cidade' && ((l.ficha && fichasId.get(String(l.ficha))) || fichas.get(chave(l.nome)))) || null; };
   // O sinal de cada lugar no mapa e nas listas.
-  const ICONE_LUGAR = { cidade: 'ti-building-castle', local: 'ti-mountain', ponto: 'ti-star' };
-  /* UM SINAL POR TIPO DE LUGAR (17/11/2026, usuário: "Cidades menores vão usar
-     o ícone ti-tower e capitais vão usar o ícone ti-building-castle, florestas
-     ti-christmas-tree, farol ti-building-lighthouse, mar, lago, rio
-     ti-sailboat"). Capital é a cidade que algum reino tem como capital
-     (reinos.capital, o slug = id da ficha); a cidade sem ficha conhecida vale
-     menor. O Local não tem campo de tipo: o nome diz ("Floresta de Laudis",
-     "Farol Estrela Eterna", "Rio Aura"); o resto continua montanha. */
+  /* UM SINAL POR TIPO DE LUGAR (21/11/2026, usuário: "Todos os ícones de local
+     será ti-map-pin. Todos os ícones de cidade será ti-pennant [ti-map-pin desde
+     a tarde de 21/11: "O ícone da cidade é ti-map-pin"]. Todos os ícones
+     de capital será ti-flag"). Substitui o de 17/11 (torre, castelo, e o local
+     pelo nome: floresta, farol, água, montanha). Capital é a cidade que algum
+     reino tem como capital (reinos.capital, o slug = id da ficha); a cidade sem
+     ficha conhecida vale cidade. */
+  const ICONE_LUGAR = { cidade: 'ti-map-pin', capital: 'ti-flag', local: 'ti-map-pin', ponto: 'ti-star', reino: 'ti-crown' };
+  const ehCapital = (l) => { const f = l && l.tipo === 'cidade' && fichaDe(l); return !!f && capitais.has(String(f.id)); };
   const iconeLugar = (l) => {
     if (!l) return 'ti-star';
-    if (l.tipo === 'cidade') { const f = fichaDe(l); return f && capitais.has(String(f.id)) ? 'ti-building-castle' : 'ti-tower'; }
-    if (l.tipo === 'local') {
-      const n = semAcento(l.nome || '').trim();
-      if (/^floresta\b/.test(n)) return 'ti-christmas-tree';
-      if (/^farol\b/.test(n)) return 'ti-building-lighthouse';
-      if (/^(mar|lago|rio)\b/.test(n)) return 'ti-sailboat';
-      return 'ti-mountain';
-    }
+    if (l.tipo === 'cidade') return ehCapital(l) ? ICONE_LUGAR.capital : ICONE_LUGAR.cidade;
     return ICONE_LUGAR[l.tipo] || 'ti-star';
   };
+  /* A ORDEM EM QUE OS NOMES SAEM COM O ZOOM (21/11/2026, usuário: "Conforme o
+     zoom diminui, quero que o nome dos locais suma, depois das cidades, depois
+     das capitais, e por fim dos reinos"). Ponto e marca valem como local. */
+  const nivelDoNome = (l) => (l.tipo === 'reino' ? 'reino'
+    : l.tipo === 'cidade' ? (ehCapital(l) ? 'capital' : 'cidade') : 'local');
   /* CIDADE NOVA NÃO NASCE NO MAPA (15/11/2026). Usuário: "não será criado uma
      'nova cidade' clicando no mapa, a cidade será criada na aba cidades da
      ambientação." A ferramenta Cidade só POSICIONA: o Mestre escolhe uma
@@ -300,10 +314,10 @@ function criarMotorMapa(raiz, cfg) {
   const foraDoMapa = (tipo = 'cidade') => {
     const ids = new Set(), nomes = new Set();
     mesa.lugares.forEach((l) => { if (l.tipo !== tipo) return; if (l.ficha) ids.add(String(l.ficha)); nomes.add(chave(l.nome)); });
-    return ((tipo === 'local' ? locaisCad : cadastradas) || []).filter((e) => !ids.has(String(e.id)) && !nomes.has(chave(e.nome)))
+    return (cadDoTipo(tipo) || []).filter((e) => !ids.has(String(e.id)) && !nomes.has(chave(e.nome)))
       .sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
   };
-  const fichaPeloId = (tipo, id) => (tipo === 'local' ? fichasLocalId : fichasId).get(String(id));
+  const fichaPeloId = (tipo, id) => (tipo === 'local' ? fichasLocalId : tipo === 'reino' ? fichasReinoId : fichasId).get(String(id));
   const acertarNomes = () => { let mudou = false;
     mesa.lugares.forEach((l) => { const e = l.ficha && fichaPeloId(l.tipo, l.ficha); if (e && e.nome && e.nome !== l.nome) { l.nome = e.nome; mudou = true; } });
     return mudou; };
@@ -322,7 +336,7 @@ function criarMotorMapa(raiz, cfg) {
 
   /* ── Câmera ── */
   const cam = { x: 0, y: 0, s: 1 };
-  let vw = 0, vh = 0, sMin = .3; const S_MAX = 12;
+  let vw = 0, vh = 0, sMin = .1; const S_MAX = 28;
   const calmo = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   function prender() {
     cam.s = Math.min(S_MAX, Math.max(sMin, cam.s));
@@ -334,12 +348,15 @@ function criarMotorMapa(raiz, cfg) {
     prender();
     elMundo.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.s})`;
     elMundo.style.setProperty('--s', cam.s);
-    /* NOMES SÓ DE PERTO (15/11/2026, usuário: "Quando o zoom tiver longe, não
-       mostre o nome das cidades, etc. Quando ir se aproximando, mostre todos os
-       nomes"). Abaixo de 1:1 a pintura inteira cabe na tela e as etiquetas se
-       amontoam; ali fica só o marcador. */
-    elMapa.classList.toggle('longe', cam.s < MAPA_ZOOM_NOMES);
-    escala(); pedirLadrilhos();
+    /* OS NOMES SAEM EM FAIXAS, PELA RÉGUA (21/11/2026, usuário: "Conforme o
+       zoom diminui, quero que o nome dos locais suma, depois das cidades,
+       depois das capitais, e por fim dos reinos" e "O nome dos locais aparece
+       com 50km, o nome das cidades com 100km, das capitais com 200km, dos
+       reinos com 400km"). O km é o da régua de escala no canto (passoDaRegua):
+       data-nomes = quantas faixas ainda falam, 4 todas, 0 nenhuma (mapa.css). */
+    const passo = passoDaRegua();
+    elMapa.dataset.nomes = passo <= 50 ? 4 : passo <= 100 ? 3 : passo <= 200 ? 2 : passo <= 400 ? 1 : 0;
+    escala(); geoRepetidos();
   }
   let voo = 0;
   function voar(x, y, s, ms = 900) {
@@ -363,7 +380,7 @@ function criarMotorMapa(raiz, cfg) {
   function enquadrar(pts, ms) {
     const xs = pts.map((p) => p.x), ys = pts.map((p) => p.y);
     const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-    const s = Math.min((vw - Math.min(160, vw * .3)) / Math.max(40, x1 - x0), (vh - Math.min(220, vh * .45)) / Math.max(40, y1 - y0), 4.2);
+    const s = Math.min((vw - Math.min(160, vw * .3)) / Math.max(90, x1 - x0), (vh - Math.min(220, vh * .45)) / Math.max(90, y1 - y0), 9.6);
     voar((x0 + x1) / 2, (y0 + y1) / 2, s, ms);
   }
   function zoomEm(px, py, fator) {
@@ -373,59 +390,57 @@ function criarMotorMapa(raiz, cfg) {
     pintar();
   }
   const noMundo = (px, py) => ({ x: (px - cam.x) / cam.s, y: (py - cam.y) / cam.s });
+  // O km da régua de escala: o menor degrau que ocupa ao menos 70px na tela.
+  function passoDaRegua() {
+    const kmPx = MAPA_KM / cam.s;
+    return [5, 10, 25, 50, 100, 200, 400, 800, 1600].find((k) => k / kmPx >= 70) || 1600;
+  }
   function escala() {
     const kmPx = MAPA_KM / cam.s;
-    const passo = [5, 10, 25, 50, 100, 200, 400, 800, 1600].find((k) => k / kmPx >= 70) || 1600;
+    const passo = passoDaRegua();
     $('escala-txt').textContent = fmtKm(passo) + ' km';
     $('escala-barra').style.width = (passo / kmPx) + 'px';
   }
 
-  /* ── O chão: os ladrilhos da pintura ── */
-  const ladrilhos = new Map();
-  let NIVEIS = null, pasta = '', pedido = 0, vivo = true, semPintura = false;
-  // Sem base, o plano é de fundo liso (17/11/2026): não há ladrilhos a buscar.
-  if (cfg.base) fetch(cfg.base + 'mapa.json', { cache: 'no-cache' }).then((r) => r.json()).then((m) => {
-    if (!vivo) return;
-    NIVEIS = m.niveis; pasta = cfg.base + (m.versao ? m.versao + '/' : '');
-    $('arte').innerHTML = [...NIVEIS].reverse().map((v) => `<div data-nv="${v.z}"></div>`).join('');
-    ladrilhar();
-  }).catch(() => {
-    /* Sem pintura o mapa segue usável, mas a área escura e vazia parece
-       quebrada (15/11/2026, usuário: "o mapa não carrega"). A tela diz o que falta. */
-    if (vivo) { semPintura = true; aviso(); }
-  });
-  function pedirLadrilhos() { if (!pedido) pedido = requestAnimationFrame(() => { pedido = 0; ladrilhar(); }); }
-  function ladrilhar() {
-    if (!NIVEIS || !vw || !vivo) return;
-    const topo = NIVEIS.length - 1;
-    const telaPorPixel = cam.s * (window.devicePixelRatio || 1) * L / NIVEIS[0].w;
-    const z = Math.max(0, Math.min(topo, Math.floor(Math.log2(1 / telaPorPixel) + .3)));
-    const x0 = -cam.x / cam.s, y0 = -cam.y / cam.s, x1 = x0 + vw / cam.s, y1 = y0 + vh / cam.s;
-    const querer = (nz) => {
-      const n = NIVEIS[nz], tw = MAPA_LADO * L / n.w, th = MAPA_LADO * A / n.h, tudo = nz === topo;
-      const i0 = tudo ? 0 : Math.max(0, Math.floor(x0 / tw) - 1), i1 = tudo ? n.cols - 1 : Math.min(n.cols - 1, Math.floor(x1 / tw) + 1);
-      const j0 = tudo ? 0 : Math.max(0, Math.floor(y0 / th) - 1), j1 = tudo ? n.rows - 1 : Math.min(n.rows - 1, Math.floor(y1 / th) + 1);
-      const casa = $('arte').querySelector('[data-nv="' + nz + '"]');
-      for (let j = j0; j <= j1; j++) for (let i = i0; i <= i1; i++) {
-        const k = nz + '/' + i + '_' + j, ja = ladrilhos.get(k);
-        if (ja && !(ja.falhou && performance.now() - ja.falhou > 15000)) { ja.vez = performance.now(); continue; }
-        const im = new Image();
-        im.alt = ''; im.decoding = 'async'; im.draggable = false;
-        // 2 px reais do vizinho em cada lado: as bordas se cobrem sem esticar nada
-        const px0 = Math.max(0, i * MAPA_LADO - MAPA_SOBRA), px1 = Math.min(n.w, (i + 1) * MAPA_LADO + MAPA_SOBRA);
-        const py0 = Math.max(0, j * MAPA_LADO - MAPA_SOBRA), py1 = Math.min(n.h, (j + 1) * MAPA_LADO + MAPA_SOBRA);
-        im.style.cssText = `left:${px0 * L / n.w}px;top:${py0 * A / n.h}px;width:${(px1 - px0) * L / n.w}px;height:${(py1 - py0) * A / n.h}px`;
-        im.src = `${pasta}${nz}/${i}_${j}.png`;
-        im.vez = performance.now(); im.nivel = nz;
-        im.onerror = () => { im.remove(); im.falhou = performance.now(); };
-        casa.appendChild(im); ladrilhos.set(k, im);
-      }
+  /* ── O chão: o mapa vetorial e os nomes da geografia (21/11/2026) ──
+     O SVG entra como imagem do tamanho do mapa: o navegador o redesenha nítido
+     a cada zoom. Os nomes ficam numa camada própria, embaixo da névoa (como a
+     pintura) e dos marcadores; cada um sabe a partir de que faixa de zoom
+     fala (data-imp, mapa.css). Cidade, capital, reino, fortaleza e ruína NÃO
+     vêm daqui: são o que o Mestre e o Imperador põem, com as regras de quem
+     conhece o quê. Nome da geografia que também é um lugar à vista no mapa
+     sai daqui, para não aparecer duas vezes. */
+  const aVistaNaFaixa = (l, faixa) => ['local', 'cidade', 'capital', 'reino'].indexOf(nivelDoNome(l)) >= 4 - faixa;
+  const GEO_TIPOS = ['mar', 'lago', 'rio', 'serra', 'floresta', 'deserto', 'ilha', 'regiao', 'planicie', 'vulcao'];
+  let vivo = true, semPintura = false, geo = [], geoAssinatura = '';
+  elMundo.style.width = L + 'px'; elMundo.style.height = A + 'px';
+  if (cfg.base) {
+    $('arte').innerHTML = `<img class="mp-chao" alt="" draggable="false" decoding="async" src="${esc(cfg.base)}" style="width:${L}px;height:${A}px"><div class="mp-geo" data-el="geo"></div>`;
+    $('arte').querySelector('img').onerror = () => {
+      /* Sem pintura o mapa segue usável, mas a área vazia parece quebrada
+         (15/11/2026, usuário: "o mapa não carrega"). A tela diz o que falta. */
+      if (vivo) { semPintura = true; aviso(); }
     };
-    querer(topo); if (z !== topo) querer(z);
-    if (ladrilhos.size > 150) {     // solta os que há mais tempo ninguém vê
-      [...ladrilhos].filter(([, im]) => im.nivel !== topo).sort((a, b) => a[1].vez - b[1].vez).slice(0, ladrilhos.size - 110)
-        .forEach(([k, im]) => { im.remove(); ladrilhos.delete(k); });
-    }
+    fetch(String(cfg.base).replace(/\.svg$/, '-rotulos.json')).then((r) => r.json()).then((d) => {
+      if (!vivo) return;
+      geo = (d.rotulos || []).filter((r) => GEO_TIPOS.includes(r.tipo));
+      $('geo').innerHTML = geo.map((r) => `<span class="mp-geo-nome" data-tipo="${r.tipo}" data-imp="${r.importancia}" style="left:${r.x}px;top:${r.y}px">${esc(r.nome)}</span>`).join('');
+      geoAssinatura = ''; geoRepetidos();
+    }).catch(() => { /* sem os nomes, o mapa continua: só a geografia fica muda */ });
+  }
+  /* O nome da geografia que já é um lugar à vista sai da camada. "Mesmo nome"
+     sem acento, sem preposição e sem plural: "Florestas de Melgundi" é a
+     "Floresta de Melgundi"; "Montes Solomor", os "Montes de Solomor".
+     À VISTA quer dizer NESTE ZOOM (21/11/2026, usuário: "Você criou alguns
+     mares, como mar do mistério, etc, faça todos"): o Mar da Morte também é um
+     local cadastrado, e o local só fala de perto; de longe, o nome do mar volta. */
+  const nomeGeo = (t) => semAcento(t).replace(/(de|do|da|dos|das)/g, '').replace(/[^a-z]/g, '').replace(/s/g, '');
+  function geoRepetidos() {
+    const el = $('geo'); if (!el || !geo.length) return;
+    const faixa = Number(elMapa.dataset.nomes || 4);
+    const vistos = new Set(mesa.lugares.filter((l) => !oculto(l) && aVistaNaFaixa(l, faixa)).map((l) => nomeGeo(l.nome)));
+    const ass = faixa + ':' + [...vistos].sort().join('|'); if (ass === geoAssinatura) return; geoAssinatura = ass;
+    el.querySelectorAll('.mp-geo-nome').forEach((s) => { s.hidden = vistos.has(nomeGeo(s.textContent)); });
   }
 
   /* ── Estado ── */
@@ -453,12 +468,12 @@ function criarMotorMapa(raiz, cfg) {
   function focar(f, voa = true) {
     foco = f; vsel = null; desenhar();
     const a = alvo(); if (!voa || !a) return;
-    if (f.tipo === 'linha') enquadrar(a.pts, 800); else voar(a.x, a.y, Math.max(cam.s, 2.4));
+    if (f.tipo === 'linha') enquadrar(a.pts, 800); else voar(a.x, a.y, Math.max(cam.s, 5.5));
   }
   const focoDoLugar = (l) =>
     mestre ? { tipo: 'lugar', id: l.id } :
-    J && dist(J.destino, l) < 4 ? { tipo: 'destino' } :
-    EU && EU.eu && dist(EU, l) < 4 ? { tipo: 'aqui' } :
+    J && dist(J.destino, l) < MAPA_PERTO ? { tipo: 'destino' } :
+    EU && EU.eu && dist(EU, l) < MAPA_PERTO ? { tipo: 'aqui' } :
     marcaEm(l) ? { tipo: 'marca', id: marcaEm(l).id } : { tipo: 'lugar', id: l.id };
   const visivel = (l) => l.tipo === 'caminho' || mestre || l.id === mesa.rota;
 
@@ -467,7 +482,7 @@ function criarMotorMapa(raiz, cfg) {
   const linha = (cls, a) => (a.length > 1 ? `<polyline class="${cls}" points="${pts(a)}"/>` : '');
   const disco = (g) => `<span class="mp-disco${g.eu ? ' eu' : ''}"${g.foto ? ` style="background-image:url(&quot;${esc(encodeURI(g.foto))}&quot;)"` : ''}>${g.foto ? '' : esc(String(g.nome || '?')[0])}</span>`;
   function desenhar() {
-    EU = referencia(); J = jornada();
+    EU = referencia(); J = jornada(); geoRepetidos();
     if (foco.tipo !== 'nada' && !alvo()) foco = focoPadrao();
     const a = alvo();
 
@@ -486,7 +501,7 @@ function criarMotorMapa(raiz, cfg) {
     const elNevoa = $('nevoa');
     if (elNevoa) {
       const eu = comNevoa ? meuPosto() : null;
-      const caixa = 'x="-2000" y="-2000" width="5200" height="6000"';
+      const caixa = `x="${-L}" y="${-A}" width="${3 * L}" height="${3 * A}"`;
       elNevoa.innerHTML = !comNevoa ? '' :
         '<defs><radialGradient id="mp-nevoa-g"><stop offset="0.8" stop-color="#000"/><stop offset="1" stop-color="#fff"/></radialGradient>' +
         '<mask id="mp-nevoa-m" maskUnits="userSpaceOnUse" ' + caixa + '><rect ' + caixa + ' fill="#fff"/>' +
@@ -494,25 +509,33 @@ function criarMotorMapa(raiz, cfg) {
         '</mask></defs><rect class="mp-nevoa-veu" ' + caixa + ' mask="url(#mp-nevoa-m)"/>';
     }
 
-    const mk = (p, html) => `<div class="mp-mk" style="left:${p.x}px;top:${p.y}px">${html}</div>`;
+    const mk = (p, html, extra = '', nivel = '') => `<div class="mp-mk${extra}"${nivel ? ` data-nivel="${nivel}"` : ''} style="left:${p.x}px;top:${p.y}px">${html}</div>`;
     let h = '';
-    if (passa && modo !== 'marcar') h += mk(passa, `<div class="mp-mira passa"></div>`);
-    if (a && foco.tipo !== 'linha' && foco.tipo !== 'gente') h += mk(a, `<div class="mp-mira"></div>`);
+    /* SEM O ANEL NO APONTAR (21/11/2026, usuário: "Ao passar o mouse em cima,
+       não quero o círculo"): o próprio marcador acende (.passa, mapa.css) e o
+       nome dele aparece, mesmo na faixa de zoom que o esconderia. */
+    const apontado = passa && modo !== 'marcar' ? passa : null;
+    /* SELECIONADO = DISCO PRETO, ÍCONE BRANCO (21/11/2026, usuário: "Ao selecionar,
+       eu quero o fundo preto com círculo e o ícone branco"). O anel fica só para
+       o que não tem marcador próprio (onde estou). */
+    const naMarca = ['lugar', 'marca', 'destino'].includes(foco.tipo);
+    const sel = (tipo, id) => (foco.tipo === tipo && (id == null || String(foco.id) === String(id)) ? ' sel' : '');
+    if (a && !naMarca && foco.tipo !== 'linha' && foco.tipo !== 'gente') h += mk(a, `<div class="mp-mira"></div>`);
     /* TODA CIDADE COM O MESMO SINAL (15/11/2026, usuário: "Deixe as cidades
        com o ícone de casinha, como está Saupami"). As 65 da pintura também
        ganham o marcador, em cima do desenho delas.
        TODA CIDADE COM O NOME (15/11/2026, usuário: "Algumas cidades mostram o
        nome, outras não. Arrume isso"): as da pintura também ganham a
-       etiqueta — de perto, todas falam igual; de longe, nenhuma (.longe). */
+       etiqueta — de perto, todas falam igual; de longe, saem em faixas (data-nomes). */
     mesa.lugares.forEach((l) => {
       if (oculto(l)) return;
-      h += mk(l, `<button type="button" class="mp-marca${l.tipo === 'cidade' ? ' vila' : l.tipo === 'local' ? ' local' : ''}" data-alvo="lugar" data-id="${esc(l.id)}" aria-label="${esc(l.nome)}"><i class="ti ${iconeLugar(l)}" aria-hidden="true"></i></button>` +
-        `<span class="mp-etiqueta">${esc(l.nome)}</span>`);
+      h += mk(l, `<button type="button" class="mp-marca${l.tipo === 'cidade' ? ' vila' : l.tipo === 'local' ? ' local' : l.tipo === 'reino' ? ' reino' : ''}${sel('lugar', l.id)}" data-alvo="lugar" data-id="${esc(l.id)}" aria-label="${esc(l.nome)}"><i class="ti ${iconeLugar(l)}" aria-hidden="true"></i></button>` +
+        `<span class="mp-etiqueta">${esc(l.nome)}</span>`, l === apontado ? ' passa' : '', nivelDoNome(l));
     });
-    if (J) h += mk(J.destino, `<button type="button" class="mp-marca destino" data-alvo="${mestre ? 'linha' : 'destino'}" data-id="${esc(J.rota.id)}" aria-label="${tr('Destino', 'Destination')}: ${esc(J.destino.nome)}"><i class="ti ti-flag" aria-hidden="true"></i></button>`);
+    if (J) h += mk(J.destino, `<button type="button" class="mp-marca destino${sel('destino')}" data-alvo="${mestre ? 'linha' : 'destino'}" data-id="${esc(J.rota.id)}" aria-label="${tr('Destino', 'Destination')}: ${esc(J.destino.nome)}"><i class="ti ti-flag" aria-hidden="true"></i></button>`);
     if (!mestre) marcas.forEach((m) => {
-      h += mk(m, `<button type="button" class="mp-marca" data-alvo="marca" data-id="${esc(m.id)}" aria-label="${tr('Marca', 'Mark')}: ${esc(m.nome)}"><i class="ti ti-map-pin" aria-hidden="true"></i></button>` +
-                 (marcaSolta(m) ? `<span class="mp-etiqueta">${esc(m.nome)}</span>` : ''));
+      h += mk(m, `<button type="button" class="mp-marca${sel('marca', m.id)}" data-alvo="marca" data-id="${esc(m.id)}" aria-label="${tr('Marca', 'Mark')}: ${esc(m.nome)}"><i class="ti ti-map-pin" aria-hidden="true"></i></button>` +
+                 (marcaSolta(m) ? `<span class="mp-etiqueta" data-nivel="local">${esc(m.nome)}</span>` : ''));
     });
     medida.forEach((p) => { h += mk(p, `<div class="mp-ponto"></div>`); });
     traco.forEach((p) => { h += mk(p, `<div class="mp-ponto"></div>`); });
@@ -559,7 +582,7 @@ function criarMotorMapa(raiz, cfg) {
         ? tr(`Vocês já andaram ${fmtKm(km(caminho(J.feita)))} km desde ${esc(J.origem)}.`, `You have walked ${fmtKm(km(caminho(J.feita)))} km since ${esc(J.origem)}.`)
         : '';
     } else if (f.tipo === 'aqui') {
-      const com = postos().filter((g) => !g.eu && dist(g, EU) < 4).map((g) => g.nome);
+      const com = postos().filter((g) => !g.eu && dist(g, EU) < MAPA_PERTO).map((g) => g.nome);
       id = fixo(tr('Você está em', 'You are in'));
       if (J) nums = doisNums(tr('Até o destino', 'To destination'), faltaPelaRota());
       nota = com.length ? tr(`Com você: ${esc(com.join(', '))}.`, `With you: ${esc(com.join(', '))}.`) : '';   // sem o 'Você está sozinho aqui.' (17/11/2026)
@@ -586,10 +609,10 @@ function criarMotorMapa(raiz, cfg) {
         nota = tr('Arraste os pontos no mapa para ajustar. Os menores criam um ponto novo.', 'Drag the points on the map to adjust. The smaller ones create a new point.');
       }
     } else {
-      const quem = postos().filter((g) => dist(g, a) < 4).map((g) => g.nome);
+      const quem = postos().filter((g) => dist(g, a) < MAPA_PERTO).map((g) => g.nome);
       if (EU) nums = doisNums(EU.eu ? tr('Em linha reta', 'Straight line') : tr('De ' + esc(EU.nome), 'From ' + esc(EU.nome)), km(dist(EU, a)));
       if (f.tipo === 'lugar') {
-        const rot = a.tipo === 'cidade' ? tr('Cidade', 'City') : a.tipo === 'local' ? tr('Local', 'Place') : tr('Ponto de interesse', 'Point of interest');
+        const rot = a.tipo === 'cidade' ? tr('Cidade', 'City') : a.tipo === 'local' ? tr('Local', 'Place') : a.tipo === 'reino' ? tr('Reino', 'Kingdom') : tr('Ponto de interesse', 'Point of interest');
         /* CIDADE E LOCAL NÃO SE RENOMEIAM NO MAPA (15/11/2026, usuário: "Ao clicar
            em algumas cidades, como Quizes, a forma como mostra o nome está
            diferente, como se pudesse editar no mapa. A edição é apenas na página
@@ -668,7 +691,7 @@ function criarMotorMapa(raiz, cfg) {
     }
     if (!cfg.semMesa) h += quadro(tr('Comitiva', 'Party'), gente.length, tr('Onde está', 'Where'), gente.map((g) => {
       const p = mesa.gente[g.id];
-      return `<li><button type="button" class="mp-linha" data-alvo="gente" data-id="${esc(g.id)}" aria-current="${emFoco('gente', g.id) || (!!p && !!a && (foco.tipo === 'aqui' || foco.tipo === 'lugar' || foco.tipo === 'destino') && dist(a, p) < 4)}">
+      return `<li><button type="button" class="mp-linha" data-alvo="gente" data-id="${esc(g.id)}" aria-current="${emFoco('gente', g.id) || (!!p && !!a && (foco.tipo === 'aqui' || foco.tipo === 'lugar' || foco.tipo === 'destino') && dist(a, p) < MAPA_PERTO)}">
         ${disco(g)}
         <span class="mp-ln-txt"><span class="mp-ln-nome">${esc(g.nome)}</span></span>
         <span class="mp-ln-num${p ? '' : ' fora'}">${p ? esc(onde(p)) : (mestre ? tr('Pôr no mapa', 'Place on map') : tr('Fora do mapa', 'Off the map'))}</span></button></li>`;
@@ -684,27 +707,32 @@ function criarMotorMapa(raiz, cfg) {
     /* O painel só existe quando tem o que mostrar: algo escolhido, uma
        ferramenta que pede lista, uma busca, ou (Mestre) alguém da comitiva
        ainda fora do mapa — sem o painel não haveria como pô-lo. */
-    const painelVazio = foco.tipo === 'nada' && !['cidade', 'local', 'ponto', 'caminho', 'rota'].includes(modo) && !busca.trim()
+    const painelVazio = foco.tipo === 'nada' && !['cidade', 'local', 'reino', 'ponto', 'caminho', 'rota'].includes(modo) && !busca.trim()
       && !(mestre && gente.some((g) => !mesa.gente[g.id]));
     elMapa.parentElement.classList.toggle('so-mapa', painelVazio);
   }
 
   function achados() {
     const q = semAcento(busca.trim()), el = $('achados');
-    if (modo === 'cidade' || modo === 'local') {   // a ferramenta Cidade ou Local: os cadastrados que ainda não estão no mapa
-      const ehLocal = modo === 'local';
+    if (CADASTRADOS.includes(modo)) {   // a ferramenta Cidade, Local ou Reino: os cadastrados que ainda não estão no mapa
+      const ehLocal = modo === 'local', ehReino = modo === 'reino';
       const livres = foraDoMapa(modo), mostra = livres.filter((e) => !q || semAcento(e.nome).includes(q));
-      const chegou = ehLocal ? locaisCad : cadastradas;
+      const chegou = cadDoTipo(modo);
       const vazio = !chegou
-        ? (ehLocal ? tr('Os locais cadastrados ainda não chegaram. Tente de novo em instantes.', 'The registered places have not loaded yet. Try again in a moment.')
+        ? (ehReino ? tr('Os reinos cadastrados ainda não chegaram. Tente de novo em instantes.', 'The registered kingdoms have not loaded yet. Try again in a moment.')
+          : ehLocal ? tr('Os locais cadastrados ainda não chegaram. Tente de novo em instantes.', 'The registered places have not loaded yet. Try again in a moment.')
                    : tr('As cidades cadastradas ainda não chegaram. Tente de novo em instantes.', 'The registered cities have not loaded yet. Try again in a moment.'))
         : q && livres.length
-          ? (ehLocal ? tr('Nenhum local cadastrado com esse nome fora do mapa.', 'No registered place with that name off the map.')
+          ? (ehReino ? tr('Nenhum reino cadastrado com esse nome fora do mapa.', 'No registered kingdom with that name off the map.')
+            : ehLocal ? tr('Nenhum local cadastrado com esse nome fora do mapa.', 'No registered place with that name off the map.')
                      : tr('Nenhuma cidade cadastrada com esse nome fora do mapa.', 'No registered city with that name off the map.'))
-          : (ehLocal ? tr('Todos os locais cadastrados já estão no mapa. Para pôr outro, crie-o antes na aba Locais.', 'Every registered place is already on the map. To place another, create it first in the Places tab.')
+          : (ehReino ? tr('Todos os reinos cadastrados já estão no mapa. Para pôr outro, crie-o antes na aba Reinos.', 'Every registered kingdom is already on the map. To place another, create it first in the Kingdoms tab.')
+            : ehLocal ? tr('Todos os locais cadastrados já estão no mapa. Para pôr outro, crie-o antes na aba Locais.', 'Every registered place is already on the map. To place another, create it first in the Places tab.')
                      : tr('Todas as cidades cadastradas já estão no mapa. Para pôr outra, crie-a antes na aba Cidades.', 'Every registered city is already on the map. To place another, create it first in the Cities tab.'));
-      el.innerHTML = `<li class="mp-quadro-cab"><span class="mp-rotulo">${ehLocal ? tr('Locais cadastrados', 'Registered places') : tr('Cidades cadastradas', 'Registered cities')}</span><span class="mp-conta">${livres.length}</span><span class="mp-rotulo col">${tr('Reino', 'Kingdom')}</span></li>` +
-        (mostra.map((e) => { const reino = e.atributos && e.atributos.reino;
+      const titulo = ehReino ? tr('Reinos cadastrados', 'Registered kingdoms') : ehLocal ? tr('Locais cadastrados', 'Registered places') : tr('Cidades cadastradas', 'Registered cities');
+      // O reino não tem reino: a coluna da direita some na lista dele.
+      el.innerHTML = `<li class="mp-quadro-cab"><span class="mp-rotulo">${titulo}</span><span class="mp-conta">${livres.length}</span>${ehReino ? '' : `<span class="mp-rotulo col">${tr('Reino', 'Kingdom')}</span>`}</li>` +
+        (mostra.map((e) => { const reino = !ehReino && e.atributos && e.atributos.reino;
           return `<li><button type="button" class="mp-linha" data-ficha="${esc(e.id)}" aria-current="${!!pondoCidade && String(pondoCidade.id) === String(e.id)}">
             <span class="mp-ln-ico"><i class="ti ${ICONE_LUGAR[modo]}" aria-hidden="true"></i></span>
             <span class="mp-ln-txt"><span class="mp-ln-nome">${esc(e.nome)}</span></span><span class="mp-ln-num">${reino ? esc(nomesLore[reino] || reino) : ''}</span></button></li>`; }).join('')
@@ -721,14 +749,15 @@ function criarMotorMapa(raiz, cfg) {
 
   const FERR = {
     medir: ['ti-ruler-2', tr('Medir', 'Measure')], marcar: ['ti-map-pin-plus', tr('Marcar', 'Mark')],
-    cidade: ['ti-building-castle', tr('Cidade', 'City')], local: ['ti-mountain', tr('Local', 'Place')], ponto: ['ti-star', tr('Ponto', 'Point')],
+    reino: ['ti-crown', tr('Reino', 'Kingdom')],
+    cidade: ['ti-map-pin', tr('Cidade', 'City')], local: ['ti-map-pin', tr('Local', 'Place')], ponto: ['ti-star', tr('Ponto', 'Point')],
     caminho: ['ti-road', tr('Caminho', 'Path')], rota: ['ti-route', tr('Rota', 'Route')],
   };
   function aviso() {
     const el = $('aviso');
-    /* Cidade e Local são do mundo: só o Imperador, dentro ou fora de mesa. Fora
-       de mesa não há ponto, caminho nem rota — esses são da história de cada mesa. */
-    const doMundo = imperador ? ['cidade', 'local'] : [];
+    /* Reino, Cidade e Local são do mundo: só o Imperador, dentro ou fora de mesa.
+       Fora de mesa não há ponto, caminho nem rota — esses são da história de cada mesa. */
+    const doMundo = imperador ? ['reino', 'cidade', 'local'] : [];
     const quais = mestre ? (cfg.semMesa ? ['medir', ...doMundo] : ['medir', ...doMundo, 'ponto', 'caminho', 'rota']) : (cfg.aoMudarMarcas ? ['medir', 'marcar'] : ['medir']);
     $('ferramentas').innerHTML = quais.map((k) =>
       // As peças do trilho do topo (.livro-trilho .mc-acao), não uma cópia delas (15/11/2026).
@@ -742,6 +771,8 @@ function criarMotorMapa(raiz, cfg) {
       : tr('Escolha na lista a cidade cadastrada que vai para o mapa.', 'Pick from the list the registered city to place on the map.');
     else if (modo === 'local') h = pondoCidade ? tr(`Toque no mapa onde fica ${esc(pondoCidade.nome)}.`, `Tap the map where ${esc(pondoCidade.nome)} is.`)
       : tr('Escolha na lista o local cadastrado que vai para o mapa.', 'Pick from the list the registered place to put on the map.');
+    else if (modo === 'reino') h = pondoCidade ? tr(`Toque no mapa onde fica ${esc(pondoCidade.nome)}.`, `Tap the map where ${esc(pondoCidade.nome)} is.`)
+      : tr('Escolha na lista o reino cadastrado que vai para o mapa.', 'Pick from the list the registered kingdom to put on the map.');
     else if (modo === 'ponto') h = tr('Toque no mapa onde fica o ponto.', 'Tap the map where the point is.');
     else if (modo === 'por') { const g = gente.find((x) => String(x.id) === String(pondo));
       h = pondo === 'todos' ? tr('Toque no mapa onde a comitiva está.', 'Tap the map where the party is.')
@@ -807,7 +838,12 @@ function criarMotorMapa(raiz, cfg) {
 
   /* ── Gestos ── */
   const dedos = new Map(); let arrasto = null, pinca = null;
-  const maisPerto = (p, raioTela = 16) => perto(p, raioTela / cam.s);
+  /* O toque e o apontar só acham o que está à vista: o lugar que a faixa de
+     zoom escondeu (data-nomes) não responde (21/11/2026). */
+  const ORDEM_NIVEL = ['local', 'cidade', 'capital', 'reino'];
+  const aVista = (l) => ORDEM_NIVEL.indexOf(nivelDoNome(l)) >= 4 - Number(elMapa.dataset.nomes || 4);
+  const maisPerto = (p, raioTela = 16) => { let m = null, md = raioTela / cam.s;
+    for (const l of mesa.lugares) { if (oculto(l) || !aVista(l)) continue; const d = dist(l, p); if (d < md) { md = d; m = l; } } return m; };
   const linhaPerto = (p) => { let m = null, md = 9 / cam.s;
     for (const l of mesa.linhas) { if (!visivel(l) || l.pts.length < 2) continue; const d = projeta(p, l.pts).d; if (d < md) { md = d; m = l; } }
     return m; };
@@ -874,7 +910,7 @@ function criarMotorMapa(raiz, cfg) {
       return;
     }
     if (e.pointerType === 'mouse' && !e.target.closest('button')) {
-      const l = modo === 'marcar' || modo === 'cidade' || modo === 'local' || modo === 'ponto' || modo === 'mover' ? null : maisPerto(noMundo(px, py));
+      const l = modo === 'marcar' || CADASTRADOS.includes(modo) || modo === 'ponto' || modo === 'mover' ? null : maisPerto(noMundo(px, py));
       if (l !== passa) { passa = l; elMapa.classList.toggle('aponta', !!l && !modo); desenhar(); }
     }
   });
@@ -912,7 +948,7 @@ function criarMotorMapa(raiz, cfg) {
       if (!l) escreverNome();
       return;
     }
-    if (modo === 'cidade' || modo === 'local') {   // só posiciona um cadastrado: sem ficha escolhida, o toque não cria nada
+    if (CADASTRADOS.includes(modo)) {   // só posiciona um cadastrado: sem ficha escolhida, o toque não cria nada
       if (!pondoCidade) return;
       const novo = { id: novoId(), tipo: modo, nome: pondoCidade.nome, ficha: pondoCidade.id, ...p, ...(imperador ? { mundo: true } : {}) };
       mesa.lugares.push(novo); guardarMesa();
@@ -961,7 +997,7 @@ function criarMotorMapa(raiz, cfg) {
     if (modo && b.closest('.mp-marca, .mp-pino') && !$('listas').contains(b)) return;
     const { alvo: qual, acao, id } = b.dataset, a = alvo();
     if (b.dataset.ficha) {           // a cidade cadastrada que o próximo toque no mapa vai posicionar
-      pondoCidade = ((modo === 'cidade' || modo === 'local') && fichaPeloId(modo, b.dataset.ficha)) || null; aviso(); achados(); return;
+      pondoCidade = (CADASTRADOS.includes(modo) && fichaPeloId(modo, b.dataset.ficha)) || null; aviso(); achados(); return;
     }
     /* Escolher na lista da ferramenta (uma rota, um ponto) sai da ferramenta e
        abre o escolhido; senão o próximo toque no mapa viraria um ponto novo. */
@@ -1078,7 +1114,7 @@ function criarMotorMapa(raiz, cfg) {
     catalogar(c) { porFichas(c); if (acertarNomes() && mestre) guardarMesa(); if (pronto) desenhar(); },
     falhou() { recado = { txt: tr('O mapa não foi salvo. Confira a conexão e mexa de novo.', 'The map was not saved. Check your connection and try again.') }; aviso(); },
     destruir() {
-      vivo = false; cancelAnimationFrame(voo); cancelAnimationFrame(pedido); olho.disconnect();
+      vivo = false; cancelAnimationFrame(voo); olho.disconnect();
       limpezas.forEach((f) => f());
       ['arte', 'linhas', 'marcadores', 'passe', 'passe-pe', 'listas', 'achados', 'ferramentas', 'aviso'].forEach((n) => { const el = $(n); if (el) el.innerHTML = ''; });
     },
@@ -1145,7 +1181,8 @@ function mapaApiSupabase() {
       const nomes = { ...nomesReino }; entradas.forEach((e) => { if (e && e.id) nomes[e.id] = e.nome; });
       // A capital de cada reino (slug da cidade), para o sinal da cidade no mapa.
       entradas.forEach((e) => { const cap = e && e.tipo === 'reino' && (e.capital_cidade || (e.atributos && e.atributos.capital_cidade)); if (cap) capitais.add(cap); });
-      return { capitais: [...capitais], cidades: entradas.filter((e) => e && e.tipo === 'cidade' && e.nome), locais: entradas.filter((e) => e && e.tipo === 'local' && e.nome), nomes, lore: entradas };
+      return { capitais: [...capitais], cidades: entradas.filter((e) => e && e.tipo === 'cidade' && e.nome), locais: entradas.filter((e) => e && e.tipo === 'local' && e.nome),
+        reinos: entradas.filter((e) => e && e.tipo === 'reino' && e.nome), nomes, lore: entradas };
     },
     async salvarMesa(historiaId, dados) {
       const { error } = await sb().from('mapas_mesa').upsert({ historia_id: historiaId, dados, updated_at: new Date().toISOString() });
@@ -1164,12 +1201,6 @@ function mapaApiSupabase() {
     },
   };
 }
-/* Onde moram os ladrilhos: bucket público `mapas`, pasta `oriental`. */
-function mapaBaseLadrilhos() {
-  const url = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SUPABASE_URL) || '';
-  return url.replace(/\/$/, '') + '/storage/v1/object/public/mapas/oriental/';
-}
-
 /* ============================================================
    A PÁGINA
    ============================================================
@@ -1198,7 +1229,9 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
      mesa descobre qual é e acerta aqui. */
   const [plano, setPlano] = React.useState('material');
   const podeTrocarPlano = mestre || (semMesa && ehImperador);
-  const baseDoPlano = plano === 'material' ? (base || mapaBaseLadrilhos()) : null;
+  /* Um chão só no plano material: o mapa vetorial (21/11/2026, usuário: "Não
+     precisamos mais dos botões 'mapa antigo' e 'mapa novo'"). */
+  const baseDoPlano = plano === 'material' ? (base || MAPA_PINTURA) : null;
   // A camada do mundo É do plano: { plano, lugares }, para não juntar a de um plano no outro.
   const [mundo, setMundo] = React.useState(null);   // null = ainda não chegou
   const mundoDoPlano = mundo && mundo.plano === plano ? mundo.lugares : null;
@@ -1329,12 +1362,12 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
             <div data-el="listas" />
           </aside>
           <div className="mp-mapa" data-el="mapa" tabIndex={0}
-            aria-label={en ? 'Map of eastern Tagmar. Drag to move, scroll to zoom; arrow keys and plus/minus also work.'
-                           : 'Mapa de Tagmar oriental. Arraste para mover, role para aproximar; setas e as teclas mais e menos também funcionam.'}>
+            aria-label={en ? 'Map of Tagmar. Drag to move, scroll to zoom; arrow keys and plus/minus also work.'
+                           : 'Mapa de Tagmar. Arraste para mover, role para aproximar; setas e as teclas mais e menos também funcionam.'}>
             <div className="mp-mundo" data-el="mundo">
               <div className="mp-arte" data-el="arte" />
-              <svg className="mp-linhas" data-el="linhas" viewBox="0 0 1200 2000" aria-hidden="true" />
-              <svg className="mp-nevoa" data-el="nevoa" viewBox="0 0 1200 2000" aria-hidden="true" />
+              <svg className="mp-linhas" data-el="linhas" viewBox={`0 0 ${MAPA_L} ${MAPA_A}`} aria-hidden="true" />
+              <svg className="mp-nevoa" data-el="nevoa" viewBox={`0 0 ${MAPA_L} ${MAPA_A}`} aria-hidden="true" />
               <div data-el="marcadores" />
             </div>
             <div className="mp-barra livro-trilho" data-el="barra">
@@ -1349,6 +1382,10 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
                 </div>
               )}
               <div className="mp-grupo" data-el="ferramentas" />
+              {/* O aviso da ferramenta mora no trilho (21/11/2026, usuário: "A mensagem
+                  'Escolha na lista...' está acima do trilho e está fora do padrão"):
+                  uma linha só dele, logo abaixo dos botões, com a pele do trilho. */}
+              <div className="mp-aviso-linha"><div className="mp-aviso" data-el="aviso" /></div>
             </div>
             {/* O zoom fica no canto inferior direito (17/11/2026, usuário). */}
             <div className="mp-barra mp-barra-zoom livro-trilho">
@@ -1358,7 +1395,6 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
                 {zoom('tudo', 'ti-arrows-maximize', en ? 'See the whole map' : 'Ver o mapa inteiro')}
               </div>
             </div>
-            <div className="mp-aviso" data-el="aviso" />
             <div className="mp-escala" aria-hidden="true"><span data-el="escala-txt" /><i data-el="escala-barra" /></div>
             {estado !== 'pronto' && (
               <div className="mp-estado" role="status">
@@ -1381,4 +1417,5 @@ Object.assign(window, {
   mapaDist, mapaKm, mapaComprimento, mapaProjeta, mapaJornada,
   MAPA_PINTADAS, MAPA_KM, MAPA_KM_DIA_A_PE,
   MAPA_PLANOS, mapaDoPlano, mapaComPlano, mapaPlanoDe, mapaSlugMundo,
+  MAPA_L, MAPA_A, MAPA_PERTO, MAPA_PINTURA,
 });

@@ -358,15 +358,20 @@ de magia (`tagmar/colegios.pdf`). As listas reusam `EntidadeLista`; carrega
 depois de `13-diario/entidades.jsx`.
 
 `mapa.jsx` + `mapa.css` (15/11/2026) é a página **Mapa**, última folha da
-Ambientação/Diário: o mapa de Tagmar DA MESA. O chão é a pintura original em
-ladrilhos PNG sem perda (bucket público `mapas` do Storage, 4 níveis, só os
-visíveis carregam); por cima, o que o Mestre desenha — cidades, pontos,
+Ambientação/Diário: o mapa de Tagmar DA MESA. O chão, desde 21/11/2026, é o
+mapa VETORIAL de Tagmar inteiro (`public/mapa/tagmar.svg`, ~0,6 MB
+comprimido), com os nomes da geografia por cima (`public/mapa/tagmar-rotulos.json`:
+mares, serras, rios, florestas, desertos — cidades e reinos NÃO, esses são os
+que o Mestre e o Imperador põem). Antes eram ladrilhos PNG da pintura oriental
+(bucket público `mapas` do Storage). Por cima, o que o Mestre desenha — cidades, pontos,
 caminhos, rotas e onde está cada personagem — em `mapas_mesa.dados`, uma
 linha por história, com tempo real para o Jogador. O Jogador mede distâncias
 e guarda marcas em `mapa_marcas` (por personagem). Tudo em **unidades do
-mapa** (1200 × 2000), não em pixels: trocar a pintura por outra do mesmo
-tamanho é `scripts/mapa/cortar.ps1` + `scripts/mapa/subir.mjs`, e nada do
-que foi desenhado se move. O desenho é um motor imperativo
+mapa** = o viewBox do SVG (5905,5 × 4695,1; 365 unidades = 400 km), não em
+pixels. O que estava nas unidades da pintura antiga (1200 × 2000) foi levado
+para as novas por `scripts/mapa/migrar-vetorial.mjs` (conversão em
+`converter-vetorial.mjs`, ancorada nas cidades com o mesmo nome nos dois
+mapas; SQL em `scripts/sql/mapa-vetorial-2026-11-21.sql`). O desenho é um motor imperativo
 (`criarMotorMapa`) dentro da moldura que o React monta — arrastar e
 aproximar repintam a cada quadro. Banco: `scripts/sql/mapa-da-mesa-2026-11-15.sql`.
 Prévia sem login: `/preview/?tela=mapa` (`&papel=jogador`, `&vazio=1`).
@@ -508,6 +513,6 @@ armadura é por PEÇA (`peca_<nome>`, sem cultura).
 | mexer no que o relógio cobra | `01-core/clima-desgaste.jsx` (as regras) e `10-shell/shell.jsx` (a ida ao banco) |
 | mexer no inventário | `01-core/inventario-helpers.jsx` (regras) e `07-inventario/inventario.jsx` (tela) |
 | publicar uma novidade na página inicial do Mestre | uma linha no topo de `NOTICIAS_DO_SISTEMA` (`06-historias/inicio.jsx`) |
-| trocar a pintura do mapa | `tagmar/mapa_oriental.png` (mesmo tamanho) → `scripts/mapa/cortar.ps1` → `scripts/mapa/subir.mjs` |
+| trocar o desenho do mapa | `tagmar/mapa.cdr` (CorelDRAW) → exportar de novo `public/mapa/tagmar.svg` com o mesmo enquadramento (o viewBox é a unidade do mapa: mudar o quadro exige converter as coordenadas gravadas) |
 | adicionar uma coluna no banco | um `scripts/sql/<assunto>-<data>.sql` idempotente, com conferência no rodapé |
 | mudar a identidade visual | `src/index.css` (tokens em `.menestrel-ui`) e a skill `impeccable` |

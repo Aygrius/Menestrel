@@ -6,7 +6,7 @@
    régua (km), o comprimento de um traçado e a rota da mesa partida em feito e
    por fazer no ponto onde a comitiva está.
 
-   O motor (criarMotorMapa) desenha no DOM com ponteiro, zoom e ladrilhos — é
+   O motor (criarMotorMapa) desenha no DOM com ponteiro, zoom e o SVG do chão — é
    conferido no navegador pela prévia (/preview/?tela=mapa), não aqui.
    ============================================================ */
 import { describe, it, expect } from 'vitest';
@@ -19,13 +19,15 @@ const aqui = dirname(fileURLToPath(import.meta.url));
 const { mapaKm, mapaComprimento, mapaProjeta, mapaJornada, mapaSemente, mapaNormalizar, MAPA_KM, MAPA_PINTADAS } = window;
 
 describe('a régua', () => {
-  it('a barra da pintura mede 152,5 unidades para 400 km', () => {
-    expect(MAPA_KM * 152.5).toBeCloseTo(400, 6);
-    expect(mapaKm(152.5)).toBe(400);
+  /* O mapa vetorial (21/11/2026): 365 unidades para 400 km — a média da régua
+     dos Reinos (352) e da do Império (378) levadas para o mapa novo. */
+  it('o mapa vetorial mede 365 unidades para 400 km', () => {
+    expect(MAPA_KM * 365).toBeCloseTo(400, 6);
+    expect(mapaKm(365)).toBe(400);
   });
   it('arredonda de 5 em 5 km: a posição das cidades não é mais fina que isso', () => {
-    expect(mapaKm(1)).toBe(5);       // 2,6 km
-    expect(mapaKm(10)).toBe(25);     // 26,2 km
+    expect(mapaKm(3)).toBe(5);       // 3,3 km
+    expect(mapaKm(23)).toBe(25);     // 25,2 km
   });
   it('o comprimento soma os trechos', () => {
     expect(mapaComprimento([{ x: 0, y: 0 }, { x: 3, y: 4 }, { x: 3, y: 10 }])).toBe(11);
@@ -60,19 +62,23 @@ describe('a rota da mesa', () => {
 });
 
 describe('o que vai para o banco', () => {
-  it('mesa nova parte das cidades da pintura, sem rota e sem ninguém no mapa', () => {
-    const s = mapaSemente();
-    expect(s.lugares).toHaveLength(Object.keys(MAPA_PINTADAS).length);
-    expect(s.lugares.every((l) => l.tipo === 'cidade' && l.p === 1)).toBe(true);
-    expect(s.linhas).toEqual([]);
-    expect(s.rota).toBeNull();
-    expect(s.gente).toEqual({});
+  /* 21/11/2026, usuário: "Pare de criar cidades automáticas". */
+  it('mesa nova nasce vazia: sem cidade automática, sem rota e sem ninguém no mapa', () => {
+    expect(mapaSemente()).toEqual({ lugares: [], linhas: [], rota: null, gente: {} });
   });
   it('linha vazia do banco vira a semente; linha gravada mantém o que o Mestre fez', () => {
-    expect(mapaNormalizar(null).lugares).toHaveLength(65);
-    expect(mapaNormalizar({}).lugares).toHaveLength(65);
+    expect(mapaNormalizar(null).lugares).toEqual([]);
+    expect(mapaNormalizar({}).lugares).toEqual([]);
     const gravado = { lugares: [{ id: 'a', tipo: 'ponto', nome: 'Ruína', x: 1, y: 2 }] };
     expect(mapaNormalizar(gravado)).toEqual({ lugares: gravado.lugares, linhas: [], rota: null, gente: {} });
+  });
+  it('a cidade automática gravada (p: 1, sem ficha) não volta; a ligada a uma ficha fica', () => {
+    const gravado = { lugares: [
+      { id: 'c0', tipo: 'cidade', nome: 'Tória', x: 1, y: 2, p: 1 },
+      { id: 'c1', tipo: 'cidade', nome: 'Abrasil', x: 3, y: 4, p: 1, ficha: 'abrasil' },
+      { id: 'n1', tipo: 'cidade', nome: 'Igara', x: 5, y: 6, ficha: 'igara' },
+    ] };
+    expect(mapaNormalizar(gravado).lugares.map((l) => l.id)).toEqual(['c1', 'n1']);
   });
   it('as cidades cabem no mapa (1200 × 2000)', () => {
     Object.values(MAPA_PINTADAS).forEach(([x, y]) => {
@@ -111,7 +117,8 @@ describe('cidade nova não nasce no mapa', () => {
     expect(fonte).not.toMatch(/Cidade nova/);
     expect(fonte).toMatch(/if \(!pondoCidade\) return;/);
     // Desde 15/11/2026 o mesmo vale para a ferramenta Local: o tipo do lugar é o da ferramenta.
-    expect(fonte).toMatch(/if \(modo === 'cidade' \|\| modo === 'local'\) \{   \/\/ só posiciona um cadastrado/);
+    // Desde 21/11/2026 também a ferramenta Reino (CADASTRADOS).
+    expect(fonte).toContain("if (CADASTRADOS.includes(modo)) {   // só posiciona um cadastrado");
     expect(fonte).toMatch(/tipo: modo, nome: pondoCidade\.nome, ficha: pondoCidade\.id/);
   });
   /* 15/11/2026, usuário: "A edição é apenas na página de cidade, etc." —
@@ -126,13 +133,13 @@ describe('cidade nova não nasce no mapa', () => {
 describe('os locais no mapa', () => {
   const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
   it('Cidade e Local são do Imperador, dentro ou fora de mesa; o catálogo traz os locais', () => {
-    expect(fonte).toMatch(/const doMundo = imperador \? \['cidade', 'local'\] : \[\];/);
+    expect(fonte).toContain("const doMundo = imperador ? ['reino', 'cidade', 'local'] : [];");
     expect(fonte).toMatch(/cfg\.semMesa \? \['medir', \.\.\.doMundo\] : \['medir', \.\.\.doMundo, 'ponto', 'caminho', 'rota'\]/);
     expect(fonte).toMatch(/sb\(\)\.rpc\('listar_catalogo_global', \{ p_tipo: 'local' \}\)/);
     expect(fonte).toMatch(/locais: entradas\.filter\(\(e\) => e && e\.tipo === 'local' && e\.nome\)/);
   });
   it('o local tem o seu sinal e abre a ficha dele', () => {
-    expect(fonte).toMatch(/const ICONE_LUGAR = \{ cidade: 'ti-building-castle', local: 'ti-mountain', ponto: 'ti-star' \};/);
+    expect(fonte).toContain("const ICONE_LUGAR = { cidade: 'ti-map-pin', capital: 'ti-flag', local: 'ti-map-pin', ponto: 'ti-star', reino: 'ti-crown' };");
     expect(fonte).toMatch(/if \(l && l\.tipo === 'local'\) return \(l\.ficha && fichasLocalId\.get\(String\(l\.ficha\)\)\) \|\| null;/);
   });
   // "Nos itens do mapa 'abrir a ficha, medir daqui, etc' deixe apenas o ícone."
@@ -186,7 +193,8 @@ describe('a camada do mundo', () => {
 describe('o jogador só vê cidades e locais que conhece', () => {
   const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
   it('a regra cobre cidade e local, e só vale fora do Mestre', () => {
-    expect(fonte).toMatch(/const oculto = \(l\) => naNevoa\(l\) \|\| \(!mestre && \(l\.tipo === 'cidade' \|\| l\.tipo === 'local'\)/);
+    expect(fonte).toContain('const oculto = (l) => naNevoa(l) || (!mestre && CADASTRADOS.includes(l.tipo)');
+    expect(fonte).toContain("const CADASTRADOS = ['cidade', 'local', 'reino'];");
   });
   it('o marcador, o toque (perto) e a busca pulam o oculto', () => {
     expect(fonte).toMatch(/mesa\.lugares\.forEach\(\(l\) => \{\s*if \(oculto\(l\)\) return;/);
@@ -225,7 +233,7 @@ describe('os planos do mapa', () => {
     expect(window.mapaDoPlano(dados, 'celestial').lugares).toEqual([{ id: 'c' }]);
     expect(window.mapaDoPlano(dados, 'infernal').lugares).toEqual([]);
     expect(window.mapaNormalizar(null, 'infernal').lugares).toEqual([]);
-    expect(window.mapaNormalizar(null).lugares.length).toBeGreaterThan(0);   // a semente da pintura
+    expect(window.mapaNormalizar(null).lugares).toEqual([]);   // sem semente desde 21/11/2026
   });
   it('pôr o personagem num plano o tira dos outros', () => {
     const dados = { lugares: [], linhas: [], rota: null, gente: { 7: { x: 1, y: 1 }, 8: { x: 2, y: 2 } } };
@@ -250,8 +258,18 @@ describe('os planos do mapa', () => {
     // O Mestre leva o personagem para outro plano: o mapa do Jogador vai junto.
     expect(fonte).toContain('if (!mestre) { const p = mapaPlanoDe(dados, pjId); if (p !== plano) { setPlano(p); return; } }');
   });
-  it('fora do material não há pintura', () => {
+  it('fora do material não há pintura; no material, o mapa vetorial', () => {
     const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
-    expect(fonte).toContain("const baseDoPlano = plano === 'material' ? (base || mapaBaseLadrilhos()) : null;");
+    expect(fonte).toContain("const baseDoPlano = plano === 'material' ? (base || MAPA_PINTURA) : null;");
+    expect(window.MAPA_PINTURA).toBe('/mapa/tagmar.svg');
+  });
+  /* 21/11/2026, usuário: "Não precisamos mais dos botões 'mapa antigo' e 'mapa novo'". */
+  it('não há mais escolha de pintura', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(fonte).not.toMatch(/MAPA_PINTURAS|mp-pinturas|mapaPinturaGuardada/);
+  });
+  it('as unidades do mapa são o viewBox do SVG do chão', () => {
+    const svg = readFileSync(join(aqui, '../../public/mapa/tagmar.svg'), 'utf8').slice(0, 300);
+    expect(svg).toContain(`viewBox="0 0 ${window.MAPA_L} ${window.MAPA_A}"`);
   });
 });

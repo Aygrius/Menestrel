@@ -1,6 +1,9 @@
 /* ENVIA OS LADRILHOS DO MAPA PARA O STORAGE (15/11/2026)
  *
- *   node scripts/mapa/subir.mjs [versao]
+ *   node scripts/mapa/subir.mjs [versao] [pasta] [origem]
+ *
+ * pasta  = a pintura no bucket (padrão oriental; a nova, de 21/11/2026, é novo)
+ * origem = de onde lê os ladrilhos (padrão preview/mapa/ladrilhos)
  *
  * Lê preview/mapa/ladrilhos (feito por scripts/mapa/cortar.ps1) e envia para o
  * bucket público `mapas`:
@@ -27,7 +30,8 @@ const url = env.VITE_SUPABASE_URL, chave = env.SUPABASE_SERVICE_ROLE_KEY || env.
 if (!url || !chave) { console.error('Faltam VITE_SUPABASE_URL e a chave no .env.local.'); process.exit(1); }
 if (!env.SUPABASE_SERVICE_ROLE_KEY) console.warn('Sem SUPABASE_SERVICE_ROLE_KEY: tentando com a chave pública (só passa se houver uma policy de envio aberta).');
 
-const origem = 'preview/mapa/ladrilhos';
+const origem = process.argv[4] || 'preview/mapa/ladrilhos';
+const pasta = process.argv[3] || 'oriental';
 if (!existsSync(join(origem, 'mapa.json'))) { console.error('Rode antes: powershell -ExecutionPolicy Bypass -File scripts/mapa/cortar.ps1'); process.exit(1); }
 const { niveis } = JSON.parse(readFileSync(join(origem, 'mapa.json'), 'utf8'));
 const agora = new Date(), dois = (n) => String(n).padStart(2, '0');
@@ -37,11 +41,11 @@ const sb = createClient(url, chave, { auth: { persistSession: false } });
 const balde = sb.storage.from('mapas');
 const fila = [];
 for (const n of niveis) for (const arq of readdirSync(join(origem, String(n.z)))) fila.push(`${n.z}/${arq}`);
-console.log(`${fila.length} ladrilhos → mapas/oriental/${versao}/`);
+console.log(`${fila.length} ladrilhos → mapas/${pasta}/${versao}/`);
 
 let feitos = 0; const falhas = [];
 async function enviar(rel, tentativa = 1) {
-  const { error } = await balde.upload(`oriental/${versao}/${rel}`, readFileSync(join(origem, rel)), { contentType: 'image/png', cacheControl: '31536000', upsert: true });
+  const { error } = await balde.upload(`${pasta}/${versao}/${rel}`, readFileSync(join(origem, rel)), { contentType: 'image/png', cacheControl: '31536000', upsert: true });
   if (error && tentativa < 4) { await new Promise((r) => setTimeout(r, 800 * tentativa)); return enviar(rel, tentativa + 1); }
   if (error) falhas.push(`${rel}: ${error.message}`);
   if (++feitos % 50 === 0 || feitos === fila.length) console.log(`  ${feitos}/${fila.length}`);
@@ -50,6 +54,6 @@ const operarios = Array.from({ length: 6 }, async () => { while (fila.length) aw
 await Promise.all(operarios);
 if (falhas.length) { console.error(`${falhas.length} falharam; o mapa.json NÃO foi trocado.\n` + falhas.slice(0, 10).join('\n')); process.exit(1); }
 
-const { error } = await balde.upload('oriental/mapa.json', Buffer.from(JSON.stringify({ versao, niveis })), { contentType: 'application/json', cacheControl: '60', upsert: true });
+const { error } = await balde.upload(`${pasta}/mapa.json`, Buffer.from(JSON.stringify({ versao, niveis })), { contentType: 'application/json', cacheControl: '60', upsert: true });
 if (error) { console.error('Ladrilhos enviados, mas o mapa.json falhou: ' + error.message); process.exit(1); }
 console.log(`Pronto. O mapa agora usa a versão ${versao}.`);

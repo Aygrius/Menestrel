@@ -21,6 +21,12 @@
   --mp-assenta: cubic-bezier(.16, 1, .3, 1);
   --mp-ouro: #C9A44E;
   --mp-tinta-escura: #1C1407;
+  /* A tinta dos lugares no mapa: ícone e nome (21/11/2026, usuário: "Ao invés
+     de texto e ícone preto, usaremos a cor R81 G96 B114, e quero uma borda
+     branca ao redor do ícone e texto. Igual no Google Maps"). O halo branco
+     é o contorno dos rótulos de mapa: oito sombras de 1px e um véu de 3px. */
+  --mp-lugar: rgb(81, 96, 114);
+  --mp-halo: 1px 0 0 #fff, -1px 0 0 #fff, 0 1px 0 #fff, 0 -1px 0 #fff, 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 0 0 3px #fff;
   display: grid; grid-template-columns: 340px minmax(0, 1fr);
   /* A altura vem do React (--mp-altura): o que sobra da janela abaixo do trilho. */
   height: var(--mp-altura, max(460px, calc(100dvh - 190px)));
@@ -117,9 +123,33 @@
 #root .menestrel-ui .mp-mapa.ferramenta { cursor: crosshair; }
 #root .menestrel-ui .mp-mapa.aponta { cursor: pointer; }
 #root .menestrel-ui .mp-mapa:focus-visible { outline-offset: -3px; }
-#root .menestrel-ui .mp-mundo { position: absolute; left: 0; top: 0; width: 1200px; height: 2000px; transform-origin: 0 0; }
+/* O tamanho do mundo é o do mapa (MAPA_L × MAPA_A): o motor também o põe inline. */
+#root .menestrel-ui .mp-mundo { position: absolute; left: 0; top: 0; width: 5905.5px; height: 4695.1px; transform-origin: 0 0; }
 #root .menestrel-ui .mp-arte, #root .menestrel-ui .mp-arte div { position: absolute; inset: 0; }
-#root .menestrel-ui .mp-arte img { position: absolute; display: block; max-width: none; pointer-events: none; -webkit-user-drag: none; }
+#root .menestrel-ui .mp-arte img { position: absolute; left: 0; top: 0; display: block; max-width: none; pointer-events: none; -webkit-user-drag: none; }
+/* O MAPA VETORIAL (21/11/2026): o mar do desenho continua além da borda, sem
+   moldura escura em volta quando o mapa inteiro cabe na tela. */
+#root .menestrel-ui .mp-mapa[data-plano="material"] { background: #83D6EA; }
+/* OS NOMES DA GEOGRAFIA, como no Google Maps: itálico na cor do que nomeiam
+   (água em azul, serra em terra, floresta em verde, deserto em ocre), com o
+   mesmo halo branco dos lugares; mantêm o tamanho na tela em qualquer zoom. */
+#root .menestrel-ui .mp-geo { pointer-events: none; }
+#root .menestrel-ui .mp-geo-nome {
+  position: absolute; transform: scale(calc(1 / var(--s, 1))) translate(-50%, -50%); transform-origin: 0 0;
+  white-space: nowrap; font: italic 600 var(--fs-xs)/1.1 var(--font-body); color: var(--mp-lugar); text-shadow: var(--mp-halo);
+}
+#root .menestrel-ui .mp-geo-nome:is([data-tipo="mar"], [data-tipo="lago"], [data-tipo="rio"]) { color: #1F5F78; text-shadow: 0 0 2px rgba(255,255,255,.55); }
+#root .menestrel-ui .mp-geo-nome[data-tipo="mar"] { font-size: var(--fs-md); letter-spacing: .06em; }
+#root .menestrel-ui .mp-geo-nome:is([data-tipo="serra"], [data-tipo="vulcao"]) { color: #6B5843; }
+#root .menestrel-ui .mp-geo-nome[data-tipo="floresta"] { color: #2D6A45; }
+#root .menestrel-ui .mp-geo-nome:is([data-tipo="deserto"], [data-tipo="planicie"]) { color: #86663A; }
+#root .menestrel-ui .mp-geo-nome:is([data-tipo="deserto"], [data-tipo="regiao"]) { font-size: var(--fs-sm); font-style: normal; letter-spacing: .1em; text-transform: uppercase; }
+/* As mesmas faixas de zoom dos lugares (data-nomes): o mar fala sempre;
+   deserto, região e serra a partir de 400 km na régua; lago, rio, floresta,
+   ilha e vulcão a partir de 100 km; planície só de perto (50 km). */
+#root .menestrel-ui .mp-mapa:is([data-nomes="0"]) .mp-geo-nome[data-imp="2"],
+#root .menestrel-ui .mp-mapa:is([data-nomes="0"], [data-nomes="1"], [data-nomes="2"]) .mp-geo-nome[data-imp="3"],
+#root .menestrel-ui .mp-mapa:not([data-nomes="4"]) .mp-geo-nome[data-imp="4"] { display: none; }
 #root .menestrel-ui .mp-linhas { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 #root .menestrel-ui .mp-linhas * { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 #root .menestrel-ui .mp-rota-base { stroke: rgba(18,13,6,.85); stroke-width: calc(8px / var(--s, 1)); }
@@ -151,23 +181,74 @@
 
 #root .menestrel-ui .mp-tela .mp-marca {
   translate: -50% -50%; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--mp-fundo); color: var(--tinta); font-size: 17px;
-  box-shadow: 0 0 0 1px var(--regua-forte), 0 5px 12px -4px rgba(8,6,2,.8);
+  /* Sem o círculo preto (21/11/2026, usuário: "remova o círculo preto, e o
+     fundo preto do texto, teremos os ícones e o texto em preto"). */
+  background: none; color: var(--mp-lugar); font-size: 17px; box-shadow: none; text-shadow: var(--mp-halo);
 }
-#root .menestrel-ui .mp-tela .mp-marca:hover { color: var(--vivo); }
+/* APONTAR SEM ANEL (21/11/2026, usuário: "Ao passar o mouse em cima, não quero
+   o círculo"). O marcador apontado (.mp-mk.passa, mapa.jsx, ou :hover) sobe 2px, cresce
+   um pouco e ganha a sombra de quem saiu do papel; o nome engrossa e aparece
+   mesmo na faixa de zoom que o esconderia. A tinta não muda: ouro sobre a
+   pintura clara some. */
+#root .menestrel-ui .mp-tela .mp-marca { transition: translate .18s var(--mp-assenta), scale .18s var(--mp-assenta), filter .18s var(--mp-assenta); }
+#root .menestrel-ui .mp-tela :is(.mp-mk.passa, .mp-mk:has(> .mp-marca:is(:hover, :focus-visible))) .mp-marca {
+  translate: -50% calc(-50% - 2px); scale: 1.18;
+  filter: drop-shadow(0 3px 3px rgba(28,20,7,.35));
+  animation: mp-acende .18s var(--mp-assenta);
+}
+@keyframes mp-acende { from { translate: -50% -50%; scale: 1; filter: drop-shadow(0 0 0 rgba(28,20,7,0)); } }
+#root .menestrel-ui .mp-tela .mp-mapa :is(.mp-mk.passa, .mp-mk:has(> .mp-marca:is(:hover, :focus-visible))) .mp-etiqueta { display: -webkit-box; font-weight: 800; }
+#root .menestrel-ui .mp-tela .mp-marca:focus-visible { outline-offset: 0; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  #root .menestrel-ui .mp-tela :is(.mp-mk.passa, .mp-mk:has(> .mp-marca:is(:hover, :focus-visible))) .mp-marca { animation: none; translate: -50% -50%; scale: 1; }
+}
 #root .menestrel-ui .mp-tela .mp-marca:is(.vila, .local) { width: 26px; height: 26px; font-size: 15px; }
-#root .menestrel-ui .mp-tela .mp-marca.destino { width: 36px; height: 36px; font-size: 20px; color: var(--vivo); box-shadow: 0 0 0 1.5px var(--vivo), 0 5px 12px -4px rgba(8,6,2,.8); }
+/* O LOCAL SEM ÍCONE (21/11/2026, usuário: "Remova o ícone dos locais, deixe
+   apenas em reinos e cidades"): o botão segue ali como alvo do toque, o nome
+   fica no próprio ponto. Escolhido, o disco com o alfinete volta (.sel). */
+#root .menestrel-ui .mp-tela .mp-marca.local:not(.sel) i { visibility: hidden; }
+#root .menestrel-ui .mp-tela .mp-mk:has(> .mp-marca.local:not(.sel)) .mp-etiqueta { translate: -50% -50%; }
+#root .menestrel-ui .mp-tela .mp-marca.reino { width: 30px; height: 30px; font-size: 19px; }
+#root .menestrel-ui .mp-tela .mp-marca.destino { width: 36px; height: 36px; font-size: 20px; color: var(--vivo); box-shadow: none; }
 #root .menestrel-ui .mp-mira { width: 34px; height: 34px; translate: -50% -50%; border-radius: 50%; border: 2px solid var(--vivo); box-shadow: 0 0 0 2px rgba(18,13,6,.8), inset 0 0 0 2px rgba(18,13,6,.8); pointer-events: none; }
-#root .menestrel-ui .mp-mira.passa { border-color: var(--tinta); width: 28px; height: 28px; }
 #root .menestrel-ui .mp-ponto { width: 10px; height: 10px; translate: -50% -50%; border-radius: 50%; background: var(--tinta); box-shadow: 0 0 0 2px var(--mp-fundo); pointer-events: none; }
 #root .menestrel-ui .mp-alca { width: 14px; height: 14px; translate: -50% -50%; border-radius: 50%; background: var(--tinta); box-shadow: 0 0 0 2px var(--mp-fundo); pointer-events: none; }
 #root .menestrel-ui .mp-alca.meio { width: 9px; height: 9px; background: var(--tinta-3); }
 #root .menestrel-ui .mp-alca.sel { width: 18px; height: 18px; background: var(--vivo); }
-#root .menestrel-ui .mp-mapa.longe .mp-etiqueta { display: none; }
+/* O NOME JUNTO DO SINAL, EM ATÉ DUAS LINHAS (21/11/2026, usuário: "o texto do
+   mapa fique um pouco mais próximo do ícone, e o texto quebre em duas
+   linhas"). Centrado sob o ícone; o nome longo quebra equilibrado. */
 #root .menestrel-ui .mp-etiqueta {
-  translate: -50% 22px; white-space: nowrap; padding: 2px 9px; border-radius: 999px; pointer-events: none;
-  background: rgba(18,13,6,.86); font-weight: 600; font-size: var(--fs-xs); color: var(--tinta);
+  translate: -50% 11px; width: max-content; max-width: 6em; padding: 0; pointer-events: none;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  white-space: normal; text-wrap: balance; text-align: center; line-height: 1.15;
+  background: none; font-weight: 600; font-size: var(--fs-xs); color: var(--mp-lugar); text-shadow: var(--mp-halo);
 }
+/* A cidade fala um degrau acima do local (21/11/2026, usuário: "aumente um
+   pouco o texto da cidade em comparação com locais"): 15px contra 14px. */
+#root .menestrel-ui .mp-mk:is([data-nivel="cidade"], [data-nivel="capital"]) .mp-etiqueta { font-size: var(--fs-sm); }
+#root .menestrel-ui .mp-mk[data-nivel="capital"] .mp-etiqueta { font-weight: 700; }
+/* O reino fala como nos mapas: versal espaçada, um degrau acima. */
+#root .menestrel-ui .mp-mk[data-nivel="reino"] .mp-etiqueta { translate: -50% 13px; max-width: 8em; font-weight: 800; font-size: var(--fs-sm); letter-spacing: .08em; text-transform: uppercase; }
+/* AS FAIXAS DO ZOOM (21/11/2026): data-nomes no .mp-mapa (mapa.jsx, pintar)
+   diz quantas ainda falam. Saem nesta ordem: local, cidade, capital, reino —
+   o lugar inteiro, ícone e nome (usuário: "Os ícones também desaparecem").
+   A marca do Jogador fica; só o nome dela sai com os locais. */
+#root .menestrel-ui .mp-mapa[data-nomes="3"] :is(.mp-mk, .mp-etiqueta)[data-nivel="local"],
+#root .menestrel-ui .mp-mapa[data-nomes="2"] :is(.mp-mk, .mp-etiqueta):is([data-nivel="local"], [data-nivel="cidade"]),
+#root .menestrel-ui .mp-mapa[data-nomes="1"] :is(.mp-mk, .mp-etiqueta)[data-nivel]:not([data-nivel="reino"]),
+#root .menestrel-ui .mp-mapa[data-nomes="0"] :is(.mp-mk, .mp-etiqueta)[data-nivel] { display: none; }
+/* SELECIONADO (21/11/2026, usuário: "Ao selecionar, eu quero o fundo preto com
+   círculo e o ícone branco"): o marcador escolhido vira um disco de tinta com o
+   ícone branco, e fica à vista em qualquer faixa de zoom. */
+#root .menestrel-ui .mp-tela .mp-marca.sel {
+  background: var(--mp-tinta-escura); color: #fff; text-shadow: none;
+  box-shadow: 0 4px 10px -3px rgba(28,20,7,.55);
+}
+#root .menestrel-ui .mp-tela .mp-marca.sel:is(.vila, .local) { width: 30px; height: 30px; }
+#root .menestrel-ui .mp-tela .mp-marca.sel.reino { width: 34px; height: 34px; }
+#root .menestrel-ui .mp-tela .mp-mapa .mp-mk:has(> .mp-marca.sel) { display: block; }
+#root .menestrel-ui .mp-tela .mp-mapa .mp-mk:has(> .mp-marca.sel) .mp-etiqueta { display: -webkit-box; translate: -50% 15px; font-weight: 800; }
 
 /* Ferramentas sobre o mapa */
 #root .menestrel-ui .mp-barra { position: absolute; top: 12px; right: 12px; left: 12px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; pointer-events: none; }
@@ -190,15 +271,21 @@
 #root .menestrel-ui .mp-tela .mp-barra .mc-acao.so-ico { width: 34px; padding: 0; justify-content: center; }
 #root .menestrel-ui .mp-tela .mp-barra .mc-acao:active { translate: 0 1px; }
 
+/* O AVISO NO TRILHO (21/11/2026): uma linha da barra só dele, embaixo dos
+   botões, alinhada à direita como eles; a pílula é a do .mp-grupo (chão
+   opaco, borda padrão, 5px por dentro) e o texto é o do rótulo do trilho. */
+#root .menestrel-ui .mp-aviso-linha { flex: 0 0 100%; display: flex; justify-content: flex-end; pointer-events: none; }
 #root .menestrel-ui .mp-aviso {
-  position: absolute; top: 66px; right: 12px; max-width: min(380px, calc(100% - 24px)); padding: 10px 14px; border-radius: 10px;
-  background: rgba(18,13,6,.92); box-shadow: 0 0 0 1px var(--regua-forte); font-size: var(--fs-sm); color: var(--tinta-2);
+  pointer-events: auto; max-width: min(460px, 100%); min-height: 46px; padding: 5px 5px 5px 18px; border-radius: 999px; box-sizing: border-box;
+  background: var(--chao-celula-opaco); border: 1px solid var(--regua-forte);
+  font: 600 15px/1.3 var(--font-body); color: var(--tinta-2);
   display: flex; align-items: center; gap: 12px;
 }
+#root .menestrel-ui .mp-aviso:not(:has(.mp-aviso-acoes)) { padding-right: 18px; }
 #root .menestrel-ui .mp-aviso[hidden] { display: none; }
-#root .menestrel-ui .mp-aviso b { color: var(--tinta); font-size: var(--fs-base); white-space: nowrap; }
-#root .menestrel-ui .mp-aviso-acoes { display: flex; gap: 6px; margin-left: auto; flex: none; }
-#root .menestrel-ui .mp-tela .mp-aviso .mp-acao { height: 30px; padding: 0 12px; font-size: var(--fs-xs); }
+#root .menestrel-ui .mp-aviso b { color: var(--tinta); font-weight: 700; white-space: nowrap; font-variant-numeric: lining-nums tabular-nums; }
+#root .menestrel-ui .mp-aviso-acoes { display: flex; gap: 2px; margin-left: auto; flex: none; }
+#root .menestrel-ui .mp-tela .mp-aviso .mp-acao { height: 34px; padding: 0 14px; border-radius: 999px; font-size: 15px; font-weight: 700; }
 
 /* A legenda de medida no padrão do trilho (17/11/2026, usuário: "fora do
    padrão de cor de fonte, fundo e borda"): o chão e a borda de .mp-grupo, a
@@ -219,7 +306,6 @@
   #root .menestrel-ui .mp-barra.cheia .mc-acao-rotulo { display: none; }
   #root .menestrel-ui .mp-tela .mp-barra.cheia .mc-acao { padding: 0; justify-content: center; }
   #root .menestrel-ui .mp-tela.so-mapa { grid-template-rows: minmax(0, 1fr); }
-  #root .menestrel-ui .mp-aviso { top: 62px; right: 8px; }
   #root .menestrel-ui .mp-escala { left: 8px; bottom: 8px; }
 }
 /* O zoom (− + ⤢) no canto inferior direito, fora do trilho do topo. */
@@ -238,7 +324,7 @@
 
 /* OS PLANOS SEM PINTURA (17/11/2026, usuário: "Fundo liso por enquanto"). O
    celestial é um céu de índigo com luz de ouro vinda do alto; o infernal, um
-   fundo de brasa que sobe de baixo. A área do mapa (1200 × 2000) ganha um
+   fundo de brasa que sobe de baixo. A área do mapa (MAPA_L × MAPA_A) ganha um
    chão um pouco mais claro, para o Mestre saber até onde pôr lugares. */
 #root .menestrel-ui .mp-mapa[data-plano="celestial"] {
   background:

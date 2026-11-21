@@ -1,0 +1,3126 @@
+{
+ "descricao": "Nomes do mapa de Tagmar. Coordenadas no viewBox do mapa.svg (100 unidades por polegada do documento do Corel). importancia 1 aparece sempre; 4 só com muito zoom.",
+ "viewBox": [
+  0,
+  0,
+  5905.5,
+  4695.1
+ ],
+ "tipos": [
+  "reino",
+  "mar",
+  "deserto",
+  "regiao",
+  "serra",
+  "capital",
+  "lago",
+  "ilha",
+  "floresta",
+  "rio",
+  "fortaleza",
+  "cidade",
+  "planicie",
+  "vulcao",
+  "ruina",
+  "arena",
+  "oasis"
+ ],
+ "rotulos": [
+  {
+   "nome": "Império Aktar",
+   "tipo": "reino",
+   "x": 1623.8,
+   "y": 2949.5,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Cidades-Estado Dictíneas",
+   "tipo": "reino",
+   "x": 1368,
+   "y": 1566.9,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Cidades-Estado Birsas",
+   "tipo": "reino",
+   "x": 543.9,
+   "y": 2671.4,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Colônias Tessaldarianas",
+   "tipo": "reino",
+   "x": 2485.8,
+   "y": 1978.3,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Povos do Deserto",
+   "tipo": "regiao",
+   "x": 1515.8,
+   "y": 1872.7,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Território Inexplorado",
+   "tipo": "regiao",
+   "x": 562.9,
+   "y": 3371.8,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Tundra",
+   "tipo": "regiao",
+   "x": 2328.5,
+   "y": 3635.8,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Área de Conflito",
+   "tipo": "regiao",
+   "x": 2372.1,
+   "y": 2363.2,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Grande Deserto do Norte",
+   "tipo": "deserto",
+   "x": 1169.1,
+   "y": 1377.7,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Planalto Vermelho",
+   "tipo": "deserto",
+   "x": 790.2,
+   "y": 3077.9,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Deserto do Sul",
+   "tipo": "deserto",
+   "x": 1500.6,
+   "y": 3260.9,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Estepes Vítreas",
+   "tipo": "deserto",
+   "x": 2765.3,
+   "y": 3873.4,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Mar do Mistério",
+   "tipo": "mar",
+   "x": 2220.5,
+   "y": 1509.7,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Mar do Norte",
+   "tipo": "mar",
+   "x": 487.1,
+   "y": 2066.3,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Mar de Tessaldar",
+   "tipo": "mar",
+   "x": 2144.8,
+   "y": 2121.3,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Mar de Sargaços",
+   "tipo": "mar",
+   "x": 3107.5,
+   "y": 2297.2,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Mar da Morte",
+   "tipo": "mar",
+   "x": 3089.5,
+   "y": 2646.8,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Mar Menor",
+   "tipo": "mar",
+   "x": 998.6,
+   "y": 2543.6,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Mar do Sul",
+   "tipo": "mar",
+   "x": 837.6,
+   "y": 4014.2,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Estreito das Serpentes",
+   "tipo": "mar",
+   "x": 3213.6,
+   "y": 2911.1,
+   "importancia": 1,
+   "mapa": "império"
+  },
+  {
+   "nome": "Muralha dos Deuses",
+   "tipo": "serra",
+   "x": 1197.5,
+   "y": 922.4,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Montes Tauram",
+   "tipo": "serra",
+   "x": 1229.7,
+   "y": 1901.3,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Montes Destino",
+   "tipo": "serra",
+   "x": 1419.2,
+   "y": 2134.5,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Montes Kavadiz",
+   "tipo": "serra",
+   "x": 1822.7,
+   "y": 2044.3,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Montanhas Sorpiom",
+   "tipo": "serra",
+   "x": 2324.7,
+   "y": 2561.2,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Montanhas Sorpiom",
+   "tipo": "serra",
+   "x": 2135.3,
+   "y": 2729.5,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Montanhas Atlam",
+   "tipo": "serra",
+   "x": 1642.7,
+   "y": 3706.2,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Vale dos Reis",
+   "tipo": "serra",
+   "x": 3233.6,
+   "y": 3618.2,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Lago Bismaral",
+   "tipo": "lago",
+   "x": 1064.9,
+   "y": 2072.9,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Lago Laut",
+   "tipo": "lago",
+   "x": 833.8,
+   "y": 2782.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Lago da Esperança",
+   "tipo": "lago",
+   "x": 1174.8,
+   "y": 2981.1,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Mar Morto",
+   "tipo": "lago",
+   "x": 1106.6,
+   "y": 3143,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Mar Irant",
+   "tipo": "lago",
+   "x": 1396.4,
+   "y": 3785.4,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Lago Cristol",
+   "tipo": "lago",
+   "x": 2277.4,
+   "y": 2664.4,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Lago Azul",
+   "tipo": "lago",
+   "x": 2495.2,
+   "y": 2903.7,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Lago Mearc",
+   "tipo": "lago",
+   "x": 3269.6,
+   "y": 3345.4,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ilha da Paz",
+   "tipo": "ilha",
+   "x": 508.9,
+   "y": 1847.1,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ilha Bismaral",
+   "tipo": "ilha",
+   "x": 829.7,
+   "y": 2329.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ilha Itlam",
+   "tipo": "ilha",
+   "x": 1275,
+   "y": 2428,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ilha do Rei-Feiticeiro",
+   "tipo": "ilha",
+   "x": 2415.3,
+   "y": 1848.6,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Rio Sufratis",
+   "tipo": "rio",
+   "x": 856.5,
+   "y": 1648.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Rio Trigom",
+   "tipo": "rio",
+   "x": 1548,
+   "y": 1410.7,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Rio Estil",
+   "tipo": "rio",
+   "x": 1961,
+   "y": 3134.2,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Rio Nix",
+   "tipo": "rio",
+   "x": 2315.3,
+   "y": 3125.4,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Rio Chariz",
+   "tipo": "rio",
+   "x": 2410,
+   "y": 2870.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Rio Chadi",
+   "tipo": "rio",
+   "x": 2476.3,
+   "y": 3002.2,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Rio Meare",
+   "tipo": "rio",
+   "x": 2549.1,
+   "y": 3407,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Planície Vulcânica de Tanis Oeste",
+   "tipo": "planicie",
+   "x": 1495,
+   "y": 2747.1,
+   "importancia": 4,
+   "mapa": "império"
+  },
+  {
+   "nome": "Planície Vulcânica de Tanis",
+   "tipo": "planicie",
+   "x": 2495.2,
+   "y": 2667.9,
+   "importancia": 4,
+   "mapa": "império"
+  },
+  {
+   "nome": "Planície Vulcânica de Islandi",
+   "tipo": "planicie",
+   "x": 2855.3,
+   "y": 3069.1,
+   "importancia": 4,
+   "mapa": "império"
+  },
+  {
+   "nome": "Planície Vulcânica de Vulcam",
+   "tipo": "planicie",
+   "x": 1737.4,
+   "y": 3195.8,
+   "importancia": 4,
+   "mapa": "império"
+  },
+  {
+   "nome": "Korsam",
+   "tipo": "capital",
+   "x": 1822.7,
+   "y": 2574.4,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Aktar",
+   "tipo": "capital",
+   "x": 2277.4,
+   "y": 2711.9,
+   "importancia": 2,
+   "mapa": "império"
+  },
+  {
+   "nome": "Forte Ur",
+   "tipo": "fortaleza",
+   "x": 1576.4,
+   "y": 2248.9,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Forte Malaz",
+   "tipo": "fortaleza",
+   "x": 2502.3,
+   "y": 2468.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Forte Elbist",
+   "tipo": "fortaleza",
+   "x": 1244.9,
+   "y": 2917.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Forte Aktar",
+   "tipo": "fortaleza",
+   "x": 2639.2,
+   "y": 3188.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Forte Tanis",
+   "tipo": "fortaleza",
+   "x": 2549.1,
+   "y": 3310.2,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Torre do Norte",
+   "tipo": "fortaleza",
+   "x": 3359.6,
+   "y": 3785.4,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ruínas Vazda",
+   "tipo": "ruina",
+   "x": 2311.5,
+   "y": 2099.3,
+   "importancia": 4,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ruínas Torre do Sul",
+   "tipo": "ruina",
+   "x": 3269.6,
+   "y": 4392.5,
+   "importancia": 4,
+   "mapa": "império"
+  },
+  {
+   "nome": "Oásis de Isme",
+   "tipo": "oasis",
+   "x": 3017.4,
+   "y": 3341.9,
+   "importancia": 4,
+   "mapa": "império"
+  },
+  {
+   "nome": "Mirtos",
+   "tipo": "cidade",
+   "x": 1625.7,
+   "y": 1560.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Nidre",
+   "tipo": "cidade",
+   "x": 1710.9,
+   "y": 1573.5,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Mirsim",
+   "tipo": "cidade",
+   "x": 1782.9,
+   "y": 1553.7,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Kamaris",
+   "tipo": "cidade",
+   "x": 1169.1,
+   "y": 1670.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Tilissos",
+   "tipo": "cidade",
+   "x": 1468.4,
+   "y": 1635.1,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Diate",
+   "tipo": "cidade",
+   "x": 1599.2,
+   "y": 1621.9,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Juktas",
+   "tipo": "cidade",
+   "x": 1716.6,
+   "y": 1650.5,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Tiraki",
+   "tipo": "cidade",
+   "x": 1354.8,
+   "y": 1740.7,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Cânia",
+   "tipo": "cidade",
+   "x": 1474.1,
+   "y": 1751.7,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Gazi",
+   "tipo": "cidade",
+   "x": 1587.8,
+   "y": 1729.7,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Zacro",
+   "tipo": "cidade",
+   "x": 1703.3,
+   "y": 1701.1,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Sanom",
+   "tipo": "cidade",
+   "x": 1309.3,
+   "y": 1907.9,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Gati",
+   "tipo": "cidade",
+   "x": 508.9,
+   "y": 1805.1,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Oi",
+   "tipo": "cidade",
+   "x": 942.4,
+   "y": 1921.1,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ineg",
+   "tipo": "cidade",
+   "x": 956.2,
+   "y": 2120.6,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Esmir",
+   "tipo": "cidade",
+   "x": 714.4,
+   "y": 2152.1,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ireg",
+   "tipo": "cidade",
+   "x": 1040.3,
+   "y": 2178.5,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Hazor",
+   "tipo": "cidade",
+   "x": 1055,
+   "y": 2248.9,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ascal",
+   "tipo": "cidade",
+   "x": 829.7,
+   "y": 2287.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Uliça",
+   "tipo": "cidade",
+   "x": 598.5,
+   "y": 2358.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Arad",
+   "tipo": "cidade",
+   "x": 1224,
+   "y": 2281.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Fem",
+   "tipo": "cidade",
+   "x": 1250.6,
+   "y": 2312.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ugarit",
+   "tipo": "cidade",
+   "x": 1275,
+   "y": 2386,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Hancham",
+   "tipo": "cidade",
+   "x": 1510.1,
+   "y": 2270.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Gercham",
+   "tipo": "cidade",
+   "x": 1424.9,
+   "y": 2308.2,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Miv",
+   "tipo": "cidade",
+   "x": 1724.2,
+   "y": 2270.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Hisar",
+   "tipo": "cidade",
+   "x": 1917.4,
+   "y": 2207.1,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Tepes",
+   "tipo": "cidade",
+   "x": 2049.9,
+   "y": 2263.1,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Nipor",
+   "tipo": "cidade",
+   "x": 1614.3,
+   "y": 2369.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Arbetes",
+   "tipo": "cidade",
+   "x": 1813.2,
+   "y": 2398.4,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Arafa",
+   "tipo": "cidade",
+   "x": 2036.8,
+   "y": 2462.2,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Sialk",
+   "tipo": "cidade",
+   "x": 1466.5,
+   "y": 2468.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Gurum",
+   "tipo": "cidade",
+   "x": 1633.3,
+   "y": 2479.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Kichi",
+   "tipo": "cidade",
+   "x": 1758.3,
+   "y": 2517.2,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Chajura",
+   "tipo": "cidade",
+   "x": 2176.6,
+   "y": 1762.1,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Magaltam",
+   "tipo": "cidade",
+   "x": 2167.5,
+   "y": 1857.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Asbram",
+   "tipo": "cidade",
+   "x": 2284.4,
+   "y": 1890.6,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Alessar",
+   "tipo": "cidade",
+   "x": 2315.3,
+   "y": 2171.9,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Vazda",
+   "tipo": "cidade",
+   "x": 2349.4,
+   "y": 2143.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ravandiz",
+   "tipo": "cidade",
+   "x": 2502.3,
+   "y": 2645,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Tapso",
+   "tipo": "cidade",
+   "x": 600.8,
+   "y": 2565.6,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Tizar",
+   "tipo": "cidade",
+   "x": 822.4,
+   "y": 2685.5,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Trial",
+   "tipo": "cidade",
+   "x": 737.2,
+   "y": 2813.9,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Orim",
+   "tipo": "cidade",
+   "x": 970.2,
+   "y": 2734.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Alalch",
+   "tipo": "cidade",
+   "x": 1074.4,
+   "y": 2720.7,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Olb",
+   "tipo": "cidade",
+   "x": 1417.3,
+   "y": 2596.4,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Nodis",
+   "tipo": "cidade",
+   "x": 1387,
+   "y": 2614,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Isintir",
+   "tipo": "cidade",
+   "x": 1568.8,
+   "y": 2671.4,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Oscamad",
+   "tipo": "cidade",
+   "x": 1368,
+   "y": 2720.7,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Sipar",
+   "tipo": "cidade",
+   "x": 1794.3,
+   "y": 2620.6,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Susa",
+   "tipo": "cidade",
+   "x": 1974.3,
+   "y": 2641.5,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Isim",
+   "tipo": "cidade",
+   "x": 1856.8,
+   "y": 2738.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Ramas",
+   "tipo": "cidade",
+   "x": 1978,
+   "y": 2764.7,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Upak",
+   "tipo": "cidade",
+   "x": 1908,
+   "y": 2822.7,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Larsa",
+   "tipo": "cidade",
+   "x": 1989.4,
+   "y": 2835.1,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Erla",
+   "tipo": "cidade",
+   "x": 1449.5,
+   "y": 2861.5,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Kaiseri",
+   "tipo": "cidade",
+   "x": 2549.1,
+   "y": 2826.3,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Druk",
+   "tipo": "cidade",
+   "x": 2069,
+   "y": 2945.9,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Lagas",
+   "tipo": "cidade",
+   "x": 2163.7,
+   "y": 2961.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Astam",
+   "tipo": "cidade",
+   "x": 2819.3,
+   "y": 3116.6,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Eridu",
+   "tipo": "cidade",
+   "x": 2296.3,
+   "y": 3077.9,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Sarnal",
+   "tipo": "cidade",
+   "x": 1908,
+   "y": 3102.6,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Haram",
+   "tipo": "cidade",
+   "x": 2262.2,
+   "y": 3216.9,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Katna",
+   "tipo": "cidade",
+   "x": 1392.7,
+   "y": 3415.8,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Vaaloer",
+   "tipo": "cidade",
+   "x": 3233.6,
+   "y": 3681.5,
+   "importancia": 3,
+   "mapa": "império"
+  },
+  {
+   "nome": "Plana",
+   "tipo": "reino",
+   "x": 3915.5,
+   "y": 1069,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Calco",
+   "tipo": "reino",
+   "x": 4242.3,
+   "y": 926.9,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Conti",
+   "tipo": "reino",
+   "x": 4510.9,
+   "y": 887.2,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Acordo",
+   "tipo": "reino",
+   "x": 3723.1,
+   "y": 1270.6,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Abadom",
+   "tipo": "reino",
+   "x": 4122.5,
+   "y": 1564.8,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Cidades-Estado",
+   "tipo": "reino",
+   "x": 4990.2,
+   "y": 1035.9,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Azanti",
+   "tipo": "reino",
+   "x": 4932.1,
+   "y": 1148.3,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Filanti",
+   "tipo": "reino",
+   "x": 4855.8,
+   "y": 1330.1,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Portis",
+   "tipo": "reino",
+   "x": 5186.2,
+   "y": 1363.2,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Porto Livre",
+   "tipo": "reino",
+   "x": 5560.1,
+   "y": 1359.9,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Luna",
+   "tipo": "reino",
+   "x": 5237,
+   "y": 1614.4,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Levânia",
+   "tipo": "reino",
+   "x": 3930.1,
+   "y": 2239.1,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Dartel",
+   "tipo": "reino",
+   "x": 4169.7,
+   "y": 1782.9,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Verrogar",
+   "tipo": "reino",
+   "x": 4790.5,
+   "y": 1898.6,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Marana",
+   "tipo": "reino",
+   "x": 5019.2,
+   "y": 1819.3,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Âmiem",
+   "tipo": "reino",
+   "x": 4492.8,
+   "y": 2206,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Ludgrim",
+   "tipo": "reino",
+   "x": 4373,
+   "y": 2506.8,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Eredra",
+   "tipo": "reino",
+   "x": 4866.7,
+   "y": 2427.5,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Dantsem",
+   "tipo": "reino",
+   "x": 5277,
+   "y": 2401,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Lar",
+   "tipo": "reino",
+   "x": 3730.4,
+   "y": 3098.5,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Blur",
+   "tipo": "reino",
+   "x": 4318.5,
+   "y": 3620.7,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Caridrândia",
+   "tipo": "reino",
+   "x": 4376.6,
+   "y": 3809.1,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Domo de Arminus",
+   "tipo": "reino",
+   "x": 4964.7,
+   "y": 3693.4,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "O Muro",
+   "tipo": "regiao",
+   "x": 3548.9,
+   "y": 3472,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Terras Selvagens",
+   "tipo": "regiao",
+   "x": 4630.7,
+   "y": 3091.8,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Geleiras",
+   "tipo": "regiao",
+   "x": 4543.6,
+   "y": 3409.2,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Planícies Geladas de Enoar",
+   "tipo": "regiao",
+   "x": 5218.9,
+   "y": 3514.9,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Condado Élfico de Lirati",
+   "tipo": "regiao",
+   "x": 4431.1,
+   "y": 1240.9,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Campo Branco",
+   "tipo": "regiao",
+   "x": 3959.1,
+   "y": 2054,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Vale Ranovel",
+   "tipo": "regiao",
+   "x": 4064.4,
+   "y": 3957.8,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Deserto de Blirga",
+   "tipo": "deserto",
+   "x": 4140.6,
+   "y": 2130,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Baía de Liêm",
+   "tipo": "mar",
+   "x": 3570.7,
+   "y": 3152.4,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Mar de Suz",
+   "tipo": "mar",
+   "x": 4008.9,
+   "y": 4207,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Mar Gelado",
+   "tipo": "mar",
+   "x": 5886.9,
+   "y": 3369.5,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Recifes de Gandara",
+   "tipo": "mar",
+   "x": 5647.3,
+   "y": 1154.9,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Recifes do Tubarão",
+   "tipo": "mar",
+   "x": 5654.5,
+   "y": 1589.9,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Recifes do Afogado",
+   "tipo": "mar",
+   "x": 3538,
+   "y": 2799.7,
+   "importancia": 1,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Cordilheira de Sotopor",
+   "tipo": "serra",
+   "x": 3955.5,
+   "y": 1518.5,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Serra de Saupami",
+   "tipo": "serra",
+   "x": 4311.3,
+   "y": 1085.5,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montes Puni",
+   "tipo": "serra",
+   "x": 4779.6,
+   "y": 890.5,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Serra de Pino",
+   "tipo": "serra",
+   "x": 4725.1,
+   "y": 999.6,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Serra de Ender",
+   "tipo": "serra",
+   "x": 4834,
+   "y": 1088.8,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montes Degas",
+   "tipo": "serra",
+   "x": 4997.4,
+   "y": 969.8,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montes Basilor",
+   "tipo": "serra",
+   "x": 5117.2,
+   "y": 983.1,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Cadeia Azanti",
+   "tipo": "serra",
+   "x": 4979.3,
+   "y": 1098.7,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Cadeia Filanti",
+   "tipo": "serra",
+   "x": 4917.5,
+   "y": 1264,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Cordilheiras de Keiss",
+   "tipo": "serra",
+   "x": 5019.2,
+   "y": 1267.3,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montes Raltril",
+   "tipo": "serra",
+   "x": 5226.1,
+   "y": 1297.1,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Cordilheira da Navalha",
+   "tipo": "serra",
+   "x": 5422.2,
+   "y": 1313.6,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montes Palomares",
+   "tipo": "serra",
+   "x": 4805,
+   "y": 1607.8,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montes Moncurianos",
+   "tipo": "serra",
+   "x": 3835.7,
+   "y": 1797.5,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montes Crássios",
+   "tipo": "serra",
+   "x": 4460.1,
+   "y": 1868.9,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montes Solomor",
+   "tipo": "serra",
+   "x": 4881.2,
+   "y": 1974.6,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montes Trevas",
+   "tipo": "serra",
+   "x": 4677.9,
+   "y": 2063.9,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montes Dourados",
+   "tipo": "serra",
+   "x": 5233.4,
+   "y": 2163.1,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montanhas Xarar",
+   "tipo": "serra",
+   "x": 4220.5,
+   "y": 2368,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montanhas Morânicas",
+   "tipo": "serra",
+   "x": 4057.1,
+   "y": 3237.3,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Os Montes",
+   "tipo": "serra",
+   "x": 4808.6,
+   "y": 3017.8,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Montanhas Solumontis",
+   "tipo": "serra",
+   "x": 4616.2,
+   "y": 3855.4,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Cadeia Ergoniana",
+   "tipo": "serra",
+   "x": 4296.7,
+   "y": 3990.9,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Monte Grendel",
+   "tipo": "serra",
+   "x": 3861.1,
+   "y": 3984.3,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Pico de Prussel",
+   "tipo": "serra",
+   "x": 4017.2,
+   "y": 1465.6,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Vulcão Forja",
+   "tipo": "vulcao",
+   "x": 4213.2,
+   "y": 3505,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Vulcão Krokanom",
+   "tipo": "vulcao",
+   "x": 4260.4,
+   "y": 3706.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Aberdim",
+   "tipo": "floresta",
+   "x": 4282.2,
+   "y": 1166.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Florestas de Melgundi",
+   "tipo": "floresta",
+   "x": 4558.1,
+   "y": 1191.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Aricer",
+   "tipo": "floresta",
+   "x": 4972,
+   "y": 844.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Torbel",
+   "tipo": "floresta",
+   "x": 5193.5,
+   "y": 860.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Florestas Aliança Guindam",
+   "tipo": "floresta",
+   "x": 4725.1,
+   "y": 1392.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Gironde",
+   "tipo": "floresta",
+   "x": 4939.3,
+   "y": 1525.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Raltril",
+   "tipo": "floresta",
+   "x": 5131.7,
+   "y": 1227.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Calisto",
+   "tipo": "floresta",
+   "x": 5247.9,
+   "y": 1525.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta Finlaril",
+   "tipo": "floresta",
+   "x": 4409.3,
+   "y": 2073.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta Edelnur",
+   "tipo": "floresta",
+   "x": 4362.1,
+   "y": 2186.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta Brindel",
+   "tipo": "floresta",
+   "x": 4467.4,
+   "y": 2295.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta Laudis",
+   "tipo": "floresta",
+   "x": 4427.4,
+   "y": 2368,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta Melram",
+   "tipo": "floresta",
+   "x": 4634.4,
+   "y": 2209.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Fiorna",
+   "tipo": "floresta",
+   "x": 5193.5,
+   "y": 1782.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Marviom",
+   "tipo": "floresta",
+   "x": 4972,
+   "y": 2136.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Avena",
+   "tipo": "floresta",
+   "x": 5139,
+   "y": 2364.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Kender",
+   "tipo": "floresta",
+   "x": 4039,
+   "y": 2463.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Siltam",
+   "tipo": "floresta",
+   "x": 3959.1,
+   "y": 2695.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Tambar",
+   "tipo": "floresta",
+   "x": 4630.7,
+   "y": 2579.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta Sombria",
+   "tipo": "floresta",
+   "x": 4427.4,
+   "y": 3895,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta Gélida de Gingord",
+   "tipo": "floresta",
+   "x": 4855.8,
+   "y": 3518.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta de Eudam",
+   "tipo": "floresta",
+   "x": 4815.9,
+   "y": 3620.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta Obriana",
+   "tipo": "floresta",
+   "x": 4783.2,
+   "y": 3786,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Floresta Petrificada",
+   "tipo": "floresta",
+   "x": 3469,
+   "y": 4030.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Mangues",
+   "tipo": "floresta",
+   "x": 3911.9,
+   "y": 4080.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Lago Denegrio",
+   "tipo": "lago",
+   "x": 4478.3,
+   "y": 1663.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Lago Eudan",
+   "tipo": "lago",
+   "x": 4732.4,
+   "y": 3554.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "A Ilha",
+   "tipo": "ilha",
+   "x": 4398.4,
+   "y": 1525.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Galpas",
+   "tipo": "ilha",
+   "x": 3476.3,
+   "y": 4271.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Norte",
+   "tipo": "rio",
+   "x": 3875.6,
+   "y": 1292.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Sul",
+   "tipo": "rio",
+   "x": 3828.4,
+   "y": 1398.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Frefo",
+   "tipo": "rio",
+   "x": 4209.6,
+   "y": 1199.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Mam",
+   "tipo": "rio",
+   "x": 4111.6,
+   "y": 1462.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Baloc",
+   "tipo": "rio",
+   "x": 4158.8,
+   "y": 1607.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Traço",
+   "tipo": "rio",
+   "x": 4463.7,
+   "y": 1032.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Branco",
+   "tipo": "rio",
+   "x": 4667,
+   "y": 926.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Degas",
+   "tipo": "rio",
+   "x": 4968.4,
+   "y": 900.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Basilor",
+   "tipo": "rio",
+   "x": 5193.5,
+   "y": 916.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Edaim",
+   "tipo": "rio",
+   "x": 5186.2,
+   "y": 1065.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Lara",
+   "tipo": "rio",
+   "x": 5306,
+   "y": 1128.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Topeu",
+   "tipo": "rio",
+   "x": 5004.7,
+   "y": 1412.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Lâmina",
+   "tipo": "rio",
+   "x": 5527.5,
+   "y": 1349.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Brual",
+   "tipo": "rio",
+   "x": 3734,
+   "y": 1908.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Aurim",
+   "tipo": "rio",
+   "x": 3839.3,
+   "y": 2354.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Belva",
+   "tipo": "rio",
+   "x": 4659.8,
+   "y": 1908.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Aura",
+   "tipo": "rio",
+   "x": 5157.2,
+   "y": 2268.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Farnes",
+   "tipo": "rio",
+   "x": 3777.6,
+   "y": 2979.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Darniar",
+   "tipo": "rio",
+   "x": 4383.9,
+   "y": 2678.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Odem",
+   "tipo": "rio",
+   "x": 4641.6,
+   "y": 2799.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Sevides",
+   "tipo": "rio",
+   "x": 5110,
+   "y": 2520,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Lires",
+   "tipo": "rio",
+   "x": 5048.2,
+   "y": 2622.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Galatel",
+   "tipo": "rio",
+   "x": 4485.5,
+   "y": 2701.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Quiris",
+   "tipo": "rio",
+   "x": 4884.9,
+   "y": 2830.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Lágrima",
+   "tipo": "rio",
+   "x": 4888.5,
+   "y": 3105.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rio Cortanim",
+   "tipo": "rio",
+   "x": 3646.9,
+   "y": 3257.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Saravossa",
+   "tipo": "capital",
+   "x": 4269.4,
+   "y": 989.3,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Caleonir",
+   "tipo": "capital",
+   "x": 3941,
+   "y": 1181.4,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Porto Áureo",
+   "tipo": "capital",
+   "x": 3828.4,
+   "y": 1363.2,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Muli",
+   "tipo": "capital",
+   "x": 4438.3,
+   "y": 950,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Zanta",
+   "tipo": "capital",
+   "x": 4837.7,
+   "y": 1154.9,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Chats",
+   "tipo": "capital",
+   "x": 4750.5,
+   "y": 1392.9,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Runa",
+   "tipo": "capital",
+   "x": 5302.4,
+   "y": 1247.5,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Quessedir",
+   "tipo": "capital",
+   "x": 5455.8,
+   "y": 1300.4,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Franges",
+   "tipo": "capital",
+   "x": 5364.1,
+   "y": 1594.5,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Sadom",
+   "tipo": "capital",
+   "x": 3639.6,
+   "y": 1770.2,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Treva",
+   "tipo": "capital",
+   "x": 4750.5,
+   "y": 2106.9,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Sensera",
+   "tipo": "capital",
+   "x": 5175.3,
+   "y": 1925.1,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Léom",
+   "tipo": "capital",
+   "x": 5159.5,
+   "y": 2309,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Donatar",
+   "tipo": "capital",
+   "x": 4206,
+   "y": 2520,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Efrim",
+   "tipo": "capital",
+   "x": 4928.4,
+   "y": 2513.4,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Citira",
+   "tipo": "capital",
+   "x": 3803,
+   "y": 2949.7,
+   "importancia": 2,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Forte Galatel",
+   "tipo": "fortaleza",
+   "x": 4434.7,
+   "y": 2632.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Fortaleza Tar-Morur",
+   "tipo": "fortaleza",
+   "x": 3857.5,
+   "y": 3415.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Fortaleza Tar-Inciel",
+   "tipo": "fortaleza",
+   "x": 4271.3,
+   "y": 3366.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Fortaleza Tar-Gimor",
+   "tipo": "fortaleza",
+   "x": 3683.2,
+   "y": 3686.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Fortaleza Tar-Nelim",
+   "tipo": "fortaleza",
+   "x": 4264.1,
+   "y": 3799.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Fortaleza Tar-Torim",
+   "tipo": "fortaleza",
+   "x": 4289.5,
+   "y": 3885.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Fortaleza Tar-Noraim",
+   "tipo": "fortaleza",
+   "x": 4289.5,
+   "y": 3938,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Fortaleza Tar-Neldor",
+   "tipo": "fortaleza",
+   "x": 4554.5,
+   "y": 3706.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Torre de Edelnur",
+   "tipo": "fortaleza",
+   "x": 4278.6,
+   "y": 2186.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Torre de Melram",
+   "tipo": "fortaleza",
+   "x": 4659.8,
+   "y": 2156.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Torre de Aldram",
+   "tipo": "fortaleza",
+   "x": 4369.4,
+   "y": 2391.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Torre Branca do Sul",
+   "tipo": "fortaleza",
+   "x": 4950.2,
+   "y": 3488.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Torre do Leste",
+   "tipo": "fortaleza",
+   "x": 3563.4,
+   "y": 3852.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Posto de Organor",
+   "tipo": "fortaleza",
+   "x": 4216.9,
+   "y": 4076.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Minas Mon",
+   "tipo": "fortaleza",
+   "x": 4028.1,
+   "y": 1290.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Ruínas Moldazi",
+   "tipo": "ruina",
+   "x": 4536.4,
+   "y": 1292.4,
+   "importancia": 4,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Ruínas de Lacor",
+   "tipo": "ruina",
+   "x": 3686.8,
+   "y": 4248.7,
+   "importancia": 4,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Arena de Cruine",
+   "tipo": "arena",
+   "x": 4264.1,
+   "y": 3068.7,
+   "importancia": 4,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Arena dos Montes",
+   "tipo": "arena",
+   "x": 4696.1,
+   "y": 3005.9,
+   "importancia": 4,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Arena do Lágrima",
+   "tipo": "arena",
+   "x": 4919.4,
+   "y": 3029,
+   "importancia": 4,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Malocai",
+   "tipo": "cidade",
+   "x": 4360.6,
+   "y": 978.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Carom",
+   "tipo": "cidade",
+   "x": 4394.8,
+   "y": 1002.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Bassani",
+   "tipo": "cidade",
+   "x": 4198.5,
+   "y": 1032.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Omarge",
+   "tipo": "cidade",
+   "x": 4144.3,
+   "y": 1059.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Balistro",
+   "tipo": "cidade",
+   "x": 4104.3,
+   "y": 1078.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Porto Velho",
+   "tipo": "cidade",
+   "x": 4046.2,
+   "y": 1118.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Aradelis",
+   "tipo": "cidade",
+   "x": 3999,
+   "y": 1136.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Coberae",
+   "tipo": "cidade",
+   "x": 3908.3,
+   "y": 1235.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Pratissi",
+   "tipo": "cidade",
+   "x": 3926.4,
+   "y": 1262,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Palom",
+   "tipo": "cidade",
+   "x": 3904.7,
+   "y": 1340,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Torojai",
+   "tipo": "cidade",
+   "x": 4245.9,
+   "y": 1075.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Saupami",
+   "tipo": "cidade",
+   "x": 4333,
+   "y": 1118.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Abrasil",
+   "tipo": "cidade",
+   "x": 4347.6,
+   "y": 1201.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Cipa",
+   "tipo": "cidade",
+   "x": 4147.9,
+   "y": 1199.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Tória",
+   "tipo": "cidade",
+   "x": 4285.9,
+   "y": 1240.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Pórtis",
+   "tipo": "cidade",
+   "x": 4232.5,
+   "y": 1265.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Alimar",
+   "tipo": "cidade",
+   "x": 4082.5,
+   "y": 1402.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Novo Porto",
+   "tipo": "cidade",
+   "x": 4938.3,
+   "y": 816.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Pino",
+   "tipo": "cidade",
+   "x": 4696.1,
+   "y": 880.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Quizes",
+   "tipo": "cidade",
+   "x": 4776,
+   "y": 950,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Torbel",
+   "tipo": "cidade",
+   "x": 5095.4,
+   "y": 867.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Ender",
+   "tipo": "cidade",
+   "x": 4794.1,
+   "y": 1055.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Virena",
+   "tipo": "cidade",
+   "x": 4521.8,
+   "y": 1092.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Grabo",
+   "tipo": "cidade",
+   "x": 4953.9,
+   "y": 1174.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Mirval",
+   "tipo": "cidade",
+   "x": 4863.1,
+   "y": 1197.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Fétor",
+   "tipo": "cidade",
+   "x": 5055.5,
+   "y": 1221,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Agrápia",
+   "tipo": "cidade",
+   "x": 4761.4,
+   "y": 1247.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Estepe",
+   "tipo": "cidade",
+   "x": 5309.6,
+   "y": 1085.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Tanus",
+   "tipo": "cidade",
+   "x": 5178.9,
+   "y": 1154.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Povarina",
+   "tipo": "cidade",
+   "x": 4844.9,
+   "y": 1376.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Pechara",
+   "tipo": "cidade",
+   "x": 5001,
+   "y": 1386.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Estenorial",
+   "tipo": "cidade",
+   "x": 5117.2,
+   "y": 1422.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Maginor",
+   "tipo": "cidade",
+   "x": 5240.7,
+   "y": 1455.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Calisto",
+   "tipo": "cidade",
+   "x": 5146.3,
+   "y": 1492.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Verda",
+   "tipo": "cidade",
+   "x": 4616.2,
+   "y": 1392.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Pacri",
+   "tipo": "cidade",
+   "x": 4630.7,
+   "y": 1488.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Mutina",
+   "tipo": "cidade",
+   "x": 4790.5,
+   "y": 1508.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rapso",
+   "tipo": "cidade",
+   "x": 5066.4,
+   "y": 1518.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Capela",
+   "tipo": "cidade",
+   "x": 4670.7,
+   "y": 1545,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Pontalina",
+   "tipo": "cidade",
+   "x": 4532.7,
+   "y": 1361.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Ambernita",
+   "tipo": "cidade",
+   "x": 4452.9,
+   "y": 1303.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Litória Nova",
+   "tipo": "cidade",
+   "x": 4979.3,
+   "y": 1621,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Obrem",
+   "tipo": "cidade",
+   "x": 5080.9,
+   "y": 1617.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Varteli",
+   "tipo": "cidade",
+   "x": 5393.1,
+   "y": 1663.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Porto Coral",
+   "tipo": "cidade",
+   "x": 5349.6,
+   "y": 1759.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rokor",
+   "tipo": "cidade",
+   "x": 3839.3,
+   "y": 1693.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Fleuter",
+   "tipo": "cidade",
+   "x": 4262,
+   "y": 1680.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Dameste",
+   "tipo": "cidade",
+   "x": 4035.4,
+   "y": 1895.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Ingru",
+   "tipo": "cidade",
+   "x": 3665,
+   "y": 1941.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Altarape",
+   "tipo": "cidade",
+   "x": 3988.2,
+   "y": 2189.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Sika",
+   "tipo": "cidade",
+   "x": 4140.6,
+   "y": 2235.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Beruni",
+   "tipo": "cidade",
+   "x": 3988.2,
+   "y": 2344.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Marna",
+   "tipo": "cidade",
+   "x": 4354.8,
+   "y": 2292,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Sula",
+   "tipo": "cidade",
+   "x": 4582.4,
+   "y": 1793.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Lutrúcia",
+   "tipo": "cidade",
+   "x": 4677.9,
+   "y": 1822.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Seviala",
+   "tipo": "cidade",
+   "x": 4834,
+   "y": 1822.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Fontenova",
+   "tipo": "cidade",
+   "x": 4815.9,
+   "y": 1700.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Crassia",
+   "tipo": "cidade",
+   "x": 4554.5,
+   "y": 1935,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Lubliama",
+   "tipo": "cidade",
+   "x": 4917.5,
+   "y": 1766.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Litória",
+   "tipo": "cidade",
+   "x": 5015.6,
+   "y": 1647.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Magiara",
+   "tipo": "cidade",
+   "x": 5011.9,
+   "y": 1700.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Caliana",
+   "tipo": "cidade",
+   "x": 5102.7,
+   "y": 1759.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Lagia",
+   "tipo": "cidade",
+   "x": 5182.6,
+   "y": 1680.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Dariati",
+   "tipo": "cidade",
+   "x": 5284.2,
+   "y": 1667.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Chipara",
+   "tipo": "cidade",
+   "x": 5066.4,
+   "y": 1855.7,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Aberdim",
+   "tipo": "cidade",
+   "x": 5022.8,
+   "y": 1961.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Portiara",
+   "tipo": "cidade",
+   "x": 5141,
+   "y": 2051,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Porteval",
+   "tipo": "cidade",
+   "x": 4874,
+   "y": 2090.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Igara",
+   "tipo": "cidade",
+   "x": 4808.6,
+   "y": 2212.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Calinior",
+   "tipo": "cidade",
+   "x": 5110.9,
+   "y": 2209.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Isalibel",
+   "tipo": "cidade",
+   "x": 5099.1,
+   "y": 2311.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Tanue",
+   "tipo": "cidade",
+   "x": 4710.6,
+   "y": 2381.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Grima",
+   "tipo": "cidade",
+   "x": 3839.3,
+   "y": 2523.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Balinor",
+   "tipo": "cidade",
+   "x": 4285.9,
+   "y": 2609.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Eldair",
+   "tipo": "cidade",
+   "x": 4002.7,
+   "y": 2758,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Timor",
+   "tipo": "cidade",
+   "x": 4333,
+   "y": 2827.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Mesolom",
+   "tipo": "cidade",
+   "x": 3984.5,
+   "y": 2883.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Pirgos",
+   "tipo": "cidade",
+   "x": 3764.6,
+   "y": 2860.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Anfis",
+   "tipo": "cidade",
+   "x": 3955.5,
+   "y": 2999.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Aarom",
+   "tipo": "cidade",
+   "x": 3846.6,
+   "y": 3032.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Caterim",
+   "tipo": "cidade",
+   "x": 3824.8,
+   "y": 3158,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Calquis",
+   "tipo": "cidade",
+   "x": 3634.8,
+   "y": 3243,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Katalor",
+   "tipo": "cidade",
+   "x": 4322.2,
+   "y": 3161.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Serfa",
+   "tipo": "cidade",
+   "x": 4514.6,
+   "y": 2414.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Samor",
+   "tipo": "cidade",
+   "x": 5015.6,
+   "y": 2401,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Novini",
+   "tipo": "cidade",
+   "x": 5168,
+   "y": 2450.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Itéria",
+   "tipo": "cidade",
+   "x": 5030.1,
+   "y": 2533.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Diam",
+   "tipo": "cidade",
+   "x": 5037.4,
+   "y": 2668.8,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Brual",
+   "tipo": "cidade",
+   "x": 4717.9,
+   "y": 2767.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Agrimir",
+   "tipo": "cidade",
+   "x": 4529.1,
+   "y": 2996,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Iiurna",
+   "tipo": "cidade",
+   "x": 4772.3,
+   "y": 2959.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Elbrat",
+   "tipo": "cidade",
+   "x": 4929.4,
+   "y": 3115.5,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Batelmor",
+   "tipo": "cidade",
+   "x": 5088.9,
+   "y": 3223.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Artar",
+   "tipo": "cidade",
+   "x": 3730.4,
+   "y": 3283.6,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rodos",
+   "tipo": "cidade",
+   "x": 3508.9,
+   "y": 3343.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Lui-Rem",
+   "tipo": "cidade",
+   "x": 4118.9,
+   "y": 3931.4,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Arborus",
+   "tipo": "cidade",
+   "x": 4144.3,
+   "y": 3961.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Icumus",
+   "tipo": "cidade",
+   "x": 4351.2,
+   "y": 3898.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Uno",
+   "tipo": "cidade",
+   "x": 3926.4,
+   "y": 3981,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Gammar Tir",
+   "tipo": "cidade",
+   "x": 4496.4,
+   "y": 3538.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Telas",
+   "tipo": "cidade",
+   "x": 4732.4,
+   "y": 3676.9,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Trisque",
+   "tipo": "cidade",
+   "x": 5092.4,
+   "y": 3571.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Solumontis",
+   "tipo": "cidade",
+   "x": 4463.7,
+   "y": 3941.3,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Rarumá",
+   "tipo": "cidade",
+   "x": 3734,
+   "y": 4156.2,
+   "importancia": 3,
+   "mapa": "reinos"
+  },
+  {
+   "nome": "Mini-rum",
+   "tipo": "cidade",
+   "x": 4115.2,
+   "y": 4047.1,
+   "importancia": 3,
+   "mapa": "reinos"
+  }
+ ]
+}
