@@ -3,8 +3,7 @@
    ============================================================
    Usuário: "os jogadores vão acompanhar onde seu personagem está, onde devem
    ir, sabendo distâncias". O que o Jogador lê na tela sai destas funções: a
-   régua (km), o comprimento de um traçado e a rota da mesa partida em feito e
-   por fazer no ponto onde a comitiva está.
+   régua (km), o comprimento de um traçado e a largura do caminho na tela.
 
    O motor (criarMotorMapa) desenha no DOM com ponteiro, zoom e o SVG do chão — é
    conferido no navegador pela prévia (/preview/?tela=mapa), não aqui.
@@ -16,7 +15,7 @@ import { dirname, join } from 'node:path';
 import './mapa.jsx';
 
 const aqui = dirname(fileURLToPath(import.meta.url));
-const { mapaKm, mapaComprimento, mapaProjeta, mapaJornada, mapaSemente, mapaNormalizar, MAPA_KM, MAPA_PINTADAS } = window;
+const { mapaKm, mapaComprimento, mapaProjeta, mapaCaminhoNaTela, mapaSemente, mapaNormalizar, MAPA_KM, MAPA_PINTADAS } = window;
 
 describe('a régua', () => {
   /* O mapa vetorial (21/11/2026): 365 unidades para 400 km — a média da régua
@@ -35,29 +34,144 @@ describe('a régua', () => {
   });
 });
 
-describe('a rota da mesa', () => {
-  const rota = { id: 'r', tipo: 'rota', nome: 'Jornada', pts: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }] };
-  const mesa = { lugares: [], linhas: [rota], rota: 'r', gente: {} };
-
-  it('parte em feito e por fazer no ponto da rota mais perto da comitiva', () => {
-    const j = mapaJornada(mesa, { x: 10, y: 4 });
-    expect(mapaComprimento(j.feita)).toBe(14);
-    expect(mapaComprimento(j.falta)).toBe(6);
-    expect(j.destino).toEqual({ x: 10, y: 10 });
+/* 21/11/2026, usuário: "Eu quero que exista apenas rota, e ela é global", e
+   depois: "Existe a estrada fixa, e existe a rota [...] o caminho, antes de
+   definir a rota, precisa existir". O que se traça é o caminho (a estrada),
+   do mundo, no jeito da estrada do Google Maps: fino, e de longe some. */
+describe('os caminhos', () => {
+  const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+  const css = readFileSync(join(aqui, 'mapa.css'), 'utf8');
+  it('de perto é largo; de longe afina e some', () => {
+    const perto = mapaCaminhoNaTela(0.05), meio = mapaCaminhoNaTela(0.5), longe = mapaCaminhoNaTela(4);
+    expect(perto.largura).toBeGreaterThan(meio.largura);
+    expect(perto.opacidade).toBe(1);
+    expect(meio.opacidade).toBe(1);
+    expect(longe.opacidade).toBe(0);
+    expect(mapaCaminhoNaTela(0.001).largura).toBe(5);
+    expect(mapaCaminhoNaTela(100).largura).toBe(1.2);
   });
-  it('fora da rota, vale o ponto mais próximo dela', () => {
-    const p = mapaProjeta({ x: 4, y: 3 }, rota.pts);
+  it('o ponto mais perto do caminho é o que o toque acha', () => {
+    const p = mapaProjeta({ x: 4, y: 3 }, [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 10 }]);
     expect(p.q).toEqual({ x: 4, y: 0 });
     expect(p.i).toBe(0);
   });
-  it('sem ninguém no mapa, a rota inteira está por fazer', () => {
-    const j = mapaJornada(mesa, null);
-    expect(j.feita).toEqual([]);
-    expect(mapaComprimento(j.falta)).toBe(20);
+  it('o caminho mora na camada do mundo; a mesa não guarda caminho nem rota', () => {
+    expect(fonte).not.toContain('mapaJornada');
+    expect(fonte).not.toContain('mesa.rota');
+    expect(fonte).toContain("mesa.linhas = rotas.map((l) => ({ ...l, tipo: 'caminho'");
+    expect(fonte).toContain('linhas: [], rota: null })));');
+    expect(fonte).toContain("window.salvarNoMundo('mapa', { slug: mapaSlugMundo(p), lugares: d.lugares, linhas: d.linhas })");
   });
-  it('sem rota da mesa (ou com um caminho no lugar), não há jornada', () => {
-    expect(mapaJornada({ ...mesa, rota: null }, { x: 0, y: 0 })).toBeNull();
-    expect(mapaJornada({ ...mesa, linhas: [{ ...rota, tipo: 'caminho' }] }, { x: 0, y: 0 })).toBeNull();
+  it('os caminhos se ligam: o ponto gruda em outro caminho e o ponto dividido anda junto', () => {
+    expect(fonte).toContain('const pontoDoCaminho = (p, l, menos) => verticeDeCaminho(p, menos) || (l ? { x: l.x, y: l.y } : null) || trechoDeCaminho(p, menos) || p;');
+    expect(fonte).toContain('m.ln.pts.splice(m.i + 1, 0, m.q);');
+    expect(fonte).toContain("if (m) return { ...m, ligados: ligadosA(a, m.i) };");
+    expect(fonte).toContain('(g.ligados || []).forEach(({ ln, i }) => { ln.pts[i] = { x: q.x, y: q.y }; });');
+  });
+  it('só o Imperador traça e edita', () => {
+    expect(fonte).toContain("...(cfg.aoMudarMundo ? ['caminho'] : [])");
+    expect(fonte).toContain("if (foco.tipo !== 'linha' || !imperador) return null;");
+    expect(fonte).toContain("if (imperador && !modo && foco.tipo === 'linha' && a) {");
+  });
+  it('é a estrada do Google: miolo branco, borda cinza, e o miolo zera de longe', () => {
+    expect(fonte).toContain("elMundo.style.setProperty('--rota-w', rotaTela.largura + 'px');");
+    expect(css).toMatch(/\.mp-cam-borda \{ stroke: #A3ACB9; stroke-opacity: var\(--rota-o, 1\)/);
+    expect(css).toMatch(/\.mp-cam \{ stroke: #FFFFFF; stroke-opacity: var\(--rota-o, 1\); stroke-width: calc\(\(var\(--rota-w, 4px\) - 1\.5px\) \/ var\(--s, 1\)\)/);
+  });
+});
+
+/* 21/11/2026, usuário: "Vamos criar uma forma de encontrar a rota para
+   determinada origem e destino". A rota anda pelos caminhos. */
+describe('a rota de origem a destino', () => {
+  const { mapaRotaPelosCaminhos } = window;
+  // Um T: a estrada de cima (0,0)-(20,0) e a que desce do meio (10,0)-(10,20).
+  const cima = { id: 'a', pts: [{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 20, y: 0 }] };
+  const desce = { id: 'b', pts: [{ x: 10, y: 0 }, { x: 10, y: 20 }] };
+  it('passa de um caminho ao outro pelo ponto que eles dividem', () => {
+    const r = mapaRotaPelosCaminhos([cima, desce], { x: 0, y: 0 }, { x: 10, y: 20 });
+    expect(r.naEstrada).toBe(30);
+    expect(r.foraDaEstrada).toBe(0);
+    expect(r.estrada).toEqual([{ x: 0, y: 0 }, { x: 10, y: 0 }, { x: 10, y: 20 }]);
+  });
+  it('fora da estrada, entra pelo ponto mais perto e conta o trecho a pé', () => {
+    const r = mapaRotaPelosCaminhos([cima, desce], { x: 2, y: -3 }, { x: 13, y: 15 });
+    expect(r.estrada[0]).toEqual({ x: 2, y: 0 });
+    expect(r.estrada[r.estrada.length - 1]).toEqual({ x: 10, y: 15 });
+    expect(r.naEstrada).toBe(23);
+    expect(r.foraDaEstrada).toBe(6);
+  });
+  it('as duas pontas no mesmo trecho vão direto', () => {
+    const r = mapaRotaPelosCaminhos([desce], { x: 10, y: 2 }, { x: 10, y: 8 });
+    expect(r.naEstrada).toBe(6);
+  });
+  it('escolhe o menor dos trajetos', () => {
+    const volta = { id: 'c', pts: [{ x: 0, y: 0 }, { x: 0, y: 50 }, { x: 20, y: 50 }, { x: 20, y: 0 }] };
+    const r = mapaRotaPelosCaminhos([cima, volta], { x: 0, y: 0 }, { x: 20, y: 0 });
+    expect(r.naEstrada).toBe(20);
+  });
+  it('sem nada ligando as pontas, avisa; sem caminhos, não há rota', () => {
+    const solto = { id: 'd', pts: [{ x: 100, y: 100 }, { x: 120, y: 100 }] };
+    expect(mapaRotaPelosCaminhos([cima, solto], { x: 0, y: 0 }, { x: 120, y: 100 })).toEqual({ semLigacao: true });
+    expect(mapaRotaPelosCaminhos([], { x: 0, y: 0 }, { x: 1, y: 1 })).toBeNull();
+  });
+  it('dois caminhos que se cruzam sem ponto em comum se ligam no cruzamento', () => {
+    const h = { id: 'h', pts: [{ x: 0, y: 10 }, { x: 40, y: 10 }] };
+    const v = { id: 'v', pts: [{ x: 20, y: 0 }, { x: 20, y: 40 }] };
+    const r = mapaRotaPelosCaminhos([h, v], { x: 0, y: 10 }, { x: 20, y: 40 });
+    expect(r.naEstrada).toBeCloseTo(50, 6);
+    expect(r.estrada).toContainEqual({ x: 20, y: 10 });
+  });
+  it('o caminho que dá a volta e termina colado nele mesmo se emenda (o Caminho 4)', () => {
+    // sobe de (0,0) a (0,100), vai a (100,100), desce a (100,0) e volta até (1,0): a ponta fica a 1 do início
+    const volta = { id: 'v', pts: [{ x: 0, y: 0 }, { x: 0, y: 100 }, { x: 100, y: 100 }, { x: 100, y: 0 }, { x: 1, y: 0 }] };
+    const r = mapaRotaPelosCaminhos([volta], { x: 0, y: 50 }, { x: 50, y: 0 });
+    expect(r.naEstrada).toBeCloseTo(50 + 1 + 49, 6);
+  });
+  it('o caminho que se cruza a si mesmo vira junção no cruzamento', () => {
+    const laco = { id: 'l', pts: [{ x: 0, y: 50 }, { x: 100, y: 50 }, { x: 100, y: 100 }, { x: 50, y: 100 }, { x: 50, y: 0 }] };
+    const r = mapaRotaPelosCaminhos([laco], { x: 0, y: 50 }, { x: 50, y: 0 });
+    expect(r.naEstrada).toBeCloseTo(100, 6);
+  });
+  it('a ponta que para perto de outro caminho se emenda; longe, não', () => {
+    const h = { id: 'h', pts: [{ x: 0, y: 10 }, { x: 40, y: 10 }] };
+    const quase = { id: 'q', pts: [{ x: 20, y: 11.5 }, { x: 20, y: 40 }] };
+    const r = mapaRotaPelosCaminhos([h, quase], { x: 0, y: 10 }, { x: 20, y: 40 });
+    expect(r.naEstrada).toBeCloseTo(20 + 1.5 + 28.5, 6);
+    const longe = { id: 'l', pts: [{ x: 20, y: 15 }, { x: 20, y: 40 }] };
+    expect(mapaRotaPelosCaminhos([h, longe], { x: 0, y: 10 }, { x: 20, y: 40 }).semLigacao).toBe(true);
+  });
+  it('a cidade entra por todos os caminhos perto dela, não só pelo mais perto (Saravossa)', () => {
+    // a cidade C fica na ponta de "volta" e a 4,8 de "reto"; "volta" só encontra "reto" muito longe
+    const reto = { id: 'r', pts: [{ x: 0, y: 0 }, { x: 100, y: 0 }] };
+    const volta = { id: 'v', pts: [{ x: 10, y: 4.8 }, { x: 10, y: 200 }, { x: 100, y: 200 }, { x: 100, y: 0 }] };
+    const C = { x: 10, y: 4.8 }, S = { x: 60, y: 0 };
+    const r = mapaRotaPelosCaminhos([reto, volta], C, S, 9);
+    expect(r.naEstrada).toBeCloseTo(50, 6);
+    expect(r.foraDaEstrada).toBeCloseTo(4.8, 6);
+  });
+  it('a estrada que termina numa cidade continua pelas que saem dela', () => {
+    const chega = { id: 'c', pts: [{ x: 0, y: 0 }, { x: 50, y: 0 }] };
+    const sai = { id: 's', pts: [{ x: 50, y: 5 }, { x: 50, y: 60 }] };
+    const cidade = { x: 50, y: 2.5 };
+    expect(mapaRotaPelosCaminhos([chega, sai], { x: 0, y: 0 }, { x: 50, y: 60 }, 9).semLigacao).toBe(true);
+    const r = mapaRotaPelosCaminhos([chega, sai], { x: 0, y: 0 }, { x: 50, y: 60 }, 9, 2, [cidade]);
+    expect(r.naEstrada + r.foraDaEstrada).toBeCloseTo(50 + 2.5 + 2.5 + 55, 6);
+  });
+  it('nada de linha reta: lugar longe de qualquer caminho não tem rota', () => {
+    expect(mapaRotaPelosCaminhos([cima, desce], { x: 0, y: -30 }, { x: 10, y: 20 }, 9)).toEqual({ semLigacao: true, longe: 'a' });
+    expect(mapaRotaPelosCaminhos([cima, desce], { x: 0, y: -5 }, { x: 10, y: 20 }, 9).naEstrada).toBe(30);
+  });
+  it('a ferramenta Rota é de todos; Medir e Ponto saíram', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(fonte).toContain("const quais = mestre ? ['rota', ...doMundo] : (cfg.aoMudarMarcas ? ['rota', 'marcar'] : ['rota']);");
+    expect(fonte).not.toMatch(/medir: \['ti-ruler-2'/);
+    expect(fonte).not.toMatch(/ponto: \['ti-star'/);
+  });
+  it('escolhe primeiro o destino, depois a origem, numa lista com busca', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(fonte).toContain("if (!rotaAtual) { rotaAtual = { destino: ponto }; aviso(); desenhar(); return; }");
+    expect(fonte).toContain('data-acao="rota-lugar"');
+    expect(fonte).toContain("mapaRotaPelosCaminhos(mesa.linhas, rotaAtual.origem, rotaAtual.destino, MAPA_PERTO, MAPA_EMENDA, mesa.lugares.filter((l) => l.tipo === 'cidade'))");
   });
 });
 
@@ -133,8 +247,8 @@ describe('cidade nova não nasce no mapa', () => {
 describe('os locais no mapa', () => {
   const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
   it('Cidade e Local são do Imperador, dentro ou fora de mesa; o catálogo traz os locais', () => {
-    expect(fonte).toContain("const doMundo = imperador ? ['reino', 'cidade', 'local', ...(podeNomes ? ['nomes'] : [])] : [];");
-    expect(fonte).toMatch(/cfg\.semMesa \? \['medir', \.\.\.doMundo\] : \['medir', \.\.\.doMundo, 'ponto', 'caminho', 'rota'\]/);
+    expect(fonte).toContain("const doMundo = imperador ? ['reino', 'cidade', 'local', ...(cfg.aoMudarMundo ? ['caminho'] : []), ...(podeNomes ? ['nomes'] : [])] : [];");
+    expect(fonte).toContain("const quais = mestre ? ['rota', ...doMundo] :");
     expect(fonte).toMatch(/sb\(\)\.rpc\('listar_catalogo_global', \{ p_tipo: 'local' \}\)/);
     expect(fonte).toMatch(/locais: entradas\.filter\(\(e\) => e && e\.tipo === 'local' && e\.nome\)/);
   });
@@ -170,7 +284,7 @@ describe('a camada do mundo', () => {
   const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
   it('ao abrir, os lugares do mundo entram marcados; ao gravar, saem da mesa', () => {
     expect(fonte).toMatch(/const doMundo = mundo\.map\(\(l\) => \(\{ \.\.\.l, mundo: true \}\)\);/);
-    expect(fonte).toMatch(/cfg\.aoMudarMesa\(JSON\.parse\(JSON\.stringify\(\{ \.\.\.mesa, lugares: mesa\.lugares\.filter\(\(l\) => !l\.mundo\) \}\)\)\)/);
+    expect(fonte).toMatch(/cfg\.aoMudarMesa\(JSON\.parse\(JSON\.stringify\(\{ \.\.\.mesa, lugares: mesa\.lugares\.filter\(\(l\) => !l\.mundo\), linhas: \[\], rota: null \}\)\)\)/);
     expect(fonte).toMatch(/if \(imperador && cfg\.aoMudarMundo\)/);
   });
   it('o lugar posto pelo Imperador é do mundo; o do mundo, os outros não movem', () => {
@@ -180,7 +294,7 @@ describe('a camada do mundo', () => {
   it('fora de mesa, o Imperador abre o mapa com as ferramentas, e grava no catálogo do mundo', () => {
     expect(fonte).toMatch(/papel: ehImperador \? 'mestre' : 'jogador', semMesa: true/);
     // 17/11/2026: cada plano tem a sua camada do mundo ('mundo', 'mundo-celestial', 'mundo-infernal').
-    expect(fonte).toMatch(/window\.salvarNoMundo\('mapa', \{ slug: mapaSlugMundo\(p\), lugares: l \}\)/);
+    expect(fonte).toMatch(/window\.salvarNoMundo\('mapa', \{ slug: mapaSlugMundo\(p\), lugares: d\.lugares, linhas: d\.linhas \}\)/);
   });
   it('o banco aceita o tipo mapa no catálogo do mundo', () => {
     const sql = readFileSync(join(aqui, '../../scripts/sql/mapa-do-mundo-2026-11-15.sql'), 'utf8');
@@ -295,37 +409,42 @@ describe('o mapa em tela cheia', () => {
   });
 });
 
-/* OS NOMES SE ARRUMAM NA TELA (21/11/2026, usuário: "Eu quero poder arrumar
-   todos os textos"). */
-describe('a ferramenta Nomes', () => {
-  const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
-  const css = readFileSync(join(aqui, 'mapa.css'), 'utf8');
-  it('é só do Imperador, no plano com pintura', () => {
-    expect(fonte).toContain("const podeNomes = imperador && !!cfg.base && !!cfg.aoMudarGeografia;");
-    expect(fonte).toContain("const doMundo = imperador ? ['reino', 'cidade', 'local', ...(podeNomes ? ['nomes'] : [])] : [];");
-    expect(fonte).toContain("geografia: geografia || {}, aoMudarGeografia: ehImperador ? aoMudarGeografia : null,");
-    expect(fonte).toContain("geografia: geografia || {}, aoMudarGeografia: (ehImperador && mestre) ? aoMudarGeografia : null,");
-  });
-  it('a correção vai para o catálogo do mundo (mapa / geografia), não para o arquivo', () => {
-    expect(fonte).toContain("window.salvarNoMundo('mapa', { slug: 'geografia', rotulos: r })");
-    expect(fonte).toContain("find((e) => e.slug === 'geografia')");
-  });
-  it('cada nome do arquivo tem um id único, que a correção aponta', () => {
-    const { rotulos } = JSON.parse(readFileSync(join(aqui, '../../public/mapa/tagmar-rotulos.json'), 'utf8'));
-    const ids = rotulos.map((r) => r.id);
-    expect(ids.every(Boolean)).toBe(true);
-    expect(new Set(ids).size).toBe(ids.length);
-  });
-  it('com a ferramenta ligada, todo nome fica à vista e agarrável', () => {
-    expect(css).toContain('.mp-mapa.editando-nomes .mp-geo-nome { display: block !important; pointer-events: auto; cursor: grab;');
-  });
-});
-
 /* 21/11/2026, usuário: "Diminua um pouco a largura ao selecionar uma cidade, e
    onde está a comitiva". */
-it('o painel do lado tem 264px, também em tela cheia', () => {
+it('o painel do lado tem 240px, também em tela cheia', () => {
   const css = readFileSync(join(aqui, 'mapa.css'), 'utf8');
-  expect(css).toContain('display: grid; grid-template-columns: 264px minmax(0, 1fr);');
-  expect(css).toContain('position: absolute; left: 14px; top: 14px; z-index: 7; width: 264px;');
+  expect(css).toContain('display: grid; grid-template-columns: 240px minmax(0, 1fr);');
+  expect(css).toContain('position: absolute; left: 14px; top: 14px; z-index: 7; width: 240px;');
 });
 
+/* 21/11/2026, usuário: "Eu quero que os textos atuais virem locais" e depois
+   "era pra manter o estilo de texto e a edição de texto". Os textos são locais
+   do mundo com estilo; a ferramenta Nomes edita o próprio local. */
+describe('os textos do mapa são locais', () => {
+  const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+  const css = readFileSync(join(aqui, 'mapa.css'), 'utf8');
+  it('a camada de texto vem dos locais com estilo, não de um arquivo', () => {
+    expect(fonte).not.toContain('-rotulos.json');
+    expect(fonte).toContain('const ehTexto = (l) => !!(l && l.estilo && l.estilo.geo);');
+    expect(fonte).toContain('geo = mesa.lugares.filter((l) => ehTexto(l) && !oculto(l)).map(geoDe);');
+  });
+  it('o local com estilo não tem pino nem etiqueta; tocar no texto abre o local', () => {
+    expect(fonte).toContain('if (texto) return;');
+    expect(fonte).toContain('const l = era.face || maisPerto(p)');
+  });
+  it('a ferramenta Nomes é do Imperador e grava no local (camada do mundo)', () => {
+    expect(fonte).toContain('const podeNomes = imperador && !!cfg.base && !!cfg.aoMudarMundo;');
+    expect(fonte).toContain('const guardarGeo = () => guardarMesa();');
+    expect(fonte).not.toContain('aoMudarGeografia');
+  });
+  it('tem Excluir (tira do mapa, com Desfazer), cor, negrito, itálico, maiúsculas, contorno e tamanho', () => {
+    for (const k of ['geo-excluir', 'geo-cor', 'geo-negrito', 'geo-italico', 'geo-caixa', 'geo-contorno', 'geo-menor', 'geo-maior', 'geo-restaurar']) expect(fonte).toContain("'" + k + "'");
+    expect(fonte).toContain("botoes(['desfazer', tr('Desfazer', 'Undo')], ['sair-nomes', tr('Concluir', 'Done')])");
+  });
+  it('o texto escrito fica só no mapa; vazio volta ao nome da ficha', () => {
+    expect(fonte).toContain('if (v && v !== l.nome) es.texto = v; else delete es.texto;');
+  });
+  it('o tamanho escala o texto sem brigar com o zoom', () => {
+    expect(css).toContain('transform: scale(calc(var(--geo-tam, 1) / var(--s, 1)))');
+  });
+});

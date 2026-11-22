@@ -360,12 +360,14 @@ depois de `13-diario/entidades.jsx`.
 `mapa.jsx` + `mapa.css` (15/11/2026) é a página **Mapa**, última folha da
 Ambientação/Diário: o mapa de Tagmar DA MESA. O chão, desde 21/11/2026, é o
 mapa VETORIAL de Tagmar inteiro (`public/mapa/tagmar.svg`, ~0,6 MB
-comprimido), com os nomes da geografia por cima (`public/mapa/tagmar-rotulos.json`:
-mares, serras, rios, florestas, desertos — cidades e reinos NÃO, esses são os
-que o Mestre e o Imperador põem). Antes eram ladrilhos PNG da pintura oriental
-(bucket público `mapas` do Storage). Por cima, o que o Mestre desenha — cidades, pontos,
-caminhos, rotas e onde está cada personagem — em `mapas_mesa.dados`, uma
-linha por história, com tempo real para o Jogador. O Jogador mede distâncias
+comprimido), com os textos do mapa por cima (mares, serras, rios,
+florestas, desertos): desde 21/11/2026 são LOCAIS do mundo com `estilo` (tipo da
+geografia, faixa de zoom, cor/negrito/itálico/maiúsculas/contorno/tamanho), editados
+pela ferramenta Nomes do Imperador (`scripts/mapa/textos-em-locais.mjs` e
+`estilo-dos-locais.mjs`; `tagmar-rotulos.json` fica só para os scripts). Antes eram ladrilhos PNG da pintura oriental
+(bucket público `mapas` do Storage). Por cima, o que o Mestre desenha — cidades, pontos
+e onde está cada personagem — em `mapas_mesa.dados`, uma
+linha por história, com tempo real para o Jogador. Os CAMINHOS (estradas; desde 21/11/2026 são do mundo, e a rota de origem a destino virá por cima deles) moram em `catalogo_mundo` mapa/mundo `dados.linhas`; só o Imperador traça; as pontas grudam umas nas outras; desenho de estrada do Google, com a largura na tela pelo zoom (`mapaCaminhoNaTela`) e de longe ela some (`scripts/sql/rotas-do-mundo-2026-11-21.sql`). O Jogador mede distâncias
 e guarda marcas em `mapa_marcas` (por personagem). Tudo em **unidades do
 mapa** = o viewBox do SVG (5905,5 × 4695,1; 365 unidades = 400 km), não em
 pixels. O que estava nas unidades da pintura antiga (1200 × 2000) foi levado

@@ -10532,7 +10532,11 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
   background: rgba(var(--bronze-rgb),0.12);
   backdrop-filter: none; -webkit-backdrop-filter: none;
   border: none !important;
-  border-radius: 999px; height: 32px;
+  /* Sem altura nem raio aqui (21/11/2026, usuário: "o campo de selecionar o
+     reino está bugando quando passa o mouse sobre ele"): o :hover/:focus/aberto
+     deste bloco vencia o --campo-h de 40px (DESIGN SYSTEM, fim do arquivo) e o
+     campo encolhia para 32px no hover, sacudindo a linha. Altura e raio vêm
+     só de lá, em todo estado. */
   color: var(--tinta); font-family: var(--font-body); font-size: var(--fs-sm);
   padding: 0 12px 0 16px;
 }

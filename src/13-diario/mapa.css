@@ -3,7 +3,7 @@
    ============================================================
    Prefixo `mp-`. Quadro de Iniciativa: o painel é um passe (a coisa em foco)
    sobre quadros de linhas com réguas; no mapa, ouro só no que está vivo (a
-   rota por fazer, o destino, o personagem do Jogador, a ferramenta ligada).
+   caminho escolhido, o personagem do Jogador, a ferramenta ligada).
 
    Tudo o que fica SOBRE a pintura (pinos, alças, traços) mantém o tamanho na
    tela em qualquer zoom: o motor publica a escala em --s no .mp-mundo, e cada
@@ -27,9 +27,9 @@
      é o contorno dos rótulos de mapa: oito sombras de 1px e um véu de 3px. */
   --mp-lugar: rgb(81, 96, 114);
   --mp-halo: 1px 0 0 #fff, -1px 0 0 #fff, 0 1px 0 #fff, 0 -1px 0 #fff, 1px 1px 0 #fff, -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 0 0 3px #fff;
-  /* 264px (21/11/2026, usuário: "Diminua um pouco a largura ao selecionar uma
+  /* 240px (21/11/2026, usuário: "Diminua um pouco a largura ao selecionar uma
      cidade, e onde está a comitiva" e depois "Diminua um pouco mais"): era 340. */
-  display: grid; grid-template-columns: 264px minmax(0, 1fr);
+  display: grid; grid-template-columns: 240px minmax(0, 1fr);
   /* A altura vem do React (--mp-altura): o que sobra da janela abaixo do trilho. */
   height: var(--mp-altura, max(460px, calc(100dvh - 190px)));
   color: var(--tinta);
@@ -137,7 +137,7 @@
    mesmo halo branco dos lugares; mantêm o tamanho na tela em qualquer zoom. */
 #root .menestrel-ui .mp-geo { pointer-events: none; }
 #root .menestrel-ui .mp-geo-nome {
-  position: absolute; transform: scale(calc(1 / var(--s, 1))) translate(-50%, -50%); transform-origin: 0 0;
+  position: absolute; transform: scale(calc(var(--geo-tam, 1) / var(--s, 1))) translate(-50%, -50%); transform-origin: 0 0;
   white-space: nowrap; font: italic 600 var(--fs-xs)/1.1 var(--font-body); color: var(--mp-lugar); text-shadow: var(--mp-halo);
 }
 #root .menestrel-ui .mp-geo-nome:is([data-tipo="mar"], [data-tipo="lago"], [data-tipo="rio"]) { color: #1F5F78; text-shadow: 0 0 2px rgba(255,255,255,.55); }
@@ -155,19 +155,40 @@
 #root .menestrel-ui .mp-mapa:is([data-nomes="0"], [data-nomes="1"]) .mp-geo-nome:is([data-tipo="serra"], [data-tipo="vulcao"]),
 #root .menestrel-ui .mp-mapa:is([data-nomes="0"], [data-nomes="1"], [data-nomes="2"]) .mp-geo-nome[data-imp="3"],
 #root .menestrel-ui .mp-mapa:not([data-nomes="4"]) .mp-geo-nome[data-imp="4"] { display: none; }
+/* O texto do mapa é um local (21/11/2026): responde ao toque. Apontado ou
+   escolhido, engrossa como o nome dos lugares — sem sublinhado (usuário:
+   "Eu não quero texto sublinhado"). */
+#root .menestrel-ui .mp-geo-nome[data-lugar] { pointer-events: auto; cursor: pointer; }
+#root .menestrel-ui .mp-mapa:not(.editando-nomes) .mp-geo-nome[data-lugar]:is(:hover, .foco) { font-weight: 800; }
 #root .menestrel-ui .mp-linhas { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 #root .menestrel-ui .mp-linhas * { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-#root .menestrel-ui .mp-rota-base { stroke: rgba(18,13,6,.85); stroke-width: calc(8px / var(--s, 1)); }
-#root .menestrel-ui .mp-rota-feita { stroke: var(--tinta-2); stroke-width: calc(4px / var(--s, 1)); }
-#root .menestrel-ui .mp-rota-falta { stroke: var(--vivo); stroke-width: calc(4px / var(--s, 1)); stroke-dasharray: calc(9px / var(--s, 1)); animation: mp-marcha 1.1s linear infinite; }
-@keyframes mp-marcha { to { stroke-dashoffset: calc(-18px / var(--s, 1)); } }
+/* OS CAMINHOS COMO A ESTRADA DO GOOGLE MAPS (21/11/2026, usuário: "quando
+   der zoom, ela diminui até desaparecer", "Eu quero a rota mais fina" e
+   "Existe a estrada fixa, e existe a rota"). Miolo branco, borda cinza; o
+   motor publica no .mp-mundo a largura na tela (--rota-w) e a opacidade
+   (--rota-o) pelo zoom (mapaCaminhoNaTela). O miolo é 1,5px mais estreito
+   que a largura: de longe ele zera e fica só o fio cinza, que depois some.
+   Todas as bordas vão antes de todos os miolos: no cruzamento, os caminhos
+   se emendam. O escolhido tem as mesmas cores (21/11/2026, usuário: "Porque
+   os caminhos estão cada um de uma cor?"): só a borda engrossa e escurece, e
+   ele não some. */
+#root .menestrel-ui .mp-cam-borda { stroke: #A3ACB9; stroke-opacity: var(--rota-o, 1); stroke-width: calc((var(--rota-w, 4px) + 1.5px) / var(--s, 1)); }
+#root .menestrel-ui .mp-cam { stroke: #FFFFFF; stroke-opacity: var(--rota-o, 1); stroke-width: calc((var(--rota-w, 4px) - 1.5px) / var(--s, 1)); }
+#root .menestrel-ui .mp-cam-borda.sel { stroke: #6B7480; stroke-opacity: 1; stroke-width: calc((max(var(--rota-w, 4px), 3px) + 2.5px) / var(--s, 1)); }
+#root .menestrel-ui .mp-cam.sel { stroke: #FFFFFF; stroke-opacity: 1; stroke-width: calc(max(var(--rota-w, 4px), 3px) / var(--s, 1)); }
+/* A ROTA (21/11/2026, usuário: "Vamos criar uma forma de encontrar a rota para
+   determinada origem e destino"): o trajeto azul do "Como chegar" do Google,
+   por cima dos caminhos, sem sumir com o zoom; fora da estrada, pontilhado. */
+#root .menestrel-ui .mp-rota-borda { stroke: #1557B0; stroke-width: calc(7px / var(--s, 1)); }
+#root .menestrel-ui .mp-rota { stroke: #4285F4; stroke-width: calc(4.5px / var(--s, 1)); }
+#root .menestrel-ui .mp-rota-ape { stroke: #4285F4; stroke-width: calc(3px / var(--s, 1)); stroke-dasharray: 0 calc(7px / var(--s, 1)); }
+#root .menestrel-ui .mp-rota-origem { width: 14px; height: 14px; translate: -50% -50%; border-radius: 50%; pointer-events: none; background: #FFFFFF; border: 3px solid #1F1F1F; box-sizing: border-box; }
+#root .menestrel-ui .mp-rota-destino { width: 28px; height: 28px; translate: -50% -92%; pointer-events: none; display: grid; place-items: center; font-size: 28px; color: #EA4335; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
 #root .menestrel-ui .mp-medida-base { stroke: rgba(18,13,6,.85); stroke-width: calc(6px / var(--s, 1)); }
 #root .menestrel-ui .mp-medida { stroke: var(--tinta); stroke-width: calc(2.5px / var(--s, 1)); stroke-dasharray: calc(2px / var(--s, 1)) calc(7px / var(--s, 1)); }
-#root .menestrel-ui .mp-cam-base { stroke: rgba(18,13,6,.85); stroke-width: calc(6px / var(--s, 1)); }
-#root .menestrel-ui .mp-cam { stroke: var(--tinta-2); stroke-width: calc(2.5px / var(--s, 1)); }
-#root .menestrel-ui .mp-rota-outra { stroke: var(--tinta-2); stroke-width: calc(3px / var(--s, 1)); stroke-dasharray: calc(9px / var(--s, 1)); }
-#root .menestrel-ui :is(.mp-cam, .mp-rota-outra).sel { stroke: var(--vivo); }
-#root .menestrel-ui .mp-traco { stroke: var(--tinta); stroke-width: calc(3px / var(--s, 1)); }
+/* O traçado em curso já é a estrada, sem sumir com o zoom. */
+#root .menestrel-ui .mp-traco-base { stroke: #A3ACB9; stroke-width: calc(6px / var(--s, 1)); }
+#root .menestrel-ui .mp-traco { stroke: #FFFFFF; stroke-width: calc(3.5px / var(--s, 1)); }
 
 #root .menestrel-ui .mp-mk { position: absolute; width: 0; height: 0; transform: scale(calc(1 / var(--s, 1))); transform-origin: 0 0; }
 #root .menestrel-ui .mp-mk > * { position: absolute; left: 0; top: 0; }
@@ -211,10 +232,11 @@
 /* O LOCAL SEM ÍCONE (21/11/2026, usuário: "Remova o ícone dos locais, deixe
    apenas em reinos e cidades"): o botão segue ali como alvo do toque, o nome
    fica no próprio ponto. Escolhido, o disco com o alfinete volta (.sel). */
-#root .menestrel-ui .mp-tela .mp-marca.local:not(.sel) i { visibility: hidden; }
-#root .menestrel-ui .mp-tela .mp-mk:has(> .mp-marca.local:not(.sel)) .mp-etiqueta { translate: -50% -50%; }
+/* A CIDADE TAMBÉM (21/11/2026, usuário: "Remova o ícone da cidade"): só o
+   nome no ponto; o reino guarda a coroa. */
+#root .menestrel-ui .mp-tela .mp-marca:is(.local, .vila):not(.sel) i { visibility: hidden; }
+#root .menestrel-ui .mp-tela .mp-mk:has(> .mp-marca:is(.local, .vila):not(.sel)) .mp-etiqueta { translate: -50% -50%; }
 #root .menestrel-ui .mp-tela .mp-marca.reino { width: 30px; height: 30px; font-size: 19px; }
-#root .menestrel-ui .mp-tela .mp-marca.destino { width: 36px; height: 36px; font-size: 20px; color: var(--vivo); box-shadow: none; }
 #root .menestrel-ui .mp-mira { width: 34px; height: 34px; translate: -50% -50%; border-radius: 50%; border: 2px solid var(--vivo); box-shadow: 0 0 0 2px rgba(18,13,6,.8), inset 0 0 0 2px rgba(18,13,6,.8); pointer-events: none; }
 #root .menestrel-ui .mp-ponto { width: 10px; height: 10px; translate: -50% -50%; border-radius: 50%; background: var(--tinta); box-shadow: 0 0 0 2px var(--mp-fundo); pointer-events: none; }
 #root .menestrel-ui .mp-alca { width: 14px; height: 14px; translate: -50% -50%; border-radius: 50%; background: var(--tinta); box-shadow: 0 0 0 2px var(--mp-fundo); pointer-events: none; }
@@ -230,8 +252,9 @@
   background: none; font-weight: 600; font-size: var(--fs-xs); color: var(--mp-lugar); text-shadow: var(--mp-halo);
 }
 /* A cidade fala um degrau acima do local (21/11/2026, usuário: "aumente um
-   pouco o texto da cidade em comparação com locais"): 15px contra 14px. */
-#root .menestrel-ui .mp-mk:is([data-nivel="cidade"], [data-nivel="capital"]) .mp-etiqueta { font-size: var(--fs-sm); }
+   pouco o texto da cidade em comparação com locais", e de novo depois de a
+   cidade perder o ícone): --fs-md contra o --fs-xs do local. */
+#root .menestrel-ui .mp-mk:is([data-nivel="cidade"], [data-nivel="capital"]) .mp-etiqueta { font-size: var(--fs-md); }
 #root .menestrel-ui .mp-mk[data-nivel="capital"] .mp-etiqueta { font-weight: 700; }
 /* O reino fala como nos mapas: versal espaçada, um degrau acima. */
 #root .menestrel-ui .mp-mk[data-nivel="reino"] .mp-etiqueta { translate: -50% 13px; max-width: 8em; font-weight: 800; font-size: var(--fs-sm); letter-spacing: .08em; text-transform: uppercase; }
@@ -317,6 +340,29 @@
 #root .menestrel-ui .mp-mapa.editando-nomes.arrastando .mp-geo-nome { cursor: grabbing; }
 #root .menestrel-ui .mp-mapa.editando-nomes .mp-geo-nome.apagado { opacity: .45; text-decoration: line-through; }
 #root .menestrel-ui .mp-mapa.editando-nomes .mp-geo-nome.sel { outline: 2px solid var(--vivo); outline-offset: 3px; }
+/* O nome escolhido: o texto e as ações numa linha, a cor e o estilo na outra
+   (21/11/2026). O aviso deixa de ser pílula e vira cartão de duas linhas. */
+#root .menestrel-ui .mp-aviso:has(.mp-nome-ed) { max-width: min(620px, 100%); border-radius: 22px; padding: 6px; }
+#root .menestrel-ui .mp-nome-ed { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+#root .menestrel-ui .mp-nome-ed-linha { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#root .menestrel-ui .mp-nome-estilo { justify-content: space-between; padding: 0 4px 0 8px; }
+#root .menestrel-ui .mp-cores, #root .menestrel-ui .mp-estilos, #root .menestrel-ui .mp-tam { display: flex; align-items: center; gap: 4px; }
+#root .menestrel-ui .mp-estilos { gap: 2px; }
+#root .menestrel-ui .mp-tela .mp-cor {
+  width: 24px; height: 24px; padding: 0; border-radius: 999px; background: var(--cor); border: 2px solid var(--chao-celula-opaco);
+  box-shadow: 0 0 0 1px var(--regua-forte); cursor: pointer;
+}
+#root .menestrel-ui .mp-tela .mp-cor.padrao { background: conic-gradient(#1F5F78 0 25%, #6B5843 0 50%, #2D6A45 0 75%, #86663A 0); }
+#root .menestrel-ui .mp-tela .mp-cor[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--vivo); }
+#root .menestrel-ui .mp-tela .mp-estilo {
+  width: 34px; height: 34px; padding: 0; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; color: var(--tinta-2); font-size: 18px;
+}
+#root .menestrel-ui .mp-tela .mp-estilo:hover:not(:disabled) { background: rgba(138,110,64,.18); }
+#root .menestrel-ui .mp-tela .mp-estilo[aria-pressed="true"] { background: rgba(138,110,64,.24); color: var(--vivo); }
+#root .menestrel-ui .mp-tela .mp-estilo:disabled { opacity: .35; cursor: default; }
+#root .menestrel-ui .mp-tam { margin-left: 6px; padding-left: 8px; border-left: 1px solid var(--regua-forte); }
+#root .menestrel-ui .mp-tam b { min-width: 4ch; text-align: center; font-size: var(--fs-sm); }
 
 /* A legenda de medida no padrão do trilho (17/11/2026, usuário: "fora do
    padrão de cor de fonte, fundo e borda"): o chão e a borda de .mp-grupo, a
@@ -361,13 +407,13 @@
 #root .menestrel-ui .mp-pagina.mp-cheia .mp-tela { position: absolute; inset: 0; height: auto; display: block; }
 #root .menestrel-ui .mp-pagina.mp-cheia .mp-mapa { position: absolute; inset: 0; border-radius: 0; }
 #root .menestrel-ui .mp-pagina.mp-cheia .mp-painel {
-  position: absolute; left: 14px; top: 14px; z-index: 7; width: 264px; max-height: calc(100% - 28px);
+  position: absolute; left: 14px; top: 14px; z-index: 7; width: 240px; max-height: calc(100% - 28px);
   padding: 12px; box-sizing: border-box;
   background: rgba(20,15,10,.92); border: 1px solid var(--regua-forte); border-radius: 12px; box-shadow: 0 12px 28px rgba(0,0,0,.45);
 }
 /* com o cartão aberto, o trilho das ferramentas e a régua começam depois dele */
-#root .menestrel-ui .mp-pagina.mp-cheia .mp-tela:not(.so-mapa) .mp-barra:not(.mp-barra-zoom) { left: 292px; }
-#root .menestrel-ui .mp-pagina.mp-cheia .mp-tela:not(.so-mapa) .mp-escala { left: 292px; }
+#root .menestrel-ui .mp-pagina.mp-cheia .mp-tela:not(.so-mapa) .mp-barra:not(.mp-barra-zoom) { left: 268px; }
+#root .menestrel-ui .mp-pagina.mp-cheia .mp-tela:not(.so-mapa) .mp-escala { left: 268px; }
 @media (max-width: 768px) {
   /* Celular: o cartão desce para baixo, como a folha de baixo do mapa. */
   #root .menestrel-ui .mp-pagina.mp-cheia .mp-painel { left: 8px; right: 8px; top: auto; bottom: 8px; width: auto; max-height: 44dvh; }
@@ -375,7 +421,7 @@
   #root .menestrel-ui .mp-pagina.mp-cheia .mp-tela:not(.so-mapa) :is(.mp-escala, .mp-barra-zoom) { bottom: calc(44dvh + 16px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  #root .menestrel-ui :is(.mp-rota-falta, .mp-onda, .mp-valor.assenta) { animation: none; }
+  #root .menestrel-ui :is(.mp-onda, .mp-valor.assenta) { animation: none; }
   #root .menestrel-ui .mp-onda { scale: 1.6; opacity: .7; }
 }
 /* A névoa do Jogador (17/11/2026): fora dos 100 km em volta do personagem,
