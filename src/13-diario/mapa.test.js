@@ -111,8 +111,15 @@ describe('a rota de origem a destino', () => {
   });
   it('sem nada ligando as pontas, avisa; sem caminhos, não há rota', () => {
     const solto = { id: 'd', pts: [{ x: 100, y: 100 }, { x: 120, y: 100 }] };
-    expect(mapaRotaPelosCaminhos([cima, solto], { x: 0, y: 0 }, { x: 120, y: 100 })).toEqual({ semLigacao: true });
-    expect(mapaRotaPelosCaminhos([], { x: 0, y: 0 }, { x: 1, y: 1 })).toBeNull();
+    // sem caminho contínuo: a rota sugerida liga os pedaços por fora da estrada
+    const r = mapaRotaPelosCaminhos([cima, solto], { x: 0, y: 0 }, { x: 120, y: 100 });
+    expect(r.sugerida).toBe(true);
+    expect(r.foraDaEstrada).toBeGreaterThan(0);
+    expect(r.partes.some((p) => p.fora)).toBe(true);
+    expect(r.partes.some((p) => !p.fora)).toBe(true);
+    // sem caminho nenhum, a sugestão é a linha reta
+    const reta = mapaRotaPelosCaminhos([], { x: 0, y: 0 }, { x: 3, y: 4 });
+    expect(reta).toMatchObject({ sugerida: true, naEstrada: 0, foraDaEstrada: 5 });
   });
   it('dois caminhos que se cruzam sem ponto em comum se ligam no cruzamento', () => {
     const h = { id: 'h', pts: [{ x: 0, y: 10 }, { x: 40, y: 10 }] };
@@ -138,7 +145,7 @@ describe('a rota de origem a destino', () => {
     const r = mapaRotaPelosCaminhos([h, quase], { x: 0, y: 10 }, { x: 20, y: 40 });
     expect(r.naEstrada).toBeCloseTo(20 + 1.5 + 28.5, 6);
     const longe = { id: 'l', pts: [{ x: 20, y: 15 }, { x: 20, y: 40 }] };
-    expect(mapaRotaPelosCaminhos([h, longe], { x: 0, y: 10 }, { x: 20, y: 40 }).semLigacao).toBe(true);
+    expect(mapaRotaPelosCaminhos([h, longe], { x: 0, y: 10 }, { x: 20, y: 40 }).sugerida).toBe(true);
   });
   it('a cidade entra por todos os caminhos perto dela, não só pelo mais perto (Saravossa)', () => {
     // a cidade C fica na ponta de "volta" e a 4,8 de "reto"; "volta" só encontra "reto" muito longe
@@ -153,12 +160,20 @@ describe('a rota de origem a destino', () => {
     const chega = { id: 'c', pts: [{ x: 0, y: 0 }, { x: 50, y: 0 }] };
     const sai = { id: 's', pts: [{ x: 50, y: 5 }, { x: 50, y: 60 }] };
     const cidade = { x: 50, y: 2.5 };
-    expect(mapaRotaPelosCaminhos([chega, sai], { x: 0, y: 0 }, { x: 50, y: 60 }, 9).semLigacao).toBe(true);
+    expect(mapaRotaPelosCaminhos([chega, sai], { x: 0, y: 0 }, { x: 50, y: 60 }, 9).sugerida).toBe(true);
     const r = mapaRotaPelosCaminhos([chega, sai], { x: 0, y: 0 }, { x: 50, y: 60 }, 9, 2, [cidade]);
     expect(r.naEstrada + r.foraDaEstrada).toBeCloseTo(50 + 2.5 + 2.5 + 55, 6);
   });
-  it('nada de linha reta: lugar longe de qualquer caminho não tem rota', () => {
-    expect(mapaRotaPelosCaminhos([cima, desce], { x: 0, y: -30 }, { x: 10, y: 20 }, 9)).toEqual({ semLigacao: true, longe: 'a' });
+  it('a rota sugerida prefere a estrada: só corta por fora onde falta caminho', () => {
+    // dois caminhos em fila com um buraco de 10 no meio; a reta de ponta a ponta é 100
+    const c1 = { id: '1', pts: [{ x: 0, y: 0 }, { x: 45, y: 0 }] }, c2 = { id: '2', pts: [{ x: 55, y: 0 }, { x: 100, y: 0 }] };
+    const r = mapaRotaPelosCaminhos([c1, c2], { x: 0, y: 0 }, { x: 100, y: 0 });
+    expect(r.sugerida).toBe(true);
+    expect(r.naEstrada).toBeCloseTo(90, 6);
+    expect(r.foraDaEstrada).toBeCloseTo(10, 6);
+  });
+  it('lugar longe de qualquer caminho: a rota sugerida avisa qual ponta está solta', () => {
+    expect(mapaRotaPelosCaminhos([cima, desce], { x: 0, y: -30 }, { x: 10, y: 20 }, 9)).toMatchObject({ sugerida: true, longe: 'a' });
     expect(mapaRotaPelosCaminhos([cima, desce], { x: 0, y: -5 }, { x: 10, y: 20 }, 9).naEstrada).toBe(30);
   });
   it('a ferramenta Rota é de todos; Medir e Ponto saíram', () => {
@@ -167,11 +182,80 @@ describe('a rota de origem a destino', () => {
     expect(fonte).not.toMatch(/medir: \['ti-ruler-2'/);
     expect(fonte).not.toMatch(/ponto: \['ti-star'/);
   });
+  it('mostra a pé e a cavalo pela estrada, e voando em linha reta', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(window.MAPA_KM_DIA_A_CAVALO).toBe(60);
+    expect(window.MAPA_KM_DIA_VOANDO).toBe(120);
+    expect(fonte).toContain("modo(tr('Caminhando', 'Walking'), k, diasDe(R, MAPA_KM_DIA_A_PE)) + modo(tr('Cavalgando', 'Riding'), k, diasDe(R, MAPA_KM_DIA_A_CAVALO)) + modo(tr('Voando', 'Flying'), voo, voo / MAPA_KM_DIA_VOANDO)");
+  });
+  it('navegando: contorna a terra pela água; sem água perto ou sem ligação, não há', () => {
+    const { mapaNavegacao } = window;
+    // 7×5 células de 10: uma parede de terra na coluna 3, com passagem só na última linha
+    const nx = 7, ny = 5, celulas = new Uint8Array(nx * ny).fill(1);
+    for (let jj = 0; jj < 4; jj++) celulas[jj * nx + 3] = 0;
+    const agua = { cel: 10, nx, ny, celulas };
+    const r = mapaNavegacao(agua, { x: 15, y: 5 }, { x: 55, y: 5 });
+    expect(r.comprimento).toBeGreaterThan(40 + 2 * 30);      // dá a volta pela passagem de baixo
+    expect(r.pts.some((p) => p.y > 40)).toBe(true);
+    celulas[4 * nx + 3] = 0;                                  // fecha a passagem
+    expect(mapaNavegacao(agua, { x: 15, y: 5 }, { x: 55, y: 5 })).toBeNull();
+    expect(mapaNavegacao(null, { x: 0, y: 0 }, { x: 1, y: 1 })).toBeNull();
+  });
+  it('o card tem a linha Navegando', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(window.MAPA_KM_DIA_NAVEGANDO).toBe(100);
+    expect(fonte).toContain("modo(tr('Navegando', 'Sailing'), km(mar.comprimento), km(mar.comprimento) / MAPA_KM_DIA_NAVEGANDO)");
+    expect(readFileSync(join(aqui, '../../public/mapa/agua.json'), 'utf8')).toContain('"bits"');
+  });
+  it('estrada primeiro: vai até a estrada próxima mesmo dando volta', () => {
+    const { mapaSugestoesDeRota } = window;
+    // a estrada sobe e desce (40 + 100 + 40 = 180); a reta de ponta a ponta é 100: menos de 3×, então vai pela estrada
+    const volta = { id: 'v', pts: [{ x: 0, y: 0 }, { x: 0, y: -40 }, { x: 100, y: -40 }, { x: 100, y: 0 }] };
+    const r = mapaSugestoesDeRota([volta], { x: 0, y: 0 }, { x: 100, y: 0 })[0];
+    expect(r.naEstrada).toBeCloseTo(180, 6);
+    expect(r.foraDaEstrada).toBe(0);
+  });
+  it('dá estrada e barco quando o lago encurta a viagem, e uma alternativa por terra', () => {
+    const { mapaSugestoesDeRota } = window;
+    // água numa faixa no meio (colunas 4 a 15, linhas 0 a 9, células de 10); a estrada contorna por baixo
+    const nx = 20, ny = 20, celulas = new Uint8Array(nx * ny);
+    for (let jj = 0; jj < 10; jj++) for (let i = 4; i < 16; i++) celulas[jj * nx + i] = 1;
+    const agua = { cel: 10, nx, ny, celulas };
+    const A = { x: 35, y: 50 }, B = { x: 165, y: 50 };
+    const contorno = { id: 'c', pts: [A, { x: 35, y: 180 }, { x: 165, y: 180 }, B] };
+    const atalho = { id: 'a', pts: [A, { x: 100, y: 120 }, B] };
+    const lista = mapaSugestoesDeRota([contorno, atalho], A, B, { perto: 9, agua, cidades: [] });
+    expect(lista.length).toBeGreaterThanOrEqual(2);
+    expect(lista[0].tipo).toBe('estrada');
+    const barco = lista.find((s) => s.tipo === 'barco');
+    expect(barco.naAgua).toBeGreaterThan(0);
+    expect(barco.partes.some((p) => p.modo === 'agua')).toBe(true);
+    const alt = lista.find((s) => s.tipo === 'alternativa');
+    expect(alt).toBeTruthy();
+    expect(alt.naEstrada).not.toBeCloseTo(lista[0].naEstrada, 1);
+  });
+  it('com paradas, a rota passa por elas na ordem e soma os trechos', () => {
+    const { mapaItinerario } = window;
+    const reta = { id: 'r', pts: [{ x: 0, y: 0 }, { x: 100, y: 0 }] }, sobe = { id: 's', pts: [{ x: 50, y: 0 }, { x: 50, y: 60 }] };
+    const [s] = mapaItinerario([reta, sobe], [{ x: 0, y: 0 }, { x: 50, y: 60 }, { x: 100, y: 0 }]);
+    expect(s.tipo).toBe('paradas');
+    expect(s.naEstrada).toBeCloseTo(50 + 60 + 60 + 50, 6);   // vai à parada e volta à estrada
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(fonte).toContain("bt('rota-parada', 'ti-map-pin-plus', tr('Passar por um lugar', 'Pass through a place'))");
+    expect(fonte).toContain('data-acao="rota-tira-parada"');
+  });
+  it('o card lista as sugestões e deixa escolher', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(fonte).toContain('data-acao="rota-escolha" data-i="${i}"');
+    expect(fonte).toContain("tr('Estrada e barco', 'Road and boat')");
+    expect(fonte).toContain("tr('Alternativa por terra', 'Alternative by land')");
+    expect(window.MAPA_FORA).toBe(3);
+  });
   it('escolhe primeiro o destino, depois a origem, numa lista com busca', () => {
     const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
     expect(fonte).toContain("if (!rotaAtual) { rotaAtual = { destino: ponto }; aviso(); desenhar(); return; }");
     expect(fonte).toContain('data-acao="rota-lugar"');
-    expect(fonte).toContain("mapaRotaPelosCaminhos(mesa.linhas, rotaAtual.origem, rotaAtual.destino, MAPA_PERTO, MAPA_EMENDA, mesa.lugares.filter((l) => l.tipo === 'cidade'))");
+    expect(fonte).toContain("rotaAtual.sugestoes = paradas.length ? mapaItinerario(mesa.linhas, [rotaAtual.origem, ...paradas, rotaAtual.destino], op)");
   });
 });
 
@@ -331,6 +415,20 @@ describe('a névoa do jogador', () => {
   });
   it('os outros personagens fora do raio não aparecem', () => {
     expect(fonte).toMatch(/postos\(\)\.filter\(\(g\) => g\.eu \|\| !naNevoa\(g\)\)/);
+  });
+  it('"Você está em" mostra o reino e a cidade mais próxima que o personagem enxerga', () => {
+    expect(fonte).toContain("nums = cel(tr('Reino', 'Kingdom'), reino ? esc(reino) : '—')");
+    expect(fonte).toContain("mesa.lugares.filter((l) => l.tipo === 'cidade' && !oculto(l) && dist(l, p) >= MAPA_PERTO)");
+  });
+  it('o Jogador não vê a lista da comitiva', () => {
+    expect(fonte).toContain("if (!cfg.semMesa && mestre) h += quadro(tr('Comitiva', 'Party'),");
+  });
+  it('o véu é transparente, mas fora do raio nenhum nome aparece', () => {
+    const css = readFileSync(join(aqui, 'mapa.css'), 'utf8');
+    expect(css).toMatch(/\.mp-nevoa-veu \{ fill: #17110A; opacity: \.6; \}/);
+    expect(fonte).toContain('const oculto = (l) => naNevoa(l) ||');
+    expect(fonte).toContain('geo = mesa.lugares.filter((l) => ehTexto(l) && !oculto(l)).map(geoDe);');
+    expect(readFileSync(join(aqui, '../../public/mapa/tagmar.svg'), 'utf8')).not.toContain('<text');
   });
   it('a camada da névoa fica entre as linhas e os marcadores', () => {
     expect(fonte).toMatch(/data-el="linhas"[^\n]*\r?\n\s*<svg className="mp-nevoa" data-el="nevoa"/);

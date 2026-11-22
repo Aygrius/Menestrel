@@ -58,6 +58,28 @@
 #root .menestrel-ui .mp-passe-id { padding: 12px 14px; }
 #root .menestrel-ui .mp-passe-id .mp-rotulo { display: block; margin-bottom: 6px; }
 #root .menestrel-ui .mp-passe-nums { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--regua); }
+/* A rota: uma linha por jeito de viajar — rótulo, km e dias, alinhados em colunas (22/11/2026). */
+#root .menestrel-ui .mp-modos { border-top: 1px solid var(--regua); padding: 4px 0; }
+#root .menestrel-ui .mp-modo { display: grid; grid-template-columns: minmax(max-content, 1fr) auto auto; align-items: baseline; gap: 6px; padding: 8px 10px 8px 12px; }
+#root .menestrel-ui .mp-modo + .mp-modo { border-top: 1px solid var(--regua); }
+#root .menestrel-ui .mp-modo .mp-rotulo { margin: 0; }
+#root .menestrel-ui :is(.mp-modo-km, .mp-modo-dias) { font: 700 var(--fs-sm)/1.2 var(--font-body); color: var(--tinta); font-variant-numeric: lining-nums tabular-nums; text-align: right; white-space: nowrap; }
+#root .menestrel-ui .mp-modo-km small { font: 500 var(--fs-xs)/1 var(--font-body); color: var(--tinta-2); }
+#root .menestrel-ui .mp-modo-dias { color: var(--tinta-2); font-weight: 600; }
+/* As sugestões de rota: a escolhida em ouro (22/11/2026). */
+#root .menestrel-ui .mp-sugestoes { border-top: 1px solid var(--regua); padding: 4px 0; }
+/* button.: vence a pele global dos botões, que zerava o recuo e deixava a linha vazar do cartão */
+#root .menestrel-ui button.mp-sugestao { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "nome nome nome" ". km dias"; align-items: baseline; gap: 2px 8px; width: 100%; box-sizing: border-box; min-height: 0; height: auto; padding: 8px 12px 8px 14px; margin: 0; background: none; border: 0; border-radius: 0; text-align: left; color: var(--tinta); cursor: pointer; font: inherit; }
+#root .menestrel-ui button.mp-sugestao + button.mp-sugestao { border-top: 1px solid var(--regua); }
+#root .menestrel-ui button.mp-sugestao:hover { background: rgba(var(--ouro-rgb), .06); }
+#root .menestrel-ui button.mp-sugestao[aria-checked="true"] { box-shadow: inset 3px 0 0 var(--vivo); }
+#root .menestrel-ui .mp-sugestao[aria-checked="true"] .mp-sugestao-nome { color: var(--vivo); }
+#root .menestrel-ui .mp-sugestao:focus-visible { outline: 2px solid var(--vivo); outline-offset: -2px; }
+#root .menestrel-ui .mp-sugestao-nome { grid-area: nome; font: 700 var(--fs-sm)/1.25 var(--font-body); min-width: 0; }
+#root .menestrel-ui .mp-sugestao .mp-modo-km { grid-area: km; }
+#root .menestrel-ui .mp-sugestao .mp-modo-dias { grid-area: dias; }
+#root .menestrel-ui .mp-modos-lista { border-top: 1px solid var(--regua); }
+#root .menestrel-ui .mp-modo-sem { grid-column: 2 / -1; text-align: right; font: 500 var(--fs-sm)/1.2 var(--font-body); color: var(--tinta-3); }
 #root .menestrel-ui .mp-passe-nums .mp-celula + .mp-celula { border-left: 1px solid var(--regua); }
 #root .menestrel-ui .mp-celula { padding: 12px 14px; min-width: 0; }
 #root .menestrel-ui .mp-celula .mp-rotulo { display: block; margin-bottom: 6px; }
@@ -181,7 +203,17 @@
    por cima dos caminhos, sem sumir com o zoom; fora da estrada, pontilhado. */
 #root .menestrel-ui .mp-rota-borda { stroke: #1557B0; stroke-width: calc(7px / var(--s, 1)); }
 #root .menestrel-ui .mp-rota { stroke: #4285F4; stroke-width: calc(4.5px / var(--s, 1)); }
+#root .menestrel-ui .mp-rota-barco { stroke: #4285F4; stroke-width: calc(3.5px / var(--s, 1)); stroke-dasharray: calc(9px / var(--s, 1)) calc(6px / var(--s, 1)); stroke-linecap: butt; }
 #root .menestrel-ui .mp-rota-ape { stroke: #4285F4; stroke-width: calc(3px / var(--s, 1)); stroke-dasharray: 0 calc(7px / var(--s, 1)); }
+#root .menestrel-ui .mp-rota-parada { width: 18px; height: 18px; translate: -50% -50%; border-radius: 50%; pointer-events: none; background: #FFFFFF; border: 2px solid #1557B0; box-sizing: border-box; display: grid; place-items: center; font: 800 11px/1 var(--font-body); color: #1557B0; }
+/* As paradas no card: em ordem, cada uma com ✕ (22/11/2026). */
+#root .menestrel-ui .mp-paradas-rot { display: block; margin-top: 10px; }
+#root .menestrel-ui .mp-paradas { list-style: none; counter-reset: parada; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
+#root .menestrel-ui .mp-paradas li { counter-increment: parada; display: flex; align-items: center; gap: 6px; font: 600 var(--fs-sm)/1.3 var(--font-body); color: var(--tinta); }
+#root .menestrel-ui .mp-paradas li::before { content: counter(parada); flex: none; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font: 800 11px/1 var(--font-body); color: var(--tinta-2); border: 1px solid var(--regua-forte); }
+#root .menestrel-ui .mp-paradas li span { flex: 1; min-width: 0; }
+#root .menestrel-ui button.mp-parada-tira { flex: none; width: 24px; height: 24px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--tinta-3); cursor: pointer; display: grid; place-items: center; }
+#root .menestrel-ui button.mp-parada-tira:hover { color: var(--tinta); background: rgba(var(--ouro-rgb), .08); }
 #root .menestrel-ui .mp-rota-origem { width: 14px; height: 14px; translate: -50% -50%; border-radius: 50%; pointer-events: none; background: #FFFFFF; border: 3px solid #1F1F1F; box-sizing: border-box; }
 #root .menestrel-ui .mp-rota-destino { width: 28px; height: 28px; translate: -50% -92%; pointer-events: none; display: grid; place-items: center; font-size: 28px; color: #EA4335; filter: drop-shadow(0 1px 1px rgba(0,0,0,.5)); }
 #root .menestrel-ui .mp-medida-base { stroke: rgba(18,13,6,.85); stroke-width: calc(6px / var(--s, 1)); }
@@ -427,7 +459,11 @@
 /* A névoa do Jogador (17/11/2026): fora dos 100 km em volta do personagem,
    o mapa some no mesmo escuro do fundo; a borda do círculo esfuma. */
 #root .menestrel-ui .mp-nevoa { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-#root .menestrel-ui .mp-nevoa-veu { fill: #17110A; opacity: .97; }
+/* O véu deixa ver o relevo (22/11/2026, usuário: "Eu quero que o 'escuro' seja
+   transparente, não 100% escuro. Mas o personagem continua sem conseguir ver o
+   nome das cidades e dos reinos"). Os nomes não dependem dele: fora do raio,
+   o lugar nem é desenhado (oculto/naNevoa, mapa.jsx), e o chão não tem texto. */
+#root .menestrel-ui .mp-nevoa-veu { fill: #17110A; opacity: .6; }
 
 /* OS PLANOS SEM PINTURA (17/11/2026, usuário: "Fundo liso por enquanto"). O
    celestial é um céu de índigo com luz de ouro vinda do alto; o infernal, um

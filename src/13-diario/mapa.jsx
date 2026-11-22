@@ -45,6 +45,18 @@ const MAPA_PERTO = 9;
 const MAPA_PINTURA = '/mapa/tagmar.svg';
 /* Suposição da tela, não regra do Tagmar: um dia de marcha a pé. */
 const MAPA_KM_DIA_A_PE = 30;
+/* A cavalo (22/11/2026, usuário: "mostre a distância à pé, à cavalo e voando
+   (linha reta)"). Também suposição: os livros na pasta tagmar/ não trazem a
+   marcha montada; o dobro da a pé, o comum em RPG. */
+const MAPA_KM_DIA_A_CAVALO = 60;
+/* Voando (22/11/2026, usuário: "Voando 1005km x dias"). Suposição também: o
+   dobro do cavalo. */
+const MAPA_KM_DIA_VOANDO = 120;
+/* Navegando (22/11/2026, usuário: "Adicione também Navegando x km x dias").
+   Suposição: um veleiro, ~100 km por dia. A água vem de public/mapa/agua.json
+   (scripts/mapa/agua.mjs). */
+const MAPA_KM_DIA_NAVEGANDO = 100;
+const MAPA_AGUA = '/mapa/agua.json';
 /* A NÉVOA (17/11/2026, usuário: "o jogador só vai conseguir ver um raio de
    100 km ao redor de seu personagem"). */
 const MAPA_NEVOA_KM = 100;
@@ -144,15 +156,60 @@ function mapaCaminhoNaTela(kmPorPx) {
    o destino e cada uma das `cidades` ligam-se ao ponto mais perto de CADA
    caminho que passa a até `perto` deles; o trecho até lá conta como fora da
    estrada. Sem `perto` (Infinity), a origem e o destino entram só pelo
-   caminho mais perto, e as cidades não entram. O menor trajeto sai do Dijkstra. Devolve null sem caminhos, e { semLigacao }
-   quando nada liga as duas pontas — ou quando uma delas fica a mais de
-   `perto` do caminho mais próximo ({ semLigacao, longe: 'a'|'b' }): "O cálculo
-   será seguindo um caminho, não será em linha reta. Se não houver um caminho,
-   avise."
-   { pts: o trajeto inteiro, estrada: só a parte nos caminhos,
-     naEstrada e foraDaEstrada (em unidades do mapa) } */
+   caminho mais perto, e as cidades não entram. O menor trajeto sai do Dijkstra.
+   SEM CAMINHO, UMA ROTA SUGERIDA (22/11/2026, usuário: "Eu quero ver todas
+   as opções, mesmo que não há caminho disponível, indique um caminho
+   qualquer"): quando nada liga as pontas pela estrada — ou uma delas fica a
+   mais de `perto` de qualquer caminho (longe: 'a'|'b') —, cada pedaço solto
+   da malha ganha uma travessia fora da estrada até o ponto mais perto de cada
+   outro pedaço (as pontas inclusive), e o trajeto usa os caminhos que existem
+   e completa o resto por fora. Fora da estrada pesa MAPA_FORA (1,5×) na
+   escolha, para a rota preferir a estrada; os km devolvidos são os reais.
+   Sem nenhum caminho, a sugestão é a linha reta.
+   { pts: o trajeto inteiro, partes: [{ fora, pts }] para desenhar, estrada:
+     os pontos entre as pontas, naEstrada e foraDaEstrada (unidades do mapa),
+     sugerida?: true e longe? quando não houve caminho contínuo } */
+/* ESTRADA PRIMEIRO (22/11/2026, usuário: "Sempre que houver uma estrada
+   próxima, use-a para traçar a rota, mesmo que ela não leve necessariamente
+   ao destino, pois viajar pela estrada é mais seguro"): fora da estrada pesa
+   3× (era 1,5×). Só se corta por fora quando a estrada dá uma volta 3 vezes
+   maior.
+   ESTRADA E BARCO, E MAIS DE UMA SUGESTÃO (mesmo dia: "Saindo de Saravossa até
+   a Cidade Dourada não teria vantagens indo pelo Lago Denégrio, como parte do
+   caminho? Dê pelo menos duas sugestões de rota"). mapaSugestoesDeRota monta a
+   malha uma vez e devolve: a rota pela estrada; a de estrada e barco (embarca
+   numa cidade a até 3 células da água, MAPA_EMBARQUE de espera, e a água anda
+   na razão da velocidade: 30 a pé ÷ 100 navegando); e uma alternativa por
+   terra que evita os trechos da primeira. As duas últimas só entram quando
+   dão um trajeto diferente. O custo é em "dias a pé"; os km são os reais. */
 const MAPA_EMENDA = 2;
-function mapaRotaPelosCaminhos(linhas, a, b, perto = Infinity, emenda = MAPA_EMENDA, cidades = []) {
+const MAPA_FORA = 3;
+const MAPA_EMBARQUE = 15 / MAPA_KM;   // meio dia a pé, em unidades do mapa
+const MAPA_AGUA_PESO = MAPA_KM_DIA_A_PE / MAPA_KM_DIA_NAVEGANDO;
+/* O menor caminho numa malha qualquer (heap binário). vizinhos(k, cb(v, custo));
+   h(k): uma estimativa que nunca passa do custo que falta (A*), ou 0. */
+function mapaMenorCaminho(inicio, fim, vizinhos, h = () => 0) {
+  const dist = new Map([[inicio, 0]]), de = new Map(), fechado = new Set(), heap = [[h(inicio), inicio]];
+  const sobe = (x) => { while (x) { const p = (x - 1) >> 1; if (heap[p][0] <= heap[x][0]) break; [heap[p], heap[x]] = [heap[x], heap[p]]; x = p; } };
+  const desce = (x) => { for (;;) { const l = 2 * x + 1, r = l + 1; let m = x;
+    if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r;
+    if (m === x) break; [heap[m], heap[x]] = [heap[x], heap[m]]; x = m; } };
+  while (heap.length) {
+    const [, k] = heap[0], u = heap.pop(); if (heap.length) { heap[0] = u; desce(0); }
+    if (fechado.has(k)) continue; fechado.add(k);
+    if (k === fim) break;
+    const dk = dist.get(k);
+    vizinhos(k, (v, c) => { if (fechado.has(v)) return; const nd = dk + c;
+      if (nd < (dist.has(v) ? dist.get(v) : Infinity)) { dist.set(v, nd); de.set(v, k); heap.push([nd + h(v), v]); sobe(heap.length - 1); } });
+  }
+  if (!fechado.has(fim)) return null;
+  const passos = []; for (let k = fim; k !== undefined; k = de.get(k)) passos.unshift(k);
+  return passos;
+}
+
+function mapaSugestoesDeRota(linhas, a, b, op = {}) {
+  const perto = op.perto != null ? op.perto : Infinity, emenda = op.emenda != null ? op.emenda : MAPA_EMENDA;
+  const cidades = op.cidades || [], agua = op.agua || null, lagos = op.lagos || [];
   const chave = (p) => Math.round(p.x * 10) + ',' + Math.round(p.y * 10);
   const nos = new Map();
   const no = (p) => { const k = chave(p); if (!nos.has(k)) nos.set(k, { p: { x: p.x, y: p.y }, viz: new Map() }); return k; };
@@ -162,7 +219,6 @@ function mapaRotaPelosCaminhos(linhas, a, b, perto = Infinity, emenda = MAPA_EME
   const segs = [];
   (linhas || []).forEach((ln, c) => { const pts = ln.pts || [];
     for (let i = 0; i < pts.length - 1; i++) if (mapaDist(pts[i], pts[i + 1]) > 0) segs.push({ c, i, p: pts[i], q: pts[i + 1], cortes: [] }); });
-  if (!segs.length) return null;
   const pontes = [];
   const cruza = (s, u) => {
     const rx = s.q.x - s.p.x, ry = s.q.y - s.p.y, sx = u.q.x - u.p.x, sy = u.q.y - u.p.y, den = rx * sy - ry * sx;
@@ -190,39 +246,240 @@ function mapaRotaPelosCaminhos(linhas, a, b, perto = Infinity, emenda = MAPA_EME
   const raio = Number.isFinite(perto) ? perto : 0;
   const centros = [{ k: 'A', p: a }, { k: 'B', p: b }, ...(raio ? (cidades || []).map((c, i) => ({ k: 'C' + i, p: c })) : [])];
   const acessos = [];
+  let longe = null;
   for (const h of centros) {
     const porCaminho = new Map();   // por caminho: o trecho mais perto
     segs.forEach((s) => { const pr = mapaProjeta(h.p, [s.p, s.q]); if (!porCaminho.has(s.c) || pr.d < porCaminho.get(s.c).d) porCaminho.set(s.c, { s, d: pr.d, q: pr.q }); });
     const todos = [...porCaminho.values()].sort((x, y) => x.d - y.d);
+    if (h.k.length === 1 && (!todos.length || todos[0].d > perto)) { longe = longe || (h.k === 'A' ? 'a' : 'b'); continue; }   // fica de fora; a sugestão o liga
     const usa = todos.filter((x, i) => x.d <= raio || (i === 0 && h.k.length === 1 && !raio));
-    if (h.k.length === 1 && (!todos.length || todos[0].d > perto)) return { semLigacao: true, longe: h.k === 'A' ? 'a' : 'b' };
     usa.forEach(({ s, q }) => { const t = tDe(s, q); if (t > 0 && t < 1) s.cortes.push({ t, p: q }); acessos.push([h, t <= 0 ? s.p : t >= 1 ? s.q : q]); });
   }
   // A malha: cada trecho partido nos cortes, e as pontes.
-  const trechos = [];
   segs.forEach((s) => {
     const seq = [s.p, ...s.cortes.sort((x, y) => x.t - y.t).map((x) => x.p), s.q];
-    for (let i = 0; i < seq.length - 1; i++) { const k1 = no(seq[i]), k2 = no(seq[i + 1]); if (k1 !== k2) { liga(k1, k2); trechos.push([k1, k2]); } }
+    for (let i = 0; i < seq.length - 1; i++) { const k1 = no(seq[i]), k2 = no(seq[i + 1]); if (k1 !== k2) liga(k1, k2); }
   });
   pontes.forEach(([v, w]) => liga(no(v), no(w)));
-  if (!trechos.length) return null;
   centros.forEach((h) => nos.set(h.k, { p: { x: h.p.x, y: h.p.y }, viz: new Map() }));
   acessos.forEach(([h, q]) => liga(h.k, no(q)));
   const ehCentro = (k) => /^[ABC]/.test(k);
-  const dist = new Map([['A', 0]]), de = new Map(), feito = new Set();
-  for (;;) {
-    let k = null, dk = Infinity;
-    dist.forEach((d, n) => { if (!feito.has(n) && d < dk) { dk = d; k = n; } });
-    if (k === null || k === 'B') break;
-    feito.add(k);
-    nos.get(k).viz.forEach((c, v) => { if (!feito.has(v) && dk + c < (dist.has(v) ? dist.get(v) : Infinity)) { dist.set(v, dk + c); de.set(v, k); } });
+  // Os pedaços soltos da malha ganham travessias fora da estrada entre si (as cidades isoladas não contam).
+  const travessias = new Set();
+  {
+    const pedaco = new Map(); let n = 0;
+    for (const k0 of nos.keys()) {
+      if (pedaco.has(k0) || (/^C/.test(k0) && !nos.get(k0).viz.size)) continue;
+      const fila = [k0]; pedaco.set(k0, n);
+      while (fila.length) { const k = fila.pop(); nos.get(k).viz.forEach((_, v) => { if (!pedaco.has(v)) { pedaco.set(v, n); fila.push(v); } }); }
+      n++;
+    }
+    const grupos = Array.from({ length: n }, () => []);
+    pedaco.forEach((g, k) => grupos[g].push(k));
+    for (let g1 = 0; g1 < n; g1++) for (let g2 = g1 + 1; g2 < n; g2++) {
+      let m = null, md = Infinity;
+      for (const k1 of grupos[g1]) { const p1 = nos.get(k1).p;
+        for (const k2 of grupos[g2]) { const p2 = nos.get(k2).p, d = (p1.x - p2.x) ** 2 + (p1.y - p2.y) ** 2; if (d < md) { md = d; m = [k1, k2]; } } }
+      if (!m) continue;
+      const d = Math.sqrt(md), n1 = nos.get(m[0]), n2 = nos.get(m[1]);
+      if (!n1.viz.has(m[1]) || n1.viz.get(m[1]) > d) { n1.viz.set(m[1], d); n2.viz.set(m[0], d); }
+      travessias.add(m[0] + '|' + m[1]); travessias.add(m[1] + '|' + m[0]);
+    }
   }
-  if (!dist.has('B')) return { semLigacao: true };
-  const passos = []; for (let k = 'B'; k; k = de.get(k)) passos.unshift(k);
-  // fora da estrada: os acessos (de/para um entroncamento) que a rota usou
-  let fora = 0; for (let i = 1; i < passos.length; i++) if (ehCentro(passos[i - 1]) || ehCentro(passos[i])) fora += nos.get(passos[i - 1]).viz.get(passos[i]);
-  const estrada = passos.slice(1, -1).map((k) => ({ ...nos.get(k).p }));
-  return { pts: [{ x: a.x, y: a.y }, ...estrada, { x: b.x, y: b.y }], estrada, naEstrada: dist.get('B') - fora, foraDaEstrada: fora };
+  const ehFora = (k1, k2) => ehCentro(k1) || ehCentro(k2) || travessias.has(k1 + '|' + k2);
+  // A água: as pontas e as cidades com porto embarcam na célula de água mais perto.
+  const portoDe = new Map(), noPorto = new Map();
+  if (agua) {
+    const { cel, nx, ny, celulas } = agua;
+    centros.forEach((h) => {
+      const ci = Math.floor(h.p.x / cel), cj = Math.floor(h.p.y / cel); let m = null, md = Infinity;
+      for (let dj = -3; dj <= 3; dj++) for (let di = -3; di <= 3; di++) { const i = ci + di, jj = cj + dj;
+        if (i < 0 || jj < 0 || i >= nx || jj >= ny || celulas[jj * nx + i] !== 1) continue;
+        const d = Math.hypot((i + 0.5) * cel - h.p.x, (jj + 0.5) * cel - h.p.y); if (d < md) { md = d; m = jj * nx + i; } }
+      if (m !== null) { portoDe.set(h.k, { w: 'W' + m, d: md, corpo: mapaCorposDeAgua(agua)[m], p: h.p }); if (!noPorto.has('W' + m)) noPorto.set('W' + m, []); noPorto.get('W' + m).push({ k: h.k, d: md }); }
+    });
+  }
+  const posDe = (k) => { if (k[0] !== 'W') return nos.get(k).p; const c = +k.slice(1); return { x: (c % agua.nx + 0.5) * agua.cel, y: (Math.floor(c / agua.nx) + 0.5) * agua.cel }; };
+  // penal: os pontos de uma rota anterior, que custam `fator` vezes mais (para achar outra)
+  // regiao(c): só as células de água que ela aceita (a volta da rota pelo lago fica no lago)
+  const busca = (comAgua, penal, corpo, fator = 1, de = 'A', ate = 'B', regiao = null) => mapaMenorCaminho(de, ate, (k0, cb0) => {
+    const k = k0, cb = penal ? (v, c) => cb0(v, penal.has(v) ? c * fator : c) : cb0;
+    if (k[0] === 'W') {
+      const { cel, nx, ny, celulas } = agua, c = +k.slice(1), i = c % nx, jj = Math.floor(c / nx);
+      const ok = (x, y) => x >= 0 && y >= 0 && x < nx && y < ny && celulas[y * nx + x] === 1;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+        if (!ok(i + di, jj + dj) || (di && dj && (!ok(i + di, jj) || !ok(i, jj + dj)))) continue;
+        if (regiao && !regiao((jj + dj) * nx + i + di)) continue;
+        cb('W' + ((jj + dj) * nx + i + di), (di && dj ? Math.SQRT2 : 1) * cel * MAPA_AGUA_PESO);
+      }
+      (noPorto.get(k) || []).forEach(({ k: hk, d }) => cb(hk, d + MAPA_EMBARQUE));
+      return;
+    }
+    nos.get(k).viz.forEach((d, v) => cb(v, d * (ehFora(k, v) ? MAPA_FORA : 1)));
+    if (comAgua && portoDe.has(k)) { const pt = portoDe.get(k); if ((corpo == null || pt.corpo === corpo) && (!regiao || regiao(+pt.w.slice(1)))) cb(pt.w, pt.d + MAPA_EMBARQUE); }
+  }, (k) => mapaDist(posDe(k), posDe(ate)) * (comAgua ? MAPA_AGUA_PESO : 1));
+  // Uma sugestão a partir dos passos: partes por modo (estrada, fora, agua) e os km de cada.
+  const montar = (passos, tipo) => {
+    if (!passos) return null;
+    const partes = []; let terra = 0, fora = 0, naAgua = 0, cruzou = false;
+    for (let i = 1; i < passos.length; i++) {
+      const k1 = passos[i - 1], k2 = passos[i], p1 = posDe(k1), p2 = posDe(k2), d = mapaDist(p1, p2);
+      const modo = k1[0] === 'W' && k2[0] === 'W' ? 'agua' : (k1[0] === 'W' || k2[0] === 'W' || ehFora(k1, k2)) ? 'fora' : 'estrada';
+      if (travessias.has(k1 + '|' + k2)) cruzou = true;
+      if (modo === 'agua') naAgua += d; else if (modo === 'fora') fora += d; else terra += d;
+      const ult = partes[partes.length - 1];
+      if (ult && ult.modo === modo) ult.pts.push({ ...p2 }); else partes.push({ modo, pts: [{ ...p1 }, { ...p2 }] });
+    }
+    const pts = [{ ...posDe(passos[0]) }]; partes.forEach((p) => pts.push(...p.pts.slice(1)));
+    const s = { tipo, passos, partes, pts, naEstrada: terra, foraDaEstrada: fora, naAgua, estrada: passos.slice(1, -1).map((k) => ({ ...posDe(k) })) };
+    if (cruzou || longe) { s.sugerida = true; if (longe) s.longe = longe; }
+    return s;
+  };
+  const kmDe = (s) => s.naEstrada + s.foraDaEstrada + s.naAgua;
+  function igual(s1, s2) { const u = new Set(s1.passos); const comum = s2.passos.filter((k) => u.has(k)).length; return comum / Math.max(s1.passos.length, s2.passos.length) > 0.85; }
+  const primeira = montar(busca(false), 'estrada');
+  const lista = [primeira];
+  /* De barco: uma sugestão por água que fica no caminho (o mar, o Lago Denégrio…), a mais rápida
+     primeiro. "No caminho" = com algum porto a até metade da distância da reta entre as pontas. */
+  if (agua) {
+    const reta = mapaDist(a, b), corpos = new Set();
+    portoDe.forEach((pt) => { if (mapaProjeta(pt.p, [a, b]).d <= Math.max(reta * 0.5, 100)) corpos.add(pt.corpo); });
+    const barcos = [];
+    for (const corpo of corpos) {
+      const s = montar(busca(true, null, corpo), 'barco');
+      if (s && s.naAgua > 0 && !barcos.some((x) => igual(x, s))) { s.corpo = corpo; barcos.push(s); }
+    }
+    /* PELOS LAGOS DO CAMINHO (usuário: "não teria vantagens indo pelo Lago
+       Denégrio?"): cada lago escrito perto da reta entre as pontas vira uma
+       sugestão que passa por ele — de A até a água do lago, e dela até B. */
+    const celulaDe = (p) => { const { cel, nx, ny, celulas } = agua, ci = Math.floor(p.x / cel), cj = Math.floor(p.y / cel); let m = null, md = Infinity;
+      for (let dj = -6; dj <= 6; dj++) for (let di = -6; di <= 6; di++) { const i = ci + di, jj = cj + dj;
+        if (i < 0 || jj < 0 || i >= nx || jj >= ny || celulas[jj * nx + i] !== 1) continue;
+        const d = Math.hypot(di, dj); if (d < md) { md = d; m = jj * nx + i; } }
+      return m === null ? null : 'W' + m; };
+    lagos.filter((l) => mapaProjeta(l, [a, b]).d <= Math.max(reta * 0.5, 100))
+      .sort((x, y) => mapaProjeta(x, [a, b]).d - mapaProjeta(y, [a, b]).d).slice(0, 2).forEach((l) => {
+        const w = celulaDe(l); if (!w) return;
+        // vai de barco até o lago; a volta só navega no próprio lago (até 300 unidades do nome dele), desembarca numa margem e segue por terra
+        const noLago = (c) => Math.hypot((c % agua.nx + 0.5) * agua.cel - l.x, (Math.floor(c / agua.nx) + 0.5) * agua.cel - l.y) <= 300;
+        const ida = busca(true, null, null, 1, 'A', w), volta = ida && busca(true, null, null, 1, w, 'B', noLago);
+        const s = ida && volta && montar([...ida, ...volta.slice(1)], 'barco');
+        if (s && s.naAgua > 0) { s.via = l.nome; if (!barcos.some((x) => igual(x, s))) barcos.push(s); else { const x = barcos.find((y) => igual(y, s)); x.via = x.via || l.nome; } }
+      });
+    const tempo = (s) => (s.naEstrada + s.foraDaEstrada) + s.naAgua * MAPA_AGUA_PESO;
+    barcos.sort((x, y) => tempo(x) - tempo(y)).slice(0, 3).forEach((s) => lista.push(s));
+  }
+  // a alternativa por terra: os trechos da primeira ficam mais caros
+  for (const fator of op.rapida ? [] : [2, 4]) {
+    if (lista.length >= 4) break;
+    const alt = montar(busca(false, new Set(primeira.passos.slice(2, -2)), null, fator), 'alternativa');
+    if (alt && !igual(primeira, alt) && Math.abs(kmDe(alt) - kmDe(primeira)) > 0.01 * kmDe(primeira)) { lista.push(alt); break; }
+  }
+  return lista;
+}
+
+/* O ITINERÁRIO COM PARADAS (22/11/2026, usuário: "dá pra ir de Saravossa até a
+   Cidade Dourada passando pelo rio Frefo, pegando o lago Denégrio, depois rio
+   Belrra, depois indo a pé passando pela floresta de Melram e Brindel").
+   `pontos` = [origem, ...paradas, destino]; cada trecho sai de
+   mapaSugestoesDeRota (modo rápido). Devolve duas sugestões: cada trecho pelo
+   jeito mais rápido (estrada, barco ou a pé) e só por terra. */
+function mapaItinerario(linhas, pontos, op = {}) {
+  const tempo = (s) => (s.naEstrada + s.foraDaEstrada) + s.naAgua * MAPA_AGUA_PESO;
+  const juntar = (trechos, tipo) => {
+    const s = { tipo, partes: [], pts: [], passos: [], naEstrada: 0, foraDaEstrada: 0, naAgua: 0, estrada: [] };
+    trechos.forEach((t, i) => {
+      s.partes.push(...t.partes); s.pts.push(...(i ? t.pts.slice(1) : t.pts)); s.passos.push(...t.passos.map((k) => i + ':' + k));
+      s.naEstrada += t.naEstrada; s.foraDaEstrada += t.foraDaEstrada; s.naAgua += t.naAgua; s.estrada.push(...t.estrada);
+      if (t.sugerida) s.sugerida = true;
+    });
+    return s;
+  };
+  const rapido = [], terra = [];
+  for (let i = 1; i < pontos.length; i++) {
+    const lista = mapaSugestoesDeRota(linhas, pontos[i - 1], pontos[i], { ...op, lagos: [], rapida: true });
+    terra.push(lista[0]);
+    rapido.push(lista.slice().sort((x, y) => tempo(x) - tempo(y))[0]);
+  }
+  const r = juntar(rapido, 'paradas'), t = juntar(terra, 'paradas-terra');
+  return r.naAgua > 0 ? [r, t] : [r];
+}
+
+/* A rota pela estrada, no formato de antes (partes com `fora`): a primeira sugestão. */
+function mapaRotaPelosCaminhos(linhas, a, b, perto = Infinity, emenda = MAPA_EMENDA, cidades = []) {
+  const s = mapaSugestoesDeRota(linhas, a, b, { perto, emenda, cidades })[0];
+  return { ...s, partes: s.partes.map((p) => ({ fora: p.modo !== 'estrada', pts: p.pts })) };
+}
+
+/* A VIAGEM POR ÁGUA (22/11/2026). `agua`: { cel, nx, ny, celulas: Uint8Array
+   (1 = água) }. Cada ponta embarca na água mais perto, até `porto` células
+   dela (a cidade da costa); a travessia é o menor caminho pela grade (8
+   vizinhos, A*), sem passar por terra. Devolve { pts, comprimento } em
+   unidades do mapa, ou null quando uma ponta não tem água perto ou as duas
+   águas não se ligam (um lago fechado e o mar, por exemplo). */
+function mapaNavegacao(agua, a, b, porto = 3) {
+  if (!agua) return null;
+  const { cel, nx, ny, celulas } = agua;
+  const ehAgua = (i, j) => i >= 0 && j >= 0 && i < nx && j < ny && celulas[j * nx + i] === 1;
+  const embarque = (p) => {
+    const ci = Math.floor(p.x / cel), cj = Math.floor(p.y / cel);
+    let m = null, md = Infinity;
+    for (let dj = -porto; dj <= porto; dj++) for (let di = -porto; di <= porto; di++) {
+      const i = ci + di, j = cj + dj; if (!ehAgua(i, j)) continue;
+      const d = Math.hypot((i + 0.5) * cel - p.x, (j + 0.5) * cel - p.y);
+      if (d < md) { md = d; m = j * nx + i; }
+    }
+    return m === null ? null : { k: m, d: md };
+  };
+  const ea = embarque(a), eb = embarque(b);
+  if (!ea || !eb) return null;
+  const N = nx * ny, g = new Float64Array(N).fill(Infinity), de = new Int32Array(N).fill(-1), fechado = new Uint8Array(N);
+  const bi = eb.k % nx, bj = Math.floor(eb.k / nx);
+  const h = (k) => { const dx = Math.abs(k % nx - bi), dy = Math.abs(Math.floor(k / nx) - bj); return Math.max(dx, dy) + (Math.SQRT2 - 1) * Math.min(dx, dy); };
+  // fila de prioridade (heap binário) por f = g + h
+  const heap = [], f = new Float64Array(N);
+  const sobe = (x) => { while (x) { const p = (x - 1) >> 1; if (f[heap[p]] <= f[heap[x]]) break; [heap[p], heap[x]] = [heap[x], heap[p]]; x = p; } };
+  const desce = (x) => { for (;;) { const l = 2 * x + 1, r = l + 1; let m = x;
+    if (l < heap.length && f[heap[l]] < f[heap[m]]) m = l; if (r < heap.length && f[heap[r]] < f[heap[m]]) m = r;
+    if (m === x) break; [heap[m], heap[x]] = [heap[x], heap[m]]; x = m; } };
+  const poe = (k) => { heap.push(k); sobe(heap.length - 1); };
+  const tira = () => { const t = heap[0], u = heap.pop(); if (heap.length) { heap[0] = u; desce(0); } return t; };
+  g[ea.k] = 0; f[ea.k] = h(ea.k); poe(ea.k);
+  const VIZ = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, Math.SQRT2], [1, -1, Math.SQRT2], [-1, 1, Math.SQRT2], [-1, -1, Math.SQRT2]];
+  while (heap.length) {
+    const k = tira(); if (fechado[k]) continue; fechado[k] = 1;
+    if (k === eb.k) break;
+    const i = k % nx, jj = Math.floor(k / nx);
+    for (const [di, dj, c] of VIZ) {
+      const i2 = i + di, j2 = jj + dj; if (!ehAgua(i2, j2)) continue;
+      if (di && dj && (!ehAgua(i + di, jj) || !ehAgua(i, jj + dj))) continue;   // não corta quina de terra
+      const k2 = j2 * nx + i2, ng = g[k] + c;
+      if (ng < g[k2]) { g[k2] = ng; de[k2] = k; f[k2] = ng + h(k2); poe(k2); }
+    }
+  }
+  if (!fechado[eb.k]) return null;
+  const pts = []; for (let k = eb.k; k !== -1; k = de[k]) pts.unshift({ x: (k % nx + 0.5) * cel, y: (Math.floor(k / nx) + 0.5) * cel });
+  return { pts: [{ x: a.x, y: a.y }, ...pts, { x: b.x, y: b.y }], comprimento: g[eb.k] * cel + ea.d + eb.d };
+}
+/* Cada água separada (o mar, cada lago fechado) ganha um número: corpos[k]. */
+function mapaCorposDeAgua(agua) {
+  if (agua.corpos) return agua.corpos;
+  const { nx, ny, celulas } = agua, corpos = new Int32Array(nx * ny).fill(-1); let n = 0;
+  for (let k0 = 0; k0 < nx * ny; k0++) {
+    if (celulas[k0] !== 1 || corpos[k0] >= 0) continue;
+    const pilha = [k0]; corpos[k0] = n;
+    while (pilha.length) { const k = pilha.pop(), i = k % nx, jj = (k - i) / nx;
+      for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const i2 = i + di, j2 = jj + dj, k2 = j2 * nx + i2;
+        if (i2 >= 0 && j2 >= 0 && i2 < nx && j2 < ny && celulas[k2] === 1 && corpos[k2] < 0) { corpos[k2] = n; pilha.push(k2); } } }
+    n++;
+  }
+  agua.corpos = corpos; return corpos;
+}
+// O agua.json (bits em base64) para a grade que mapaNavegacao lê.
+function mapaAguaDe(j) {
+  const s = atob(j.bits), celulas = new Uint8Array(j.nx * j.ny);
+  for (let k = 0; k < celulas.length; k++) celulas[k] = (s.charCodeAt(k >> 3) >> (k & 7)) & 1;
+  return { cel: j.cel, nx: j.nx, ny: j.ny, celulas };
 }
 
 /* ── OS PLANOS (17/11/2026) ────────────────────────────────────────────────
@@ -318,7 +575,7 @@ function criarMotorMapa(raiz, cfg) {
   juntarMundo();
 
   const fmtKm = (n) => n.toLocaleString(en ? 'en-US' : 'pt-BR');
-  const dias = (k) => { const d = k / MAPA_KM_DIA_A_PE, r = Math.round(d);
+  const dias = (k, porDia = MAPA_KM_DIA_A_PE) => { const d = k / porDia, r = Math.round(d);
     return d < 1 ? tr('menos de 1 dia', 'under 1 day') : r + (r === 1 ? tr(' dia', ' day') : tr(' dias', ' days')); };
   const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const semAcento = (t) => String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -393,6 +650,20 @@ function criarMotorMapa(raiz, cfg) {
     if (l && l.tipo === 'local') return (l.ficha && fichasLocalId.get(String(l.ficha))) || null;
     if (l && l.tipo === 'reino') return (l.ficha && fichasReinoId.get(String(l.ficha))) || null;
     return (l && l.tipo === 'cidade' && ((l.ficha && fichasId.get(String(l.ficha))) || fichas.get(chave(l.nome)))) || null; };
+  /* ONDE ESTOU: O REINO E A CIDADE MAIS PRÓXIMA (22/11/2026, usuário: "No texto
+     'Você está em' eu quero que mostre o nome do reino e cidade mais próxima").
+     A cidade é a mais perto entre as que o personagem enxerga (fora da névoa e
+     conhecida), sem contar aquela em que ele já está. O reino é o da ficha da
+     cidade conhecida mais perto (até 150 km); sem ela, o do marcador de reino
+     mais perto no mapa. */
+  const cidadeMaisProxima = (p) => mesa.lugares.filter((l) => l.tipo === 'cidade' && !oculto(l) && dist(l, p) >= MAPA_PERTO)
+    .sort((x, y) => dist(x, p) - dist(y, p))[0] || null;
+  const reinoDe = (p) => {
+    const perto150 = mesa.lugares.filter((l) => l.tipo === 'cidade' && !oculto(l) && km(dist(l, p)) <= 150).sort((x, y) => dist(x, p) - dist(y, p));
+    for (const c of perto150) { const fc = fichaDe(c), r = fc && fc.atributos && fc.atributos.reino; if (r) return nomesLore[r] || r; }
+    const rs = mesa.lugares.filter((l) => l.tipo === 'reino').sort((x, y) => dist(x, p) - dist(y, p));
+    return rs.length ? rs[0].nome : null;
+  };
   // O sinal de cada lugar no mapa e nas listas.
   /* UM SINAL POR TIPO DE LUGAR (21/11/2026, usuário: "Todos os ícones de local
      será ti-map-pin. Todos os ícones de cidade será ti-pennant [ti-map-pin desde
@@ -607,7 +878,30 @@ function criarMotorMapa(raiz, cfg) {
      achou. O lugar entra no caminho se estiver a até MAPA_PERTO (~10 km) dele.
      Não vai para o banco. */
   let rotaAtual = null;
-  const calcularRota = () => { if (rotaAtual && rotaAtual.origem) rotaAtual.r = mapaRotaPelosCaminhos(mesa.linhas, rotaAtual.origem, rotaAtual.destino, MAPA_PERTO, MAPA_EMENDA, mesa.lugares.filter((l) => l.tipo === 'cidade')); };
+  // A água para "Navegando": undefined enquanto carrega, null se não houver.
+  let agua = plano === 'material' && typeof fetch === 'function' ? undefined : null;
+  if (agua === undefined) fetch(MAPA_AGUA).then((r) => (r.ok ? r.json() : null)).then((j) => { agua = j ? mapaAguaDe(j) : null; })
+    .catch(() => { agua = null; }).then(() => { if (vivo && rotaAtual && rotaAtual.origem) { calcularRota(); desenhar(); } });
+  const calcularRota = () => {
+    if (!rotaAtual || !rotaAtual.origem) return;
+    rotaAtual.mar = agua === undefined ? undefined : mapaNavegacao(agua, rotaAtual.origem, rotaAtual.destino);
+    const op = { perto: MAPA_PERTO, emenda: MAPA_EMENDA, cidades: mesa.lugares.filter((l) => l.tipo === 'cidade'), agua: agua || null,
+      lagos: mesa.lugares.filter((l) => l.estilo && l.estilo.geo === 'lago').map((l) => ({ nome: l.estilo.texto || l.nome, x: l.x, y: l.y })) };
+    const paradas = rotaAtual.paradas || [];
+    rotaAtual.sugestoes = paradas.length ? mapaItinerario(mesa.linhas, [rotaAtual.origem, ...paradas, rotaAtual.destino], op)
+      : mapaSugestoesDeRota(mesa.linhas, rotaAtual.origem, rotaAtual.destino, op);
+    rotaAtual.escolha = Math.min(rotaAtual.escolha || 0, rotaAtual.sugestoes.length - 1);
+    rotaAtual.r = rotaAtual.sugestoes[rotaAtual.escolha];
+  };
+  /* O nome das águas por onde o barco passa: os lagos, mares e rios escritos a
+     até 60 unidades da travessia, na ordem em que ela os encontra (até dois). */
+  const nomeDaAgua = (s) => { const pa = s.partes.filter((p) => p.modo === 'agua').flatMap((p) => p.pts); if (!pa.length) return null;
+    const aguas = mesa.lugares.filter((l) => l.estilo && ['lago', 'mar', 'rio'].includes(l.estilo.geo)), vistos = [];
+    for (let i = 0; i < pa.length; i += 3) { let m = null, md = 60;
+      for (const l of aguas) { const d = dist(l, pa[i]); if (d < md) { md = d; m = l; } }
+      if (m && !vistos.includes(m)) vistos.push(m); }
+    const lagos = vistos.filter((l) => l.estilo.geo !== 'mar'), escolhidos = (lagos.length ? lagos : vistos).slice(0, 2);
+    return escolhidos.length ? escolhidos.map((l) => l.estilo.texto || l.nome).join(' e ') : null; };
   // Os lugares que podem ser destino ou origem: cidades, locais e reinos à vista.
   const lugaresDaRota = () => mesa.lugares.filter((l) => !oculto(l) && ['cidade', 'local', 'reino', 'ponto'].includes(l.tipo));
   function escolherNaRota(l) {
@@ -615,9 +909,10 @@ function criarMotorMapa(raiz, cfg) {
     if (cfg.aoEscolherAchado) cfg.aoEscolherAchado();   // limpa a busca para a próxima escolha
     busca = '';
     if (!rotaAtual) { rotaAtual = { destino: ponto }; aviso(); desenhar(); return; }
+    // a parada entra no fim da lista, antes do destino: na ordem em que a viagem passa
+    if (rotaAtual.adicionando) { rotaAtual.adicionando = false; rotaAtual.paradas = [...(rotaAtual.paradas || []), ponto]; rotaAtual.escolha = 0; calcularRota(); modo = null; aviso(); focar({ tipo: 'rota' }); return; }
     rotaAtual.origem = ponto; calcularRota();
-    if (!rotaAtual.r) { rotaAtual = null; recado = { txt: tr('Ainda não há caminhos no mapa para achar a rota.', 'There are no roads on the map yet to find a route.') }; modo = null; aviso(); desenhar(); return; }
-    modo = null; aviso(); focar({ tipo: 'rota' }, !rotaAtual.r.semLigacao);
+    modo = null; aviso(); focar({ tipo: 'rota' });
   }
   let vsel = null, passa = null, recado = null, busca = '';
 
@@ -663,10 +958,7 @@ function criarMotorMapa(raiz, cfg) {
     vistas.forEach((l) => { s += linha('mp-cam' + cls(l), l.pts); });
     // A rota: azul nos caminhos; pontilhada fora deles (da origem ao caminho e do caminho ao destino).
     const R = rotaAtual && rotaAtual.r;
-    if (R && !R.semLigacao) {
-      const ini = [R.pts[0], R.estrada[0]], fim = [R.estrada[R.estrada.length - 1], R.pts[R.pts.length - 1]];
-      s += linha('mp-rota-ape', ini) + linha('mp-rota-ape', fim) + linha('mp-rota-borda', R.estrada) + linha('mp-rota', R.estrada);
-    }
+    if (R && R.partes) R.partes.forEach((pt) => { s += pt.modo === 'fora' ? linha('mp-rota-ape', pt.pts) : pt.modo === 'agua' ? linha('mp-rota-barco', pt.pts) : linha('mp-rota-borda', pt.pts) + linha('mp-rota', pt.pts); });
     s += linha('mp-traco-base', traco) + linha('mp-traco', traco) + linha('mp-medida-base', medida) + linha('mp-medida', medida);
     $('linhas').innerHTML = s;
     /* A névoa por cima da pintura e das linhas, embaixo dos marcadores. A
@@ -715,6 +1007,7 @@ function criarMotorMapa(raiz, cfg) {
     medida.forEach((p) => { h += mk(p, `<div class="mp-ponto"></div>`); });
     if (rotaAtual) {
       if (rotaAtual.origem) h += mk(rotaAtual.origem, `<div class="mp-rota-origem" aria-label="${tr('Origem', 'Origin')}: ${esc(rotaAtual.origem.nome)}"></div>`);
+      (rotaAtual.paradas || []).forEach((p, i) => { h += mk(p, `<div class="mp-rota-parada" aria-label="${tr('Parada', 'Stop')} ${i + 1}: ${esc(p.nome)}">${i + 1}</div>`); });
       h += mk(rotaAtual.destino, `<div class="mp-rota-destino" aria-label="${tr('Destino', 'Destination')}: ${esc(rotaAtual.destino.nome)}"><i class="ti ti-map-pin" aria-hidden="true"></i></div>`);
     }
     traco.forEach((p) => { h += mk(p, `<div class="mp-ponto"></div>`); });
@@ -738,7 +1031,7 @@ function criarMotorMapa(raiz, cfg) {
 
   function passe() {
     const f = foco, a = alvo(), el = $('passe'), pe = $('passe-pe');
-    let id = '', nums = '', acoes = '', nota = '';
+    let id = '', nums = '', nums2 = '', modos = '', acoes = '', nota = '';
     const cel = (rot, val) => `<div class="mp-celula"><span class="mp-rotulo">${rot}</span><span class="mp-valor assenta">${val}</span></div>`;
     const campo = (rot) => `<label class="mp-rotulo" for="mp-nome-foco">${rot}</label><input class="mp-passe-nome" id="mp-nome-foco" data-el="nome-foco" value="${esc(a.nome)}" maxlength="40" autocomplete="off">`;
     const fixo = (rot, vivoCls) => `<span class="mp-rotulo">${rot}</span><span class="mp-valor nome assenta${vivoCls ? ' vivo' : ''}">${esc(a.nome)}</span>`;
@@ -755,21 +1048,49 @@ function criarMotorMapa(raiz, cfg) {
     el.hidden = false;
     if (f.tipo === 'rota') {
       id = `<span class="mp-rotulo">${tr('Rota', 'Route')}</span><span class="mp-valor nome assenta">${esc(rotaAtual.origem.nome)} <i class="ti ti-arrow-right" aria-hidden="true"></i> ${esc(rotaAtual.destino.nome)}</span>`;
+      if ((rotaAtual.paradas || []).length) id += `<span class="mp-rotulo mp-paradas-rot">${tr('Passando por', 'Passing through')}</span><ol class="mp-paradas">` + rotaAtual.paradas.map((p, i) =>
+        `<li><span>${esc(p.nome)}</span><button type="button" class="mp-parada-tira" data-acao="rota-tira-parada" data-i="${i}" aria-label="${tr('Tirar', 'Remove')} ${esc(p.nome)}"><i class="ti ti-x" aria-hidden="true"></i></button></li>`).join('') + '</ol>';
       const R = rotaAtual.r;
-      if (R.semLigacao) {
-        const fora = R.longe === 'a' ? rotaAtual.origem.nome : R.longe === 'b' ? rotaAtual.destino.nome : null;
-        nota = fora
-          ? tr(`Não há caminho: ${esc(fora)} não fica em nenhum caminho do mapa.`, `No road: ${esc(fora)} is not on any road on the map.`)
-          : tr('Não há caminho ligando a origem ao destino.', 'No road connects the origin to the destination.');
-      } else {
-        nums = doisNums(tr('Pela estrada', 'By road'), km(R.naEstrada + R.foraDaEstrada));
-        const fora = km(R.foraDaEstrada);
-        if (fora) nota = tr(`Inclui ${fmtKm(fora)} km fora da estrada, até o caminho e do caminho.`, `Includes ${fmtKm(fora)} km off-road, to and from the road.`);
-      }
-      acoes = bt('rota-inverter', 'ti-arrows-exchange', tr('Inverter origem e destino', 'Swap origin and destination')) + bt('rota-limpar', 'ti-x', tr('Limpar a rota', 'Clear the route'));
+      /* AS SUGESTÕES (22/11/2026): uma linha por rota possível; tocar escolhe a
+         que o mapa desenha e os números abaixo contam. Os dias da linha são a pé
+         (o barco conta na velocidade dele). */
+      const terraDe = (s) => km(s.naEstrada + s.foraDaEstrada), aguaDe = (s) => km(s.naAgua || 0);
+      const diasDe = (s, porDia) => terraDe(s) / porDia + aguaDe(s) / MAPA_KM_DIA_NAVEGANDO;
+      const diasTxt = (d) => (d < 1 ? tr('< 1 dia', '< 1 day') : Math.round(d) + (Math.round(d) === 1 ? tr(' dia', ' day') : tr(' dias', ' days')));
+      const nomeSug = (s) => s.tipo === 'barco' ? (tr('Estrada e barco', 'Road and boat') + ((s.via || nomeDaAgua(s)) ? ' · ' + esc(s.via || nomeDaAgua(s)) : ''))
+        : s.tipo === 'paradas' ? tr('Pelas paradas', 'Through the stops') : s.tipo === 'paradas-terra' ? tr('Pelas paradas, só por terra', 'Through the stops, by land only')
+        : s.tipo === 'alternativa' ? tr('Alternativa por terra', 'Alternative by land') : s.sugerida ? tr('Rota sugerida', 'Suggested route') : tr('Pela estrada', 'By road');
+      modos = `<div class="mp-sugestoes" role="radiogroup" aria-label="${tr('Sugestões de rota', 'Route suggestions')}">` + rotaAtual.sugestoes.map((s, i) =>
+        `<button type="button" class="mp-sugestao" role="radio" aria-checked="${i === rotaAtual.escolha}" data-acao="rota-escolha" data-i="${i}">
+          <span class="mp-sugestao-nome">${nomeSug(s)}</span><span class="mp-modo-km">${fmtKm(terraDe(s) + aguaDe(s))} <small>km</small></span><span class="mp-modo-dias">${diasTxt(diasDe(s, MAPA_KM_DIA_A_PE))}</span></button>`).join('') + '</div>';
+      const k = terraDe(R) + aguaDe(R), fora = km(R.foraDaEstrada);
+      /* UMA LINHA POR JEITO DE VIAJAR (22/11/2026, usuário: "Caminhando 2495km
+         83 dias / Cavalgando 2495km 42 dias / Voando 1005km x dias"). Caminhando
+         e cavalgando pela rota; voando, em linha reta. */
+      const voo = km(dist(rotaAtual.origem, rotaAtual.destino));
+      const modo = (rot, kk, d) => `<div class="mp-modo"><span class="mp-rotulo">${rot}</span><span class="mp-modo-km">${fmtKm(kk)} <small>km</small></span><span class="mp-modo-dias">${diasTxt(d)}</span></div>`;
+      // caminhando e cavalgando pela rota escolhida (com barco, o trecho de água vai na velocidade do barco)
+      modos += `<div class="mp-modos-lista">` + modo(tr('Caminhando', 'Walking'), k, diasDe(R, MAPA_KM_DIA_A_PE)) + modo(tr('Cavalgando', 'Riding'), k, diasDe(R, MAPA_KM_DIA_A_CAVALO)) + modo(tr('Voando', 'Flying'), voo, voo / MAPA_KM_DIA_VOANDO);
+      // Navegando: pela água, de porto a porto (22/11/2026, "Adicione também Navegando x km x dias").
+      const mar = rotaAtual.mar;
+      modos += (mar ? modo(tr('Navegando', 'Sailing'), km(mar.comprimento), km(mar.comprimento) / MAPA_KM_DIA_NAVEGANDO)
+        : `<div class="mp-modo"><span class="mp-rotulo">${tr('Navegando', 'Sailing')}</span><span class="mp-modo-sem">${mar === undefined ? tr('calculando…', 'working…') : tr('sem caminho por água', 'no way by water')}</span></div>`) + '</div>';
+      if (R.sugerida) {
+        const solto = R.longe === 'a' ? rotaAtual.origem.nome : R.longe === 'b' ? rotaAtual.destino.nome : null;
+        nota = (solto
+          ? tr(`Não há caminho: ${esc(solto)} não fica em nenhum caminho do mapa.`, `No road: ${esc(solto)} is not on any road on the map.`)
+          : tr('Não há caminho ligando a origem ao destino.', 'No road connects the origin to the destination.'))
+          + ' ' + tr(`A rota sugerida usa os caminhos que existem e faz ${fmtKm(fora)} km fora da estrada (pontilhado).`, `The suggested route uses the existing roads and goes ${fmtKm(fora)} km off-road (dotted).`);
+      } else if (fora) nota = tr(`Inclui ${fmtKm(fora)} km fora da estrada, até o caminho e do caminho.`, `Includes ${fmtKm(fora)} km off-road, to and from the road.`);
+      const pelaAgua = R.via || nomeDaAgua(R);
+      if (aguaDe(R)) nota = (nota ? nota + ' ' : '') + tr(`De barco: ${fmtKm(aguaDe(R))} km${pelaAgua ? ' pelo ' + esc(pelaAgua) : ''} (tracejado).`, `By boat: ${fmtKm(aguaDe(R))} km${pelaAgua ? ' across ' + esc(pelaAgua) : ''} (dashed).`);
+      acoes = bt('rota-parada', 'ti-map-pin-plus', tr('Passar por um lugar', 'Pass through a place')) + bt('rota-inverter', 'ti-arrows-exchange', tr('Inverter origem e destino', 'Swap origin and destination')) + bt('rota-limpar', 'ti-x', tr('Limpar a rota', 'Clear the route'));
     } else if (f.tipo === 'aqui') {
       const com = postos().filter((g) => !g.eu && dist(g, EU) < MAPA_PERTO).map((g) => g.nome);
       id = fixo(tr('Você está em', 'You are in'));
+      const reino = reinoDe(EU), cid = cidadeMaisProxima(EU);
+      nums = cel(tr('Reino', 'Kingdom'), reino ? esc(reino) : '—')
+        + cel(tr('Cidade', 'City'), cid ? `${esc(cid.nome)} <small>${fmtKm(km(dist(cid, EU)))} km</small>` : `— <small>${tr('nenhuma à vista', 'none in sight')}</small>`);
       nota = com.length ? tr(`Com você: ${esc(com.join(', '))}.`, `With you: ${esc(com.join(', '))}.`) : '';   // sem o 'Você está sozinho aqui.' (17/11/2026)
     } else if (f.tipo === 'gente') {
       const juntos = postos().filter((g) => String(g.id) !== String(a.id) && dist(g, a) < .06).map((g) => g.nome);
@@ -825,7 +1146,7 @@ function criarMotorMapa(raiz, cfg) {
     let daFicha = '';
     if (ficha) {
       const at = ficha.atributos || {}, reino = at.reino ? (nomesLore[at.reino] || at.reino) : '', pop = Number(at.populacao) || 0;
-      if (reino) daFicha += cel(tr('Reino', 'Kingdom'), esc(reino));
+      if (reino && f.tipo !== 'aqui') daFicha += cel(tr('Reino', 'Kingdom'), esc(reino));
       if (pop) daFicha += cel(tr('População', 'Population'), fmtKm(pop));
       acoes = bt('ficha', 'ti-building', tr('Abrir a ficha', 'Open the entry')) + acoes;
     }
@@ -834,7 +1155,7 @@ function criarMotorMapa(raiz, cfg) {
        dentro de uma mesa: leva ao Estoque já na loja desta cidade. */
     if (cfg.aoAbrirLoja && f.tipo === 'lugar' && a.tipo === 'cidade') acoes += bt('loja', 'ti-building-store', tr('Loja', 'Shop'));
     const editando = document.activeElement && document.activeElement.id === 'mp-nome-foco';
-    if (!editando) el.innerHTML = `<div class="mp-passe-id">${id}</div>` + (nums ? `<div class="mp-passe-nums">${nums}</div>` : '') + (daFicha ? `<div class="mp-passe-nums">${daFicha}</div>` : '');   // não rouba o cursor de quem digita
+    if (!editando) el.innerHTML = `<div class="mp-passe-id">${id}</div>` + (modos ? `<div class="mp-modos">${modos}</div>` : '') + (nums ? `<div class="mp-passe-nums">${nums}</div>` : '') + (nums2 ? `<div class="mp-passe-nums">${nums2}</div>` : '') + (daFicha ? `<div class="mp-passe-nums">${daFicha}</div>` : '');   // não rouba o cursor de quem digita
     pe.innerHTML = (acoes ? `<div class="mp-acoes">${acoes}</div>` : '') + (nota ? `<p class="mp-nota">${nota}</p>` : '');
   }
 
@@ -869,14 +1190,16 @@ function criarMotorMapa(raiz, cfg) {
       if (modo === 'local') h += quadro(tr('Locais no mapa', 'Places on the map'), locaisNoMapa.length, colLonge, locaisNoMapa.map(doLugar).join(''),
         tr('Nenhum local no mapa ainda. Escolha um cadastrado na lista acima e toque onde ele fica.', 'No place on the map yet. Pick a registered one in the list above and tap where it is.'));
     }
-    if (!cfg.semMesa) h += quadro(tr('Comitiva', 'Party'), gente.length, tr('Onde está', 'Where'), gente.map((g) => {
+    // A comitiva é só do Mestre (22/11/2026, usuário: "O personagem não terá informações de onde os outros personagens estão").
+    if (!cfg.semMesa && mestre) h += quadro(tr('Comitiva', 'Party'), gente.length, tr('Onde está', 'Where'), gente.map((g) => {
       const p = mesa.gente[g.id];
       return `<li><button type="button" class="mp-linha" data-alvo="gente" data-id="${esc(g.id)}" aria-current="${emFoco('gente', g.id) || (!!p && !!a && (foco.tipo === 'aqui' || foco.tipo === 'lugar') && dist(a, p) < MAPA_PERTO)}">
         ${disco(g)}
         <span class="mp-ln-txt"><span class="mp-ln-nome">${esc(g.nome)}</span></span>
         <span class="mp-ln-num${p ? '' : ' fora'}">${p ? esc(onde(p)) : (mestre ? `<i class="ti ti-map-pin" aria-hidden="true"></i><span class="sr-only">${tr('Pôr no mapa', 'Place on map')}</span>` : tr('Fora do mapa', 'Off the map'))}</span></button></li>`;
     }).join(''), mestre ? tr('Esta mesa ainda não tem personagens.', 'This table has no characters yet.') : tr('Ninguém na mesa ainda.', 'Nobody at the table yet.'));
-    if (!mestre && cfg.aoMudarMarcas) {
+    // Sem marca, sem o quadro (22/11/2026, usuário: "Quando não houver marcas, não precisa mostrar o texto 'marcas 0 de você'").
+    if (!mestre && cfg.aoMudarMarcas && marcas.length) {
       h += quadro(tr('Marcas', 'Marks'), marcas.length, tr('De você', 'From you'),
         marcas.map((m) => item('ti-map-pin', m.nome, marcaSolta(m) ? tr('Sua marca', 'Your mark') : tr('Lugar marcado', 'Marked place'), longe(m), `data-alvo="marca" data-id="${esc(m.id)}"`, emFoco('marca', m.id))).join('') +
         '');   // sem o texto de 'Nenhuma marca sua ainda…' (17/11/2026)
@@ -922,7 +1245,7 @@ function criarMotorMapa(raiz, cfg) {
       const ja = rotaAtual && rotaAtual.destino;
       const todos = lugaresDaRota().filter((l) => !ja || l.x !== ja.x || l.y !== ja.y).sort((x, y) => semAcento(x.nome).localeCompare(semAcento(y.nome)));
       const mostra = q ? [...todos.filter((l) => semAcento(l.nome).startsWith(q)), ...todos.filter((l) => !semAcento(l.nome).startsWith(q) && semAcento(l.nome).includes(q))] : todos;
-      el.innerHTML = `<li class="mp-quadro-cab"><span class="mp-rotulo">${ja ? tr('De onde?', 'From where?') : tr('Para onde?', 'Where to?')}</span><span class="mp-conta">${mostra.length}</span></li>` +
+      el.innerHTML = `<li class="mp-quadro-cab"><span class="mp-rotulo">${rotaAtual && rotaAtual.adicionando ? tr('Passar por onde?', 'Pass through where?') : ja ? tr('De onde?', 'From where?') : tr('Para onde?', 'Where to?')}</span><span class="mp-conta">${mostra.length}</span></li>` +
         (mostra.map((l) => `<li><button type="button" class="mp-linha" data-acao="rota-lugar" data-id="${esc(l.id)}">
           <span class="mp-ln-ico"><i class="ti ${iconeLugar(l)}" aria-hidden="true"></i></span>
           <span class="mp-ln-txt"><span class="mp-ln-nome">${esc(l.nome)}</span></span></button></li>`).join('')
@@ -998,7 +1321,9 @@ function criarMotorMapa(raiz, cfg) {
         : tr(`Toque no mapa onde ${esc(g ? g.nome : '')} está.`, `Tap the map where ${esc(g ? g.nome : '')} is.`); }
     else if (modo === 'mover') { const l = lugarId(movendo);
       h = `<span>${tr(`Toque no mapa no novo lugar de ${esc(l ? l.nome : '')}.`, `Tap the map at the new spot for ${esc(l ? l.nome : '')}.`)}</span>` + botoes(['cancelar-mover', tr('Cancelar', 'Cancel')]); }
-    else if (modo === 'rota') h = !rotaAtual
+    else if (modo === 'rota') h = rotaAtual && rotaAtual.adicionando
+      ? `<span>${tr('Por onde a rota deve passar? Escolha na lista ou busque pelo nome.', 'Where should the route pass? Pick from the list or search by name.')}</span>` + botoes(['sair-rota', tr('Cancelar', 'Cancel')])
+      : !rotaAtual
       ? tr('Para onde? Escolha o destino na lista ou busque pelo nome.', 'Where to? Pick the destination from the list or search by name.')
       : `<span>${tr(`Até ${esc(rotaAtual.destino.nome)}. Agora escolha a origem.`, `To ${esc(rotaAtual.destino.nome)}. Now pick the origin.`)}</span>` + botoes(['sair-rota', tr('Cancelar', 'Cancel')]);
     else if (modo === 'medir') {
@@ -1293,10 +1618,13 @@ function criarMotorMapa(raiz, cfg) {
     else if (acao === 'loja') { if (cfg.aoAbrirLoja) cfg.aoAbrirLoja(a.nome); }
     else if (acao === 'ficha') { const fc = fichaDe(foco.tipo === 'marca' ? lugarId(a.lugar) : a); if (fc && cfg.aoAbrirCidade) cfg.aoAbrirCidade(fc); }
     else if (acao === 'limpar-medida') { medida = []; aviso(); desenhar(); }
-    else if (acao === 'sair-rota') { rotaAtual = null; trocarModo('rota'); }
+    else if (acao === 'sair-rota') { if (rotaAtual && rotaAtual.adicionando) { rotaAtual.adicionando = false; modo = null; aviso(); focar({ tipo: 'rota' }, false); } else { rotaAtual = null; trocarModo('rota'); } }
+    else if (acao === 'rota-parada' && rotaAtual) { rotaAtual.adicionando = true; modo = 'rota'; busca = ''; if (cfg.aoEscolherAchado) cfg.aoEscolherAchado(); aviso(); desenhar(); }
+    else if (acao === 'rota-tira-parada' && rotaAtual) { rotaAtual.paradas = rotaAtual.paradas.filter((_, i) => i !== +b.dataset.i); rotaAtual.escolha = 0; calcularRota(); focar({ tipo: 'rota' }); }
+    else if (acao === 'rota-escolha' && rotaAtual && rotaAtual.sugestoes) { rotaAtual.escolha = +b.dataset.i; rotaAtual.r = rotaAtual.sugestoes[rotaAtual.escolha]; focar({ tipo: 'rota' }); }
     else if (acao === 'rota-lugar') { const l = lugarId(id); if (l) escolherNaRota(l); }
     else if (acao === 'rota-limpar') { rotaAtual = null; foco = focoPadrao(); aviso(); desenhar(); }
-    else if (acao === 'rota-inverter' && rotaAtual) { const o = rotaAtual.origem; rotaAtual.origem = rotaAtual.destino; rotaAtual.destino = o; calcularRota(); desenhar(); }
+    else if (acao === 'rota-inverter' && rotaAtual) { const o = rotaAtual.origem; rotaAtual.origem = rotaAtual.destino; rotaAtual.destino = o; rotaAtual.paradas = (rotaAtual.paradas || []).slice().reverse(); calcularRota(); desenhar(); }
     else if (acao === 'volta-ponto') { traco.pop(); aviso(); desenhar(); }
     else if (acao === 'concluir') concluir();
     else if (acao === 'continuar') { modo = a.tipo; continua = a.id; traco = a.pts.map((p) => ({ ...p })); medida = []; recado = null; vsel = null; aviso(); desenhar(); }
@@ -1737,7 +2065,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
 Object.assign(window, {
   MapaView, criarMotorMapa, mapaApiSupabase, mapaSemente, mapaNormalizar,
   mapaDist, mapaKm, mapaComprimento, mapaProjeta, mapaCaminhoNaTela, mapaRotaPelosCaminhos,
-  MAPA_PINTADAS, MAPA_KM, MAPA_KM_DIA_A_PE,
+  MAPA_PINTADAS, MAPA_KM, MAPA_KM_DIA_A_PE, MAPA_KM_DIA_A_CAVALO, MAPA_KM_DIA_VOANDO, MAPA_KM_DIA_NAVEGANDO, MAPA_FORA, mapaNavegacao, mapaAguaDe, mapaSugestoesDeRota, mapaMenorCaminho, mapaCorposDeAgua, mapaItinerario,
   MAPA_PLANOS, mapaDoPlano, mapaComPlano, mapaPlanoDe, mapaSlugMundo,
   MAPA_L, MAPA_A, MAPA_PERTO, MAPA_PINTURA,
 });
