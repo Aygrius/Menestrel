@@ -544,3 +544,29 @@ scratchpad), nomes em ARTE_PINTADA (11-ficha/ficha.jsx) e, na base,
 `comArte(veste('chapeu', …), { linho: 'chapeu-algodao' })` — o empréstimo do
 elmo saiu. Para os cachecóis: mesmos passos, e `veste('cachecol', …)` só
 precisa de `comArte` se algum tecido ficar sem arquivo próprio.
+
+## Consumíveis sem pintura: 9 pinturas de tipo (23/11/2026 — aguardando crédito)
+
+Levantamento de 23/11: 37 consumíveis do catálogo no glifo. Decisão do usuário:
+uma pintura por TIPO (como erva/cogumelo); **não fazer agora** fogueira/fogo
+vivo e pó de diamante; Peçonha usa a pintura do Veneno (frasco) — feito em
+ARTE_ITEM_TIPO, junto com Sangue comum/Arcano/Podre/Profano/Sagrado →
+sangue_draconico. Molde dos consumíveis (~70% do quadro). Arquivos em
+public/itens/<tipo>.webp (240px), nome em ARTE_ITEM_NOVA e regex em ARTE_ITEM_TIPO.
+
+Crédito: tentativa em 23/11 recusada ("Insufficient Figma AI credits"), volta em
+**24/11/2026 01:44 UTC**.
+
+| Arquivo | Cobre | Objeto |
+|---|---|---|
+| ☐ osso | os 6 Ossos | weathered animal bone, a large thick femur, ivory-yellowed with darker worn knuckle ends and fine cracks |
+| ☐ ovo | os 5 Ovos | single large speckled egg, cream shell with brown speckles, smooth subtle sheen |
+| ☐ tecido | os 4 Tecidos | neatly folded stack of woven cloth bolt, undyed linen and wool layers, visible weave, tied with a thin twine; This is folded CLOTH, not a book |
+| ☐ fibra | Algodão, Linho, Cânhamo, Seda (e Algodoeiro, Bicho de Seda a decidir) | loose twisted skein (hank) of raw spun fiber, pale natural color, bound in the middle with twine, soft fluffy loose ends |
+| ☐ corda | Corda | neatly coiled thick hemp rope, one knotted end hanging loose, rough twisted fibers |
+| ☐ feno | Feno | small bound bundle of dry golden hay, tied around the middle with twine, loose straws sticking out |
+| ☐ vela | Vela | single thick tallow candle, lit with a small warm flame, wax drips running down the sides |
+| ☐ vidro | Vidro | small round medieval crown-glass pane, greenish translucent glass with a central bullseye swirl and bubbles, catching light |
+| ☐ incenso | Incenso | small bundle of dark incense sticks tied with a red cord, tips glowing, thin curling wisps of fragrant smoke |
+
+Ficam no glifo por enquanto: Condimento, Karmaquoso, Fogueira, Fogo Vivo, Pó de Diamante.

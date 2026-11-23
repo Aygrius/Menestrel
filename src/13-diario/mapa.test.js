@@ -9,7 +9,7 @@
    conferido no navegador pela prévia (/preview/?tela=mapa), não aqui.
    ============================================================ */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import './mapa.jsx';
@@ -244,6 +244,38 @@ describe('a rota de origem a destino', () => {
     expect(fonte).toContain("bt('rota-parada', 'ti-map-pin-plus', tr('Passar por um lugar', 'Pass through a place'))");
     expect(fonte).toContain('data-acao="rota-tira-parada"');
   });
+  /* 22/11/2026, usuário: "O botão 'Nomes' não vai existir mais, eu quero que ao
+     clicar em Local, Cidade, Reino, eu já tenha a opção de criar ali uma entrada
+     com o texto personalizado". */
+  it('Local, Cidade e Reino criam entrada nova; o local escolhe se aparece como pino ou texto', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(fonte).toContain("['entrada-nova', ROT_NOVO[modo]]");
+    expect(fonte).toContain("const ficha = daLista || (cadDoTipo(tipo) || []).find((e) => semAcento(e.nome) === semAcento(nome));");
+    expect(fonte).toContain("const comoTexto = tipo === 'local' && geo !== 'pino';");
+    expect(fonte).toContain("opcao('entrada-tipo', 'pino', !ehTexto,");
+    expect(fonte).toContain("if (!daLista && tipo === 'cidade' && !novaEntrada.reino)");
+    expect(fonte).toContain("p_tipo: tipo, p_nome: nome");
+    // o criarEntrada usa o banco: declarado antes dele, a tela do mapa quebrava inteira (22/11/2026)
+    expect(fonte.indexOf('const criarEntrada = React.useCallback')).toBeGreaterThan(fonte.indexOf('const banco = React.useMemo'));
+  });
+  it('o clique no cartão não é toque no mapa; o cadastrado abre o cartão com o texto editável', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(fonte).toContain("if (e.target.closest && e.target.closest('.mp-aviso, input, select, textarea, label')) return;");
+    expect(fonte).toContain("novaEntrada = fc ? { tipo: modo, ficha: { id: fc.id, nome: fc.nome }, nome: fc.nome, geo: 'pino', reino: '' } : null;");
+    expect(fonte).toContain("...(comoTexto ? { estilo: { geo, imp: 2, ...(texto ? { texto } : {}) } } : texto ? { rotulo: texto } : {})");
+    expect(fonte).toContain('<span class="mp-etiqueta">${esc(l.rotulo || l.nome)}</span>');
+  });
+  it('sem a ferramenta Nomes: os textos se editam na ferramenta Local', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(fonte).not.toContain("['nomes']");
+    expect(fonte).toContain("const ehTextos = () => modo === 'local' && podeNomes;");
+    expect(fonte).toContain("tr('Tirar do mapa', 'Remove from map')");
+    expect(fonte).toContain("tr('O que aparece escrito', 'What it says')");
+  });
+  it('a sugestão pelo lago só entra se for competitiva (até 30% mais lenta que a melhor)', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    expect(fonte).toContain('barcos.filter((s) => !s.via || tempo(s) <= melhor * 1.3)');
+  });
   it('o card lista as sugestões e deixa escolher', () => {
     const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
     expect(fonte).toContain('data-acao="rota-escolha" data-i="${i}"');
@@ -331,7 +363,7 @@ describe('cidade nova não nasce no mapa', () => {
 describe('os locais no mapa', () => {
   const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
   it('Cidade e Local são do Imperador, dentro ou fora de mesa; o catálogo traz os locais', () => {
-    expect(fonte).toContain("const doMundo = imperador ? ['reino', 'cidade', 'local', ...(cfg.aoMudarMundo ? ['caminho'] : []), ...(podeNomes ? ['nomes'] : [])] : [];");
+    expect(fonte).toContain("const doMundo = imperador ? ['reino', 'cidade', 'local', ...(cfg.aoMudarMundo ? ['caminho'] : [])] : [];");
     expect(fonte).toContain("const quais = mestre ? ['rota', ...doMundo] :");
     expect(fonte).toMatch(/sb\(\)\.rpc\('listar_catalogo_global', \{ p_tipo: 'local' \}\)/);
     expect(fonte).toMatch(/locais: entradas\.filter\(\(e\) => e && e\.tipo === 'local' && e\.nome\)/);
@@ -470,10 +502,17 @@ describe('os planos do mapa', () => {
     // O Mestre leva o personagem para outro plano: o mapa do Jogador vai junto.
     expect(fonte).toContain('if (!mestre) { const p = mapaPlanoDe(dados, pjId); if (p !== plano) { setPlano(p); return; } }');
   });
-  it('fora do material não há pintura; no material, o mapa vetorial', () => {
+  /* 23/11/2026: o infernal ganhou chão próprio, em escala real no meio da tela;
+     o celestial continua sem pintura. */
+  it('cada plano com o seu chão; o infernal abre no recorte do desenho', () => {
     const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
-    expect(fonte).toContain("const baseDoPlano = plano === 'material' ? (base || MAPA_PINTURA) : null;");
+    expect(fonte).toContain("const baseDoPlano = plano === 'material' ? (base || MAPA_PINTURA) : (MAPA_CHAO_PLANO[plano] || null);");
     expect(window.MAPA_PINTURA).toBe('/mapa/tagmar.svg');
+    expect(window.MAPA_CHAO_PLANO).toEqual({ infernal: '/mapa/infernal.svg' });
+    const [x0, y0, x1, y1] = window.MAPA_RECORTE.infernal;
+    expect(x1 - x0).toBeCloseTo(window.MAPA_L / 2, 0);   // 1/4 da área: metade de cada lado
+    expect(y1 - y0).toBeCloseTo(window.MAPA_A / 2, 0);
+    expect(existsSync(join(aqui, '../../public/mapa/infernal.svg'))).toBe(true);
   });
   /* 21/11/2026, usuário: "Não precisamos mais dos botões 'mapa antigo' e 'mapa novo'". */
   it('não há mais escolha de pintura', () => {
@@ -537,7 +576,7 @@ describe('os textos do mapa são locais', () => {
   });
   it('tem Excluir (tira do mapa, com Desfazer), cor, negrito, itálico, maiúsculas, contorno e tamanho', () => {
     for (const k of ['geo-excluir', 'geo-cor', 'geo-negrito', 'geo-italico', 'geo-caixa', 'geo-contorno', 'geo-menor', 'geo-maior', 'geo-restaurar']) expect(fonte).toContain("'" + k + "'");
-    expect(fonte).toContain("botoes(['desfazer', tr('Desfazer', 'Undo')], ['sair-nomes', tr('Concluir', 'Done')])");
+    expect(fonte).toContain("botoes(...(recado.antes ? [['desfazer', tr('Desfazer', 'Undo')]] : []), ['entrada-nova', ROT_NOVO[modo]])");
   });
   it('o texto escrito fica só no mapa; vazio volta ao nome da ficha', () => {
     expect(fonte).toContain('if (v && v !== l.nome) es.texto = v; else delete es.texto;');

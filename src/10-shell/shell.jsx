@@ -498,7 +498,7 @@ const Icon = {
   Skull:   TI_cls('ti-id'),           // Logo ornamental
 
   // ── Utilitários ──────────────────────────────────────────────────────────────
-  Dice:    TI_cls('ti-dice-3'),          // Dado
+  Dice:    TI_cls('ti-icosahedron'),          // Dado
   Coin:    TI_cls('ti-coin'),            // Moeda
 
   // Ornamento (mantido como SVG — visual decorativo único, não disponível no Tabler)
@@ -1372,7 +1372,7 @@ const MSG_TIPO_ICON = {
   ataque: 'ti-bow',
   tecnica: 'ti-sword',
   item: 'ti-backpack',
-  teste: 'ti-dice',
+  teste: 'ti-icosahedron',
   sistema: 'ti-info-circle',
   aviso: 'ti-bell',
 };
@@ -1397,7 +1397,7 @@ const LOG_CATEGORIAS = {
   batalha:     { cor: '#D0583F', pt: 'Batalha',     en: 'Battle',  icone: 'ti-swords' },
   magia:       { cor: '#4FB3A5', pt: 'Magia',       en: 'Magic',   icone: 'ti-meteor' },
   item:        { cor: '#7FB05A', pt: 'Item',        en: 'Item',    icone: 'ti-backpack' },
-  teste:       { cor: '#D9A441', pt: 'Teste',       en: 'Test',    icone: 'ti-dice' },
+  teste:       { cor: '#D9A441', pt: 'Teste',       en: 'Test',    icone: 'ti-icosahedron' },
   aviso:       { cor: '#E07B39', pt: 'Aviso',       en: 'Warning', icone: 'ti-alert-triangle' },
   informativo: { cor: '#5B92CF', pt: 'Informativo', en: 'Info',    icone: 'ti-info-circle' },
   destaque:    { cor: '#E0BE68', pt: 'Destaque',    en: 'Highlight', icone: 'ti-star' },
@@ -4218,7 +4218,7 @@ function CardDataJogoAtual({ lang, historiaId, podeEditar, userId, minhasHistori
 
 /* ============================== [9.6] RolagemLivreFab — botões flutuantes D20 e D10 ==============================
    Dois botões independentes no canto superior direito da tela:
-     - Fab principal (ícone ti-dice, .rl-fab) → D20 livre
+     - Fab principal (ícone ti-icosahedron, .rl-fab) → D20 livre
      - Fab secundário (label "D10", .rl-fab-d10) → D10 livre, posicionado
        abaixo do principal com a mesma pele visual (vidro escuro + blur + dourado)
 

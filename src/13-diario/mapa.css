@@ -157,7 +157,10 @@
 /* OS NOMES DA GEOGRAFIA, como no Google Maps: itálico na cor do que nomeiam
    (água em azul, serra em terra, floresta em verde, deserto em ocre), com o
    mesmo halo branco dos lugares; mantêm o tamanho na tela em qualquer zoom. */
-#root .menestrel-ui .mp-geo { pointer-events: none; }
+/* A ORDEM DAS CAMADAS (22/11/2026, usuário: "Todos os textos devem ficar visualmente
+   acima de qualquer estrada"): o chão, as estradas e rotas (.mp-linhas, 1), os
+   textos do mapa (2), a névoa (3) e os marcadores (4). */
+#root .menestrel-ui .mp-geo { pointer-events: none; z-index: 2; }
 #root .menestrel-ui .mp-geo-nome {
   position: absolute; transform: scale(calc(var(--geo-tam, 1) / var(--s, 1))) translate(-50%, -50%); transform-origin: 0 0;
   white-space: nowrap; font: italic 600 var(--fs-xs)/1.1 var(--font-body); color: var(--mp-lugar); text-shadow: var(--mp-halo);
@@ -182,7 +185,7 @@
    "Eu não quero texto sublinhado"). */
 #root .menestrel-ui .mp-geo-nome[data-lugar] { pointer-events: auto; cursor: pointer; }
 #root .menestrel-ui .mp-mapa:not(.editando-nomes) .mp-geo-nome[data-lugar]:is(:hover, .foco) { font-weight: 800; }
-#root .menestrel-ui .mp-linhas { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+#root .menestrel-ui .mp-linhas { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 1; }
 #root .menestrel-ui .mp-linhas * { fill: none; stroke-linecap: round; stroke-linejoin: round; }
 /* OS CAMINHOS COMO A ESTRADA DO GOOGLE MAPS (21/11/2026, usuário: "quando
    der zoom, ela diminui até desaparecer", "Eu quero a rota mais fina" e
@@ -207,6 +210,47 @@
 #root .menestrel-ui .mp-rota-ape { stroke: #4285F4; stroke-width: calc(3px / var(--s, 1)); stroke-dasharray: 0 calc(7px / var(--s, 1)); }
 #root .menestrel-ui .mp-rota-parada { width: 18px; height: 18px; translate: -50% -50%; border-radius: 50%; pointer-events: none; background: #FFFFFF; border: 2px solid #1557B0; box-sizing: border-box; display: grid; place-items: center; font: 800 11px/1 var(--font-body); color: #1557B0; }
 /* As paradas no card: em ordem, cada uma com ✕ (22/11/2026). */
+/* Novo texto: os tipos como fichas de escolha (22/11/2026). */
+#root .menestrel-ui .mp-tipos { flex-wrap: wrap; gap: 4px; }
+#root .menestrel-ui .mp-tela button.mp-tipo-chip { width: auto; height: 30px; padding: 0 10px; font: 600 var(--fs-sm)/1 var(--font-body); white-space: nowrap; }
+/* O CARTÃO DE NOVA ENTRADA (22/11/2026): formulário com respiro — 16px por dentro,
+   régua sob o título, 14px entre os grupos, 6px entre o rótulo e o campo. */
+#root .menestrel-ui .mp-tela .mp-aviso:has(.mp-form) { width: min(380px, 100%); max-width: none; padding: 0; border-radius: 16px; }
+#root .menestrel-ui .mp-form { gap: 0; }
+#root .menestrel-ui .mp-form-topo { display: flex; align-items: center; gap: 12px; padding: 10px 10px 10px 16px; border-bottom: 1px solid var(--regua); }
+#root .menestrel-ui .mp-form-titulo { flex: 1; font: 700 var(--fs-md)/1.2 var(--font-body); color: var(--tinta); }
+#root .menestrel-ui .mp-form-corpo { display: flex; flex-direction: column; gap: 14px; padding: 14px 16px 4px; }
+#root .menestrel-ui .mp-form-grupo { display: flex; flex-direction: column; gap: 6px; }
+#root .menestrel-ui .mp-form-grupo > .mp-rotulo { margin: 0; }
+#root .menestrel-ui .mp-tela .mp-form-campo {
+  width: 100%; height: var(--campo-h, 40px); box-sizing: border-box; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--regua-forte); background: var(--chao-celula); color: var(--tinta); font: 600 15px var(--font-body);
+}
+#root .menestrel-ui .mp-tela .mp-form-campo::placeholder { color: var(--tinta-3); font-weight: 500; }
+#root .menestrel-ui .mp-tela .mp-form-campo:focus { outline: none; border-color: var(--vivo); }
+#root .menestrel-ui .mp-form-nota { font: 500 13px/1.35 var(--font-body); color: var(--tinta-3); }
+#root .menestrel-ui .mp-form-dupla { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+#root .menestrel-ui .mp-form-tipos { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; }
+#root .menestrel-ui .mp-tela button.mp-form-opcao {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 36px; padding: 0 10px; min-width: 0;
+  border: 1px solid var(--regua-forte); border-radius: 999px; background: transparent; color: var(--tinta-2);
+  font: 600 var(--fs-sm)/1 var(--font-body); white-space: nowrap; cursor: pointer;
+}
+#root .menestrel-ui .mp-tela button.mp-form-opcao.mp-form-tipo { height: 32px; padding: 0 6px; gap: 5px; font-size: 13px; }
+#root .menestrel-ui .mp-tela button.mp-form-opcao:hover { background: rgba(var(--ouro-rgb), .08); color: var(--tinta); }
+#root .menestrel-ui .mp-tela button.mp-form-opcao[aria-checked="true"] { border-color: var(--vivo); background: rgba(var(--ouro-rgb), .12); color: var(--vivo); }
+#root .menestrel-ui .mp-tela button.mp-form-opcao:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+#root .menestrel-ui .mp-form-opcao i { font-size: 16px; }
+#root .menestrel-ui .mp-form-ponto { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--cor); }
+#root .menestrel-ui .mp-form-pe { display: flex; align-items: center; gap: 8px; margin: 0; padding: 12px 16px 14px; font: 500 var(--fs-sm)/1.35 var(--font-body); color: var(--tinta-2); }
+#root .menestrel-ui .mp-form-pe i { font-size: 18px; color: var(--vivo); flex: none; }
+#root .menestrel-ui .mp-form-pe.alerta, #root .menestrel-ui .mp-form-pe.alerta i { color: var(--alerta); }
+#root .menestrel-ui .mp-nome-ed-titulo { flex: 1; font: 700 var(--fs-md)/1.2 var(--font-body); color: var(--tinta); }
+#root .menestrel-ui .mp-nome-ed-rot { display: block; margin: 10px 0 4px; }
+/* Os campos do formulário em coluna: a altura do campo padrão (o .mp-aviso-campo cresce na linha do aviso). */
+#root .menestrel-ui .mp-tela .mp-nome-ed > .mp-aviso-campo { flex: 0 0 auto; align-self: stretch; width: 100%; height: var(--campo-h, 40px); min-height: 0; box-sizing: border-box; }
+#root .menestrel-ui .mp-tela button.mp-tipo-chip i { margin-right: 4px; font-size: 15px; }
+#root .menestrel-ui .mp-nome-ed-dica { display: block; margin-top: 6px; font: 500 var(--fs-sm)/1.3 var(--font-body); color: var(--tinta-2); }
 #root .menestrel-ui .mp-paradas-rot { display: block; margin-top: 10px; }
 #root .menestrel-ui .mp-paradas { list-style: none; counter-reset: parada; margin: 4px 0 0; padding: 0; display: grid; gap: 2px; }
 #root .menestrel-ui .mp-paradas li { counter-increment: parada; display: flex; align-items: center; gap: 6px; font: 600 var(--fs-sm)/1.3 var(--font-body); color: var(--tinta); }
@@ -458,7 +502,8 @@
 }
 /* A névoa do Jogador (17/11/2026): fora dos 100 km em volta do personagem,
    o mapa some no mesmo escuro do fundo; a borda do círculo esfuma. */
-#root .menestrel-ui .mp-nevoa { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+#root .menestrel-ui .mp-nevoa { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 3; }
+#root .menestrel-ui .mp-mundo > [data-el="marcadores"] { position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: visible; z-index: 4; }
 /* O véu deixa ver o relevo (22/11/2026, usuário: "Eu quero que o 'escuro' seja
    transparente, não 100% escuro. Mas o personagem continua sem conseguir ver o
    nome das cidades e dos reinos"). Os nomes não dependem dele: fora do raio,

@@ -1082,7 +1082,7 @@ function TabuleiroMenu({ alvoEl, onFechar, rotuloFechar, rotuloVoltar, travado, 
 function TabuleiroBatalha({
   entradas, meta, podeSelecionar, alcanceDe, onMover, salvando, isEn, tb,
   abrirTip, fecharTip, menuDe, aviso, menuTravado, menuVoltar,
-  movendoControlado, onMovendoChange, semBancada, abrirMenu, visibilidade, ambiente,
+  movendoControlado, onMovendoChange, semBancada, abrirMenu, visibilidade, ambiente, rodada,
   painelEl, selecionado, onSelecionar,
 }) {
   /* PAINEL FIXO (23/10/2026, redesenho da batalha): com `painelEl`, o conteúdo
@@ -1663,6 +1663,10 @@ function TabuleiroBatalha({
           onSelect: () => {},
         })))
       ),
+      /* A rodada (21/11/2026, usuário: "é só informação, então ele deve ficar
+         flutuante como o botão de zoom, mas no topo do campo"). Sem rodada, nada. */
+      rodada != null && React.createElement('div', { className: 'batalha-rodada-flut', role: 'status' },
+        isEn ? 'Round ' : 'Rodada ', React.createElement('b', null, rodada)),
       /* Os controles do zoom (08/11/2026), no canto do campo. */
       React.createElement('div', { className: 'batalha-zoom', role: 'group', 'aria-label': isEn ? 'Zoom' : 'Zoom' },
         React.createElement('button', {

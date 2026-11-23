@@ -14706,8 +14706,6 @@ body { background-color: var(--p-pagina); }
 #root .menestrel-ui .batalha-trilho .mc-acao:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
 #root .menestrel-ui .batalha-trilho .mc-acao-rotulo { font: 700 15px var(--font-body); }
 #root .menestrel-ui .batalha-trilho .batalha-encerrar-ic i { color: var(--alerta); }
-#root .menestrel-ui .batalha-trilho-rodada { padding: 0 12px; font: 700 15px var(--font-body); color: var(--tinta-2); font-variant-numeric: lining-nums tabular-nums; white-space: nowrap; }
-#root .menestrel-ui .batalha-trilho-rodada b { font-weight: 700; color: var(--tinta); }
 
 /* A criação da batalha no padrão novo (23/10/2026): a ação primária no trilho
    e as três seções com nome. */
@@ -17815,8 +17813,14 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
 /* MODO TREINAMENTO (07/11/2026): o selo na condução e o retrato do cartão.
    O selo é só leitura, sem cara de botão. */
 #root .menestrel-ui .batalha-treino-selo {
-  display: inline-flex; align-items: center; gap: 6px; padding: 0 12px;
-  font: 600 var(--fs-sm) var(--font-body); color: var(--tinta-2); white-space: nowrap;
+  /* Aviso fixo no canto direito inferior (21/11/2026), fora do trilho. */
+  position: fixed; right: 16px; bottom: 16px; z-index: 40; pointer-events: none;
+  /* No padrão do card do painel (.batalha-painel-card): chão da célula,
+     régua forte, raio 12. */
+  display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 16px; box-sizing: border-box;
+  border: 1px solid var(--regua-forte); border-radius: 12px; background: var(--chao-celula-opaco);
+  box-shadow: 0 8px 20px rgba(0,0,0,.4);
+  font: 700 15px var(--font-body); color: var(--tinta-2); white-space: nowrap;
 }
 #root .menestrel-ui .batalha-treino-selo i { color: var(--vivo); }
 #root .menestrel-ui .batalha-cartao-retrato.is-treino .ti { color: var(--vivo); }
@@ -18576,6 +18580,18 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
   font-size: var(--fs-md); font-weight: 800; white-space: nowrap;
   background: color-mix(in srgb, currentColor 10%, transparent);
 }
+/* Atacar (21/11/2026, usuário: "o botão de rolar o dado ficará inline com o
+   botão de selecionar alvo"): no modal de ataque o dado não desce para a
+   largura inteira — fica no fim da linha Arma · Alvo, na altura dos campos. */
+#root .menestrel-ui .acao-modal .atacar-row-acao.atacar-row-dado-inline { display: flex; flex-wrap: wrap; }
+#root .menestrel-ui .acao-modal .atacar-row-acao.atacar-row-dado-inline > :not(.dado-ov-trigger):not(.atacar-confirmar) { flex: 1 1 160px; }
+#root .menestrel-ui .acao-modal .atacar-row-acao.atacar-row-dado-inline > .dado-ov-trigger { flex: none; order: 0; margin: 0; gap: 8px; }
+#root .menestrel-ui .acao-modal .atacar-row-acao.atacar-row-dado-inline > .dado-ov-trigger > .btn-primary,
+#root .menestrel-ui .acao-modal .atacar-row-acao.atacar-row-dado-inline > .dado-ov-trigger > .dado-ov-trigger-num,
+#root .menestrel-ui .acao-modal .atacar-row-acao.atacar-row-dado-inline > .dado-ov-trigger > .dado-ov-trigger-chip { height: var(--campo-h); border-radius: var(--campo-raio); }
+#root .menestrel-ui .acao-modal .atacar-row-acao.atacar-row-dado-inline > .dado-ov-trigger > .dado-ov-trigger-num { min-width: var(--campo-h); }
+/* Só o ícone (21/11/2026): na linha, o dado é um círculo da altura do campo. */
+#root .menestrel-ui .acao-modal .atacar-row-acao.atacar-row-dado-inline > .dado-ov-trigger > .btn-primary { flex: none; width: var(--campo-h); padding: 0; }
 
 /* 3. o texto: descrição e avisos */
 #root .menestrel-ui .acao-modal .acao-efeito-texto,
@@ -18840,6 +18856,17 @@ body.inv-leque-aberto #root .menestrel-ui .inv-slot:not(.inv-slot--leque) { opac
    A roda do mouse faz o mesmo, mirando o cursor. Fundo sólido de couro, como
    as outras peças que flutuam sobre a noite. */
 #root .menestrel-ui .batalha-tabuleiro-quadro { position: relative; }
+/* A rodada flutua no topo do campo (21/11/2026), irmã do zoom: só leitura.
+   "Rodada" e o número no mesmo tamanho e peso; só o tom muda. */
+#root .menestrel-ui .batalha-rodada-flut {
+  /* A casca do zoom (o trilho): 5px por dentro, sem borda, chão da célula; o
+     texto em 700/15px, como o fator do zoom. */
+  position: absolute; top: 12px; left: 50%; transform: translateX(-50%); z-index: 4; pointer-events: none;
+  display: inline-flex; align-items: center; gap: 5px; height: 44px; padding: 0 15px; box-sizing: border-box;
+  background: var(--chao-celula-opaco); border: 0; border-radius: 999px; box-shadow: 0 8px 20px rgba(0,0,0,.4);
+  font: 700 15px var(--font-body); color: var(--tinta-2); font-variant-numeric: lining-nums tabular-nums; white-space: nowrap;
+}
+#root .menestrel-ui .batalha-rodada-flut b { font-weight: 700; color: var(--tinta); }
 #root .menestrel-ui .batalha-zoom {
   position: absolute; right: 12px; bottom: 12px; z-index: 4;
   display: inline-flex; align-items: center; gap: 2px; padding: 3px;

@@ -333,21 +333,9 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
           <div className="best-header-acoes" role="toolbar" aria-label={isEn ? 'Battle' : 'Batalha'}>
             {/* Sem Cena e Batalha (11/11/2026, usuário: "Na tela de batalha, não
                 precisamos do botão 'Cena', 'Batalha'"): as páginas da mesa
-                ficam na lista de batalhas; aqui a seta volta a ela. */}
-            {/* As notificações da mesa (08/11/2026): o sino do menu lateral some
-                na tela cheia; este abre o mesmo histórico (CentralMensagens). */}
-            <button type="button" className="mc-acao batalha-notificacoes"
-              onClick={() => window.dispatchEvent(new Event('menestrel:abrir-notificacoes'))}>
-              <i className="ti ti-bell" aria-hidden="true" />
-              <span className="mc-acao-rotulo">{isEn ? 'Notifications' : 'Notificações'}</span>
-            </button>
-            {abrindo.treinamento && (
-              <span className="batalha-treino-selo">
-                <i className="ti ti-school" aria-hidden="true" />
-                {/* 11/11/2026: "Mude o texto 'Treino nada vai para a ficha' para 'Modo Treino'". */}
-                {isEn ? 'Training mode' : 'Modo Treino'}
-              </span>
-            )}
+                ficam na lista de batalhas; aqui a seta volta a ela.
+                Primeira do trilho (21/11/2026, usuário: 'o botão "<- batalhas"
+                deve ser o primeiro do trilho'). */}
             <button type="button" className="mc-acao"
               disabled={rolagemPendenteConducao}
               onClick={() => { fecharTip(); setAbrindo(null); setHeaderActions(null); carregar(); }}
@@ -356,9 +344,25 @@ function BatalhasHistoriaView({ historia, personagens = [], criaturas = [], lang
               <i className="ti ti-arrow-left" aria-hidden="true" />
               <span className="mc-acao-rotulo">{isEn ? 'Battles' : 'Batalhas'}</span>
             </button>
+            {/* As notificações da mesa (08/11/2026): o sino do menu lateral some
+                na tela cheia; este abre o mesmo histórico (CentralMensagens). */}
+            <button type="button" className="mc-acao batalha-notificacoes"
+              onClick={() => window.dispatchEvent(new Event('menestrel:abrir-notificacoes'))}>
+              <i className="ti ti-bell" aria-hidden="true" />
+              <span className="mc-acao-rotulo">{isEn ? 'Notifications' : 'Notificações'}</span>
+            </button>
             {headerActions}
           </div>
         </div>
+      )}
+      {/* Modo Treino fora do trilho (21/11/2026, usuário: "deixa de ser um botão,
+          para ser um aviso fixo no canto direito inferior"). */}
+      {abrindo && abrindo.treinamento && (
+        <span className="batalha-treino-selo" role="status">
+          <i className="ti ti-school" aria-hidden="true" />
+          {/* 11/11/2026: "Mude o texto 'Treino nada vai para a ficha' para 'Modo Treino'". */}
+          {isEn ? 'Training mode' : 'Modo Treino'}
+        </span>
       )}
         {!abrindo && view !== 'nova' && (
         <div className="fp-card-top">
@@ -4548,7 +4552,7 @@ function resumoDaUltimaRodada(p, log, isEn = false) {
           : e.aceitou ? (isEn ? 'Did not roll' : 'Não rolou')
           : e.resultado === 'falhou' ? (isEn ? 'Did not resist' : 'Não resistiu') : null)
         : (e.passou === true ? (isEn ? 'Passed' : 'Passou') : e.passou === false ? (isEn ? 'Failed' : 'Falhou') : resultado);
-      return { icone: 'ti-dice-5', acao: nome, alvo: null, resultado: res, critico: !!e.critico };
+      return { icone: 'ti-icosahedron', acao: nome, alvo: null, resultado: res, critico: !!e.critico };
     }
     if (e.acao === 'item') {
       return { icone: 'ti-flask', acao: e.item_nome, alvo: null, resultado: Number(e.quantidade) > 1 ? '×' + e.quantidade : null };
@@ -8899,7 +8903,7 @@ function BotoesDoTurno({ ator, catalogos, isEn, tb, travado, motivoTravado, onAc
   };
   const ACOES = [
     ...(pessoal ? [] : [['arma', 'ti-sword']]), ['magia', 'ti-sparkles'],
-    ['tecnica_teste', 'ti-bolt'], ['habilidade', 'ti-dice-5'], ['item', 'ti-flask'],
+    ['tecnica_teste', 'ti-bolt'], ['habilidade', 'ti-icosahedron'], ['item', 'ti-flask'],
   ];
   const rotMover = tb.tabMover || (isEn ? 'Move' : 'Mover');
   /* O balão diz só POR QUE o botão está apagado — com ele aceso, o nome já
@@ -9368,7 +9372,7 @@ function BatalhaPreparoJogador({ batalha, pjAtivoId, lang, onVoltar }) {
           ) : (
             <button type="button" className="btn-primary batalha-preparo-rolar" disabled={rolando || !meu}
               onClick={() => (dadoReal ? setPedindoValor(true) : rolar())}>
-              <i className="ti ti-dice-5" aria-hidden="true" />
+              <i className="ti ti-icosahedron" aria-hidden="true" />
               {rolando ? (isEn ? 'Rolling…' : 'Rolando…') : (isEn ? 'Roll d10' : 'Rolar d10')}
             </button>
           )}
@@ -11216,7 +11220,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         : (isEn ? 'Virtual dice: the system rolls. Click to play with real dice.'
                 : 'Dado virtual: o sistema rola. Clique para jogar com dado real.'))}
       onMouseLeave={fecharTip}>
-      <i className="ti ti-dice-5" aria-hidden="true" />
+      <i className="ti ti-icosahedron" aria-hidden="true" />
       <span className="mc-acao-rotulo">{dadosReais ? (isEn ? 'Real dice' : 'Dado real') : (isEn ? 'Virtual dice' : 'Dado virtual')}</span>
     </button>
   );
@@ -11274,7 +11278,6 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
       : { clara: 'Claro', parcial: 'Escuridão parcial', total: 'Escuridão total', magica: 'Escuridão mágica' };
     onHeaderActionsChange(
       <>
-        <span className="batalha-trilho-rodada">{isEn ? 'Round' : 'Rodada'} <b>{rodada || 1}</b></span>
         {/* VISIBILIDADE DO TABULEIRO. Um botão que cicla claro → parcial →
             total → mágica → claro. Ciclar em vez de abrir menu porque são
             quatro estados numa escada, e o ícone diz em qual você está: o
@@ -11569,7 +11572,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                         if (dadosReais) { setIniReal({ inst: p.inst_id, nome: p.nome, ehPj }); return; }
                         marcarIniciativa(i, ehPj, rolarD10());
                       }}>
-                      <i className="ti ti-dice-5" aria-hidden="true" />
+                      <i className="ti ti-icosahedron" aria-hidden="true" />
                     </button>
                   </span>
                 )}
@@ -11819,7 +11822,7 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
         );
       })()} />
           <div className="batalha-mesa-centro">
-      <TabuleiroBatalha
+      <TabuleiroBatalha rodada={rodada || 1}
         entradas={participantes.map((p, i) => ({ p, i }))}
         meta={metaTokens}
         visibilidade={visibilidade}
@@ -12063,19 +12066,19 @@ function ConduzirBatalhaView({ batalha, historia, personagens = [], criaturas = 
                       )}
                       {temArma && (
                         <BotaoAcaoMenu icone="ti-sword" comRotulo
-                          rotulo={isEn ? 'Attack with weapon' : 'Atacar com arma'}
+                          rotulo={isEn ? 'Attack' : 'Atacar'}
                           disabled={bloqueado} onClick={() => abrir('arma')}
                           abrirTip={abrirTip} fecharTip={fecharTip} />
                       )}
                       {temMagia && (
                         <BotaoAcaoMenu icone="ti-comet" comRotulo
-                          rotulo={isEn ? 'Attack with spell' : 'Atacar com magia'}
+                          rotulo={isEn ? 'Spell' : 'Magia'}
                           disabled={salvando || rolagemPendente || (!temAcaoRestante(current) && !temInstantaneaLivre(current, catalogos))} onClick={() => abrir('magia')}
                           abrirTip={abrirTip} fecharTip={fecharTip} />
                       )}
                       {temTecnica && (
                         <BotaoAcaoMenu icone="ti-bolt" comRotulo
-                          rotulo={isEn ? 'Attack with technique' : 'Atacar com técnica'}
+                          rotulo={isEn ? 'Combat technique' : 'Técnica de combate'}
                           /* Sem abas (08/11/2026, usuário: "Se eu selecionei atacar com
                              técnica, não quero ver aba no modal"): só a técnica. */
                           disabled={bloqueado} onClick={() => abrir('tecnica_teste')}
@@ -12952,7 +12955,7 @@ function DadoOverlay({ titulo, subtitulo, coluna, alvoResist, semCard, lang, onF
           )}
           {esperaClique && !resultado && (
             <button type="button" className="btn-primary" onClick={rolarCritico} disabled={iniciado}>
-              <i className="ti ti-dice-5" aria-hidden="true" /> {isEn ? 'Roll again' : 'Rolar novamente'}
+              <i className="ti ti-icosahedron" aria-hidden="true" /> {isEn ? 'Roll again' : 'Rolar novamente'}
             </button>
           )}
           {onConfirmar && !(dadoReal && !resultado) && !(esperaClique && !resultado) && (
@@ -14257,9 +14260,9 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
         aria-label={rotuloDadoFinal}
         onMouseEnter={abrirTip ? (e) => abrirTip(e, rotuloDadoFinal) : undefined}
         onMouseLeave={fecharTip || undefined}>
-        <i className="ti ti-cube" aria-hidden="true" />
-        {/* O nome à vista (08/11/2026): rolar é a ação da janela. */}
-        <span className="dado-rotulo">{isEn ? 'Roll the d20' : 'Rolar o d20'}</span>
+        <i className="ti ti-icosahedron" aria-hidden="true" />
+        {/* Só o ícone (21/11/2026, usuário: 'o botão "Rolar o D20" vai ser só o
+            ícone, sem o texto'): o nome fica no tooltip e no aria-label. */}
       </button>
       {d20 != null && !empateResist && <b className="dado-ov-trigger-num">{d20}</b>}
     </>
@@ -14471,7 +14474,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
       {tab === 'arma' && (
         <>
           {/* Arma · Alvo · dado, na mesma linha (14/09/2026). */}
-          <div className="atacar-row-acao">
+          <div className="atacar-row-acao atacar-row-dado-inline">
             <SelectPill
               label={tb.arma}
               value={armaIdx}
@@ -15122,7 +15125,7 @@ function AcaoPanel({ ator, participantes, catalogos, lang, visibilidade, onAplic
           <button className="btn-ghost btn-sm btn-critico-rolar"
             disabled={dadoCriticoTravado}
             onClick={() => setOverlayAberto('critico')}>
-            <i className="ti ti-cube" aria-hidden="true" />
+            <i className="ti ti-icosahedron" aria-hidden="true" />
             {d20Critico != null
               ? `d20: ${d20Critico}`
               : (tb.rolarD20DeCritico)}
@@ -16588,6 +16591,13 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
     <DadosReaisCtx.Provider value={!!batalha.dados_reais}>
     <div className="menestrel-ui fp-page batalha-jog-root">
       <div className="fp-card batalha-mng-page batalha-jog-card">
+        {/* Modo Treino: aviso fixo no canto direito inferior (21/11/2026). */}
+        {batalha.treinamento && (
+          <span className="batalha-treino-selo" role="status">
+            <i className="ti ti-school" aria-hidden="true" />
+            {isEn ? 'Training mode' : 'Modo Treino'}
+          </span>
+        )}
         <div className="cartoes-barra batalha-trilho">
           <div className="best-header-acoes" role="toolbar" aria-label={isEn ? 'Battle' : 'Batalha'}>
             <button type="button" className="mc-acao" onClick={onVoltar} disabled={rolagemPendente}
@@ -16595,18 +16605,11 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
               <i className="ti ti-arrow-left" aria-hidden="true" />
               <span className="mc-acao-rotulo">{isEn ? 'Sheet' : 'Ficha'}</span>
             </button>
-            {batalha.treinamento && (
-              <span className="batalha-treino-selo">
-                <i className="ti ti-school" aria-hidden="true" />
-                {isEn ? 'Training mode' : 'Modo Treino'}
-              </span>
-            )}
             <button type="button" className="mc-acao batalha-notificacoes"
               onClick={() => window.dispatchEvent(new Event('menestrel:abrir-notificacoes'))}>
               <i className="ti ti-bell" aria-hidden="true" />
               <span className="mc-acao-rotulo">{isEn ? 'Notifications' : 'Notificações'}</span>
             </button>
-            <span className="batalha-trilho-rodada">{isEn ? 'Round' : 'Rodada'} <b>{rodada || 1}</b></span>
             {/* A luz é do Mestre: aqui só se lê (o nome e, no balão, a penalidade). */}
             <span className={'mc-acao is-leitura visib-' + visibilidade}
               onMouseEnter={(e) => abrirTip(e, textoVisibilidade(visibilidade, tb))} onMouseLeave={fecharTip}>
@@ -16629,7 +16632,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
           <div className="batalha-conduzir">
             <div className="batalha-mesa batalha-mesa--jogador">
               <div className="batalha-mesa-centro">
-                <TabuleiroBatalha
+                <TabuleiroBatalha rodada={rodada || 1}
                   // Reforço chegando fica de fora: surpresa até a virada (29/09/2026).
                   entradas={visiveis}
                   meta={{}}
@@ -16713,7 +16716,7 @@ function BatalhaJogadorView({ batalha, pjAtivoId, lang, onVoltar }) {
                               </div>
                               {/* Fora da vez: consultar, sem usar (08/11/2026). */}
                               {!naVez && (() => {
-                                const tipos = [['magia', 'ti-sparkles'], ['tecnica', 'ti-bolt'], ['habilidade', 'ti-dice-5']]
+                                const tipos = [['magia', 'ti-sparkles'], ['tecnica', 'ti-bolt'], ['habilidade', 'ti-icosahedron']]
                                   .filter(([t]) => listaParaConsulta(t, p, catalogos).length > 0);
                                 if (!tipos.length) return null;
                                 const ROT = { magia: isEn ? 'Spells' : 'Magias', tecnica: isEn ? 'Techniques' : 'Técnicas', habilidade: isEn ? 'Skills' : 'Habilidades' };

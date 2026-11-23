@@ -2224,6 +2224,10 @@ const ARTE_ITEM_TIPO = [
   [/^marfim\b/, 'marfim_draconica'],
   [/^oleo\b/, 'oleo_draconico'],
   [/^pena\b/, 'pena_celestial'],
+  // Sangue comum, Arcano, Podre, Profano e Sagrado: a do Titânico (23/11/2026).
+  [/^sangue\b/, 'sangue_draconico'],
+  // Peçonha é veneno: a mesma pintura do Veneno, que é a do frasco (23/11/2026).
+  [/^peconha\b/, 'frasco'],
   [/^(vinho|licor|cerveja|hidromel|suco)\b/, 'hidromel'],
   // Recipientes
   [/^(arca|bau|caixa)\b/, 'bau'],

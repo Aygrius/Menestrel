@@ -364,7 +364,10 @@ comprimido), com os textos do mapa por cima (mares, serras, rios,
 florestas, desertos): desde 21/11/2026 são LOCAIS do mundo com `estilo` (tipo da
 geografia, faixa de zoom, cor/negrito/itálico/maiúsculas/contorno/tamanho), editados
 pela ferramenta Nomes do Imperador (`scripts/mapa/textos-em-locais.mjs` e
-`estilo-dos-locais.mjs`; `tagmar-rotulos.json` fica só para os scripts). Antes eram ladrilhos PNG da pintura oriental
+`estilo-dos-locais.mjs`; `tagmar-rotulos.json` fica só para os scripts). O plano
+infernal tem chão próprio desde 23/11/2026 (`public/mapa/infernal.svg`, `MAPA_CHAO_PLANO`),
+em escala real no meio da tela, cercado de rocha; a tela abre no `MAPA_RECORTE` dele
+(gerado por `scripts/mapa/infernal-continente.mjs` + `infernal-app.mjs`). O celestial segue sem chão. Antes eram ladrilhos PNG da pintura oriental
 (bucket público `mapas` do Storage). Por cima, o que o Mestre desenha — cidades, pontos
 e onde está cada personagem — em `mapas_mesa.dados`, uma
 linha por história, com tempo real para o Jogador. Os CAMINHOS (estradas; desde 21/11/2026 são do mundo, e a rota de origem a destino virá por cima deles) moram em `catalogo_mundo` mapa/mundo `dados.linhas`; só o Imperador traça; as pontas grudam umas nas outras; desenho de estrada do Google, com a largura na tela pelo zoom (`mapaCaminhoNaTela`). A ferramenta Rota (de todos) escolhe destino e origem, com paradas opcionais, e sugere trajetos: pela estrada (fora dela pesa 3×), estrada e barco (`public/mapa/agua.json`, grade de água gerada por `scripts/mapa/agua.mjs` — rodar de novo a cada exportação do Corel), pelos lagos do caminho e uma alternativa por terra (`mapaSugestoesDeRota`, `mapaItinerario`, `mapaNavegacao`); o card mostra caminhando, cavalgando, voando e navegando e de longe ela some (`scripts/sql/rotas-do-mundo-2026-11-21.sql`). O Jogador mede distâncias
