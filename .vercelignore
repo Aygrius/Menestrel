@@ -25,3 +25,7 @@ TESTE-REGRESSAO.md
 
 # backups do banco (personagens, log) — dados de jogadores, ficam só aqui
 backups/
+
+# livros e mapas-fonte de Tagmar (.cdr, .pdf, prévias do gerador — 260 MB em 23/11/2026);
+# o app só usa o que os scripts levam para public/mapa/
+tagmar/
