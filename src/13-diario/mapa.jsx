@@ -711,10 +711,24 @@ function criarMotorMapa(raiz, cfg) {
      ambientação." A ferramenta Cidade só POSICIONA: o Mestre escolhe uma
      cadastrada que ainda não está no mapa e toca onde ela fica. O lugar guarda
      o id da ficha, e o nome passa a ser o dela (acertarNomes). */
-  // As cadastradas (cidades ou locais) que ainda não estão no mapa.
+  /* UM LUGAR, UM PLANO SÓ (23/11/2026, usuário: "As cidades, locais, reinos são
+     compartilhadas entre plano material, celestial e infernal, ou seja,
+     cadastrada em um plano, é definitivo."). A ficha posta num plano não volta
+     à lista dos outros: cfg.alhures() dá os lugares dos outros planos (a camada
+     do mundo de cada um e o mapa da mesa neles), { tipo, ficha, nome, plano }. */
+  const alhures = () => { try { return (typeof cfg.alhures === 'function' && cfg.alhures()) || []; } catch (e) { return []; } };
+  // Em que plano a ficha já está posta (null = em nenhum).
+  const planoDaFicha = (tipo, ficha, nome) => {
+    const casa = (l) => l.tipo === tipo && ((ficha != null && l.ficha != null && String(l.ficha) === String(ficha)) || (nome && chave(l.nome) === chave(nome)));
+    if (mesa.lugares.some(casa)) return plano;
+    const fora = alhures().find(casa);
+    return fora ? (fora.plano || 'material') : null;
+  };
+  const nomePlano = (p) => { const x = MAPA_PLANOS.find((q) => q.id === p); return x ? (en ? x.en : x.pt) : p; };
+  // As cadastradas (cidades, locais ou reinos) que ainda não estão em plano nenhum.
   const foraDoMapa = (tipo = 'cidade') => {
     const ids = new Set(), nomes = new Set();
-    mesa.lugares.forEach((l) => { if (l.tipo !== tipo) return; if (l.ficha) ids.add(String(l.ficha)); nomes.add(chave(l.nome)); });
+    [...mesa.lugares, ...alhures()].forEach((l) => { if (l.tipo !== tipo) return; if (l.ficha) ids.add(String(l.ficha)); nomes.add(chave(l.nome)); });
     return (cadDoTipo(tipo) || []).filter((e) => !ids.has(String(e.id)) && !nomes.has(chave(e.nome)))
       .sort((a, b) => String(a.nome).localeCompare(String(b.nome), 'pt-BR'));
   };
@@ -882,6 +896,10 @@ function criarMotorMapa(raiz, cfg) {
     // o mesmo nome já cadastrado: usa a ficha que existe
     const ficha = daLista || (cadDoTipo(tipo) || []).find((e) => semAcento(e.nome) === semAcento(nome));
     let slug = ficha && ficha.id;
+    // já posta num plano (este ou outro): não entra de novo
+    const ja = ficha && planoDaFicha(tipo, ficha.id, ficha.nome);
+    if (ja) { recado = { txt: ja === plano ? tr(`${ficha.nome} já está no mapa.`, `${ficha.nome} is already on the map.`)
+      : tr(`${ficha.nome} já está no plano ${nomePlano(ja)}.`, `${ficha.nome} is already on the ${nomePlano(ja)} plane.`) }; aviso(); return; }
     if (!slug) {
       recado = { txt: tr('Criando…', 'Creating…') }; aviso();
       try { slug = cfg.aoCriarEntrada ? await cfg.aoCriarEntrada(tipo, nome, tipo === 'cidade' ? { reino: novaEntrada.reino } : {}) : null; } catch (e) { slug = null; }
@@ -2000,16 +2018,26 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
       Promise.resolve(salvar(m, plano)).catch(() => motor.current && motor.current.falhou());
     }, 500);
   }, [banco, plano]);
+  /* Os lugares postos nos OUTROS planos (23/11/2026): a ficha posta num plano
+     não se põe em outro. A camada do mundo deles e o mapa da mesa neles. */
+  const outrosMundo = React.useRef([]), outrosMesa = React.useRef([]);
+  const alhures = React.useCallback(() => [...outrosMundo.current, ...outrosMesa.current], []);
   React.useEffect(() => {
     let vivo = true;
-    const slug = mapaSlugMundo(plano);
-    const ler = banco.carregarMundo || (() => (window.carregarCatalogoMundo ? window.carregarCatalogoMundo() : Promise.resolve(null))
-      .then(() => { const m = (window.mundoVigente ? window.mundoVigente('mapa') : []).find((e) => e.slug === slug); return m || {}; }));
+    const ler = banco.carregarMundo || ((p) => (window.carregarCatalogoMundo ? window.carregarCatalogoMundo() : Promise.resolve(null))
+      .then(() => { const m = (window.mundoVigente ? window.mundoVigente('mapa') : []).find((e) => e.slug === mapaSlugMundo(p)); return m || {}; }));
     // A prévia devolve só a lista de lugares; o banco, a entrada inteira.
+    const lugaresDe = (m) => { const l = Array.isArray(m) ? m : (m && m.lugares); return Array.isArray(l) ? l : []; };
     Promise.resolve(ler(plano)).then((m) => { if (!vivo) return;
-      const l = Array.isArray(m) ? m : (m && m.lugares), r = !Array.isArray(m) && m && m.linhas;
-      setMundo({ plano, lugares: Array.isArray(l) ? l : [], linhas: Array.isArray(r) ? r : [] }); })
+      const r = !Array.isArray(m) && m && m.linhas;
+      setMundo({ plano, lugares: lugaresDe(m), linhas: Array.isArray(r) ? r : [] }); })
       .catch(() => { if (vivo) setMundo({ plano, lugares: [], linhas: [] }); });
+    outrosMundo.current = [];
+    MAPA_PLANOS.filter((p) => p.id !== plano).forEach((p) => {
+      Promise.resolve(ler(p.id)).then((m) => { if (!vivo) return;
+        outrosMundo.current = [...outrosMundo.current, ...lugaresDe(m).map((l) => ({ tipo: l.tipo, ficha: l.ficha, nome: l.nome, plano: p.id }))]; })
+        .catch(() => {});
+    });
     return () => { vivo = false; };
   }, [banco, plano]);
   React.useEffect(() => { if (motor.current && mundoDoPlano) motor.current.receberMundo(mundoDoPlano, rotasDoPlano); }, [mundoDoPlano, rotasDoPlano, estado]);
@@ -2017,7 +2045,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
     if (!semMesa || !raiz.current) return undefined;
     motor.current = criarMotorMapa(raiz.current, { papel: ehImperador ? 'mestre' : 'jogador', semMesa: true, en, base: baseDoPlano, plano,
       imperador: ehImperador, mundo: mundoDoPlano || [], rotas: rotasDoPlano || [], aoMudarMundo: ehImperador ? aoMudarMundo : null,
-      mesa: null, marcas: [], gente: [], aoEscolherAchado: () => setQuery(''), aoAbrirCidade: setFichaAberta, aoCriarEntrada: ehImperador ? criarEntrada : null });
+      mesa: null, marcas: [], gente: [], alhures, aoEscolherAchado: () => setQuery(''), aoAbrirCidade: setFichaAberta, aoCriarEntrada: ehImperador ? criarEntrada : null });
     setEstado('pronto');
     return () => { if (motor.current) { motor.current.destruir(); motor.current = null; } };
   }, [semMesa, en, base, ehImperador, plano]);
@@ -2027,16 +2055,22 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
     let vivo = true, desligar = null, relogio = 0, relogioMarcas = 0, ultimo = '';
     setEstado('carregando');
     let dadosTodos = null;   // mapas_mesa.dados inteiro, com todos os planos
+    // Os lugares da mesa nos outros planos (a ficha posta num plano não vai a outro).
+    const mesaNosOutros = () => { outrosMesa.current = MAPA_PLANOS.filter((p) => p.id !== plano).flatMap((p) => {
+      const sub = mapaDoPlano(dadosTodos, p.id);
+      return (sub && Array.isArray(sub.lugares) ? sub.lugares : []).map((l) => ({ tipo: l.tipo, ficha: l.ficha, nome: l.nome, plano: p.id })); }); };
+    outrosMesa.current = [];
     banco.carregar({ historiaId, pj, mestre }).then((d) => {
       if (!vivo || !raiz.current) return;
       dadosTodos = d.mesa || null;
+      mesaNosOutros();
       // O Jogador vê o plano do personagem dele: se não é o que está na tela, troca e volta aqui.
       if (!mestre) { const p = mapaPlanoDe(dadosTodos, pjId); if (p !== plano) { setPlano(p); return; } }
       motor.current = criarMotorMapa(raiz.current, {
         papel: mestre ? 'mestre' : 'jogador', en, base: baseDoPlano, plano,
         /* As marcas do Jogador são de um plano (17/11/2026): sem `plano`, do
            material. O motor vê só as deste; ao gravar, as dos outros voltam junto. */
-        mesa: mapaDoPlano(dadosTodos, plano), marcas: (d.marcas || []).filter((m) => (m.plano || 'material') === plano), gente: d.gente,
+        mesa: mapaDoPlano(dadosTodos, plano), marcas: (d.marcas || []).filter((m) => (m.plano || 'material') === plano), gente: d.gente, alhures,
         aoAbrirLoja: mestre && onLoja ? (nome) => { window.__mnLojaPedida = nome; onLoja(); } : null,
         imperador: ehImperador && mestre, mundo: mundoDoPlano || [], rotas: rotasDoPlano || [], aoMudarMundo: (ehImperador && mestre) ? aoMudarMundo : null,
         /* Grava com folga: arrastar um ponto dispara dezenas de mudanças. O
@@ -2061,7 +2095,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
       /* O eco da própria gravação volta pelo tempo real: igual ao que saiu, ignora. */
       desligar = banco.assinar(historiaId, (dados) => {
         if (JSON.stringify(dados) === ultimo) return;
-        dadosTodos = dados;
+        dadosTodos = dados; mesaNosOutros();
         // O Mestre levou o personagem para outro plano: o Jogador vai junto.
         if (!mestre) { const p = mapaPlanoDe(dados, pjId); if (p !== plano) { setPlano(p); return; } }
         if (motor.current) motor.current.receber(mapaDoPlano(dados, plano));

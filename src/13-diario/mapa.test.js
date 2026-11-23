@@ -514,6 +514,19 @@ describe('os planos do mapa', () => {
     expect(y1 - y0).toBeCloseTo(window.MAPA_A / 2, 0);
     expect(existsSync(join(aqui, '../../public/mapa/infernal.svg'))).toBe(true);
   });
+  /* 23/11/2026, usuário: "As cidades, locais, reinos são compartilhadas entre
+     plano material, celestial e infernal, ou seja, cadastrada em um plano, é definitivo." */
+  it('a ficha posta num plano não se põe em outro', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    // a lista da ferramenta conta os lugares de todos os planos
+    expect(fonte).toContain('[...mesa.lugares, ...alhures()].forEach((l) => { if (l.tipo !== tipo) return;');
+    // os outros planos: a camada do mundo de cada um e o mapa da mesa neles
+    expect(fonte).toContain('MAPA_PLANOS.filter((p) => p.id !== plano).forEach((p) => {');
+    expect(fonte).toMatch(/outrosMesa\.current = MAPA_PLANOS\.filter\(\(p\) => p\.id !== plano\)\.flatMap/);
+    // a entrada nova com o nome de uma ficha já posta não entra de novo
+    expect(fonte).toContain('const ja = ficha && planoDaFicha(tipo, ficha.id, ficha.nome);');
+    expect((fonte.match(/\balhures,/g) || []).length).toBeGreaterThanOrEqual(2);   // mesa e fora de mesa
+  });
   /* 21/11/2026, usuário: "Não precisamos mais dos botões 'mapa antigo' e 'mapa novo'". */
   it('não há mais escolha de pintura', () => {
     const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
