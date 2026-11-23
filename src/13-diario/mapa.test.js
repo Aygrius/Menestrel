@@ -514,6 +514,22 @@ describe('os planos do mapa', () => {
     expect(y1 - y0).toBeCloseTo(window.MAPA_A / 2, 0);
     expect(existsSync(join(aqui, '../../public/mapa/infernal.svg'))).toBe(true);
   });
+  /* 23/11/2026, usuário: "o mapa do plano infernal está muito lento" e "No zoom máximo, ainda
+     fica uma parte sem montanhas". */
+  it('o chão infernal vai em ladrilhos, com o fundo inteiro por baixo, e cobre a janela', () => {
+    const fonte = readFileSync(join(aqui, 'mapa.jsx'), 'utf8');
+    const lad = window.MAPA_LADRILHOS.infernal;
+    for (let r = 0; r < lad.linhas; r++) for (let c = 0; c < lad.cols; c++) {
+      const f = join(aqui, `../../public${lad.pasta}l${r}c${c}.svg`);
+      expect(existsSync(f)).toBe(true);
+      // o viewBox do ladrilho é o pedaço que o motor põe na tela
+      const tw = window.MAPA_L / lad.cols, th = window.MAPA_A / lad.linhas, r2 = (v) => +v.toFixed(2);
+      if (r === 3 && c === 4) expect(readFileSync(f, 'utf8').slice(0, 200)).toContain(`viewBox="${r2(c * tw - lad.sobra)} ${r2(r * th - lad.sobra)} ${r2(tw + 2 * lad.sobra)} ${r2(th + 2 * lad.sobra)}"`);
+    }
+    expect(existsSync(join(aqui, '../../public' + lad.fundo))).toBe(true);
+    expect(fonte).toContain('sMin = lad ? Math.max(vw / L, vh / A) : Math.min(vw / L, vh / A);');
+    expect((fonte.match(/ladrilhos: MAPA_LADRILHOS\[plano\] \|\| null/g) || []).length).toBe(2);
+  });
   /* 23/11/2026, usuário: "As cidades, locais, reinos são compartilhadas entre
      plano material, celestial e infernal, ou seja, cadastrada em um plano, é definitivo." */
   it('a ficha posta num plano não se põe em outro', () => {

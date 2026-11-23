@@ -49,6 +49,12 @@ const MAPA_PINTURA = '/mapa/tagmar.svg';
    está: a tela abre nele, e "mapa inteiro" volta para ele, não para a rocha. */
 const MAPA_CHAO_PLANO = { infernal: '/mapa/infernal.svg' };
 const MAPA_RECORTE = { infernal: [1476.38, 1173.73, 4429.13, 3521.36] };
+/* O CHÃO EM LADRILHOS (23/11/2026, usuário: "o mapa do plano infernal está muito lento"). O
+   infernal.svg inteiro (6,4 MB em poucos caminhos que cruzam a tela) fazia o navegador percorrer
+   todos os traços a cada pedaço redesenhado no zoom. Ele vai em cols × linhas SVGs, cada um só com
+   o que passa por ele (scripts/mapa/infernal-ladrilhos.mjs), e o navegador desenha só os à vista.
+   Por baixo, o mapa inteiro em 2048 px (fundo): aparece na hora e cobre a fresta entre ladrilhos. */
+const MAPA_LADRILHOS = { infernal: { pasta: '/mapa/infernal/', cols: 10, linhas: 8, sobra: 2, fundo: '/mapa/infernal-fundo.webp' } };
 /* Suposição da tela, não regra do Tagmar: um dia de marcha a pé. */
 const MAPA_KM_DIA_A_PE = 30;
 /* A cavalo (22/11/2026, usuário: "mostre a distância à pé, à cavalo e voando
@@ -923,7 +929,15 @@ function criarMotorMapa(raiz, cfg) {
     l.estilo = e; guardarGeo(); geoDesenhar(); aviso();
   }
   elMundo.style.width = L + 'px'; elMundo.style.height = A + 'px';
-  if (cfg.base) {
+  const lad = cfg.ladrilhos;
+  if (lad) {
+    // o fundo inteiro em baixa e, por cima, cada ladrilho transbordando `sobra` para os vizinhos
+    const tw = L / lad.cols, th = A / lad.linhas, s = lad.sobra, ims = [], r2 = (v) => +v.toFixed(2);   // r2: o mesmo arredondamento do viewBox de cada ladrilho
+    for (let r = 0; r < lad.linhas; r++) for (let c = 0; c < lad.cols; c++)
+      ims.push(`<img class="mp-ladrilho" alt="" draggable="false" decoding="async" src="${esc(lad.pasta)}l${r}c${c}.svg" style="left:${r2(c * tw - s)}px;top:${r2(r * th - s)}px;width:${r2(tw + 2 * s)}px;height:${r2(th + 2 * s)}px">`);
+    $('arte').innerHTML = `<img class="mp-chao" alt="" draggable="false" decoding="async" src="${esc(lad.fundo)}" style="width:${L}px;height:${A}px">${ims.join('')}<div class="mp-geo" data-el="geo"></div>`;
+    $('arte').querySelector('img').onerror = () => { if (vivo) { semPintura = true; aviso(); } };
+  } else if (cfg.base) {
     $('arte').innerHTML = `<img class="mp-chao" alt="" draggable="false" decoding="async" src="${esc(cfg.base)}" style="width:${L}px;height:${A}px"><div class="mp-geo" data-el="geo"></div>`;
     $('arte').querySelector('img').onerror = () => {
       /* Sem pintura o mapa segue usável, mas a área vazia parece quebrada
@@ -1830,7 +1844,10 @@ function criarMotorMapa(raiz, cfg) {
   const olho = new ResizeObserver(() => {
     const r = elMapa.getBoundingClientRect(); vw = r.width; vh = r.height;
     if (!vw || !vh) return;
-    sMin = Math.min(vw / L, vh / A);
+    /* O chão que é só montanha até a beira (o infernal) cobre a janela no zoom mais longe, em
+       vez de sobrar a faixa de brasa ao lado (23/11/2026, usuário: "No zoom máximo, ainda fica
+       uma parte sem montanhas"). O material segue inteiro na tela, com o mar em volta. */
+    sMin = lad ? Math.max(vw / L, vh / A) : Math.min(vw / L, vh / A);
     if (!pronto) {
       pronto = true;
       cam.s = sMin; pintar(); EU = referencia(); foco = focoPadrao(); aviso(); desenhar();
@@ -2043,7 +2060,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
   React.useEffect(() => { if (motor.current && mundoDoPlano) motor.current.receberMundo(mundoDoPlano, rotasDoPlano); }, [mundoDoPlano, rotasDoPlano, estado]);
   React.useEffect(() => {
     if (!semMesa || !raiz.current) return undefined;
-    motor.current = criarMotorMapa(raiz.current, { papel: ehImperador ? 'mestre' : 'jogador', semMesa: true, en, base: baseDoPlano, plano,
+    motor.current = criarMotorMapa(raiz.current, { papel: ehImperador ? 'mestre' : 'jogador', semMesa: true, en, base: baseDoPlano, plano, ladrilhos: MAPA_LADRILHOS[plano] || null,
       imperador: ehImperador, mundo: mundoDoPlano || [], rotas: rotasDoPlano || [], aoMudarMundo: ehImperador ? aoMudarMundo : null,
       mesa: null, marcas: [], gente: [], alhures, aoEscolherAchado: () => setQuery(''), aoAbrirCidade: setFichaAberta, aoCriarEntrada: ehImperador ? criarEntrada : null });
     setEstado('pronto');
@@ -2067,7 +2084,7 @@ function MapaView({ lang, profile, historiaId, pj = null, trilhoPaginas = null, 
       // O Jogador vê o plano do personagem dele: se não é o que está na tela, troca e volta aqui.
       if (!mestre) { const p = mapaPlanoDe(dadosTodos, pjId); if (p !== plano) { setPlano(p); return; } }
       motor.current = criarMotorMapa(raiz.current, {
-        papel: mestre ? 'mestre' : 'jogador', en, base: baseDoPlano, plano,
+        papel: mestre ? 'mestre' : 'jogador', en, base: baseDoPlano, plano, ladrilhos: MAPA_LADRILHOS[plano] || null,
         /* As marcas do Jogador são de um plano (17/11/2026): sem `plano`, do
            material. O motor vê só as deste; ao gravar, as dos outros voltam junto. */
         mesa: mapaDoPlano(dadosTodos, plano), marcas: (d.marcas || []).filter((m) => (m.plano || 'material') === plano), gente: d.gente, alhures,
@@ -2215,5 +2232,5 @@ Object.assign(window, {
   mapaDist, mapaKm, mapaComprimento, mapaProjeta, mapaCaminhoNaTela, mapaRotaPelosCaminhos,
   MAPA_PINTADAS, MAPA_KM, MAPA_KM_DIA_A_PE, MAPA_KM_DIA_A_CAVALO, MAPA_KM_DIA_VOANDO, MAPA_KM_DIA_NAVEGANDO, MAPA_FORA, mapaNavegacao, mapaAguaDe, mapaSugestoesDeRota, mapaMenorCaminho, mapaCorposDeAgua, mapaItinerario,
   MAPA_PLANOS, mapaDoPlano, mapaComPlano, mapaPlanoDe, mapaSlugMundo,
-  MAPA_L, MAPA_A, MAPA_PERTO, MAPA_PINTURA, MAPA_CHAO_PLANO, MAPA_RECORTE,
+  MAPA_L, MAPA_A, MAPA_PERTO, MAPA_PINTURA, MAPA_CHAO_PLANO, MAPA_RECORTE, MAPA_LADRILHOS,
 });

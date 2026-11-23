@@ -524,9 +524,13 @@
     radial-gradient(90% 60% at 50% 100%, rgba(214,84,40,.22), transparent 70%),
     linear-gradient(0deg, #2A0C07 0%, #1A0806 55%, #100504 100%);
 }
-#root .menestrel-ui .mp-mapa:is([data-plano="celestial"], [data-plano="infernal"]) .mp-arte {
+#root .menestrel-ui .mp-mapa[data-plano="celestial"] .mp-arte {
   border-radius: 24px; background: rgba(255,240,210,.035);
 }
+/* O CHÃO EM LADRILHOS (23/11/2026, infernal): imagens soltas, cada uma transbordando sobre a
+   vizinha. Sem will-change: ele congela a escala e o zoom borra (testado). A borda clara que
+   sairia entre eles (cada camada translúcida com o seu meio-pixel) é resolvida dentro do SVG,
+   num <g opacity=".999"> que achata o ladrilho antes (scripts/mapa/infernal-ladrilhos.mjs). */
 /* O seletor de plano: ícone e nome, no trilho da barra do mapa. */
 #root .menestrel-ui .mp-planos .mc-acao { gap: 6px; padding: 0 14px 0 12px; }
 #root .menestrel-ui .mp-planos .mc-acao span { font: 700 15px var(--font-body); }
