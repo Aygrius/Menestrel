@@ -314,3 +314,27 @@ describe('as bases dos itens excluídos saíram (28/11/2026)', () => {
     }
   });
 });
+
+describe('ajustes de armas, braceletes, coroa e água (28/11/2026)', () => {
+  const arma = (nome, grupo_armas) => window.arteDoItem({ nome, slug: nome, categoria_equip: 'arma', grupo_armas, slot_equip: 'mao' });
+  it('boleadeira, bumerangue, fundíbulo e cimitarra têm pintura própria', () => {
+    expect(arma('Boleadeira', 'CI')).toBe('/equip/arma-boleadeira.webp');
+    expect(arma('Bumerangue de Caça', 'CL')).toBe('/equip/arma-bumerangue.webp');
+    expect(arma('Fundíbulo', 'EL')).toBe('/equip/arma-fundibulo.webp');
+    expect(arma('Cimitarra', 'CM')).toBe('/equip/arma-cimitarra.webp');
+  });
+  it('o cetro comum é o de madeira; o Cetro Dourado guarda o dourado', () => {
+    expect(arma('Cetro', 'EL')).toBe('/equip/arma-cetro.webp');
+    expect(arma('Cetro Dourado', 'EL')).toBe('/equip/arma-cetro-dourado.webp');
+  });
+  it('cada bracelete tem a sua pintura, e a coroa de cobre a dela', () => {
+    for (const m of ['ouro', 'prata', 'latao', 'marfim']) {
+      expect(window.arteDaBase('bracelete-' + m)).toBe('/equip/bracelete-' + m + '.webp');
+    }
+    expect(window.arteDaBase('coroa-cobre')).toBe('/equip/coroa-cobre.webp');
+  });
+  it('Água e Água Suja usam a pintura do Karmaquoso', () => {
+    expect(window.arteDaBase('agua')).toBe('/itens/karmaquoso.webp');
+    expect(window.arteDaBase('agua_suja')).toBe('/itens/karmaquoso.webp');
+  });
+});

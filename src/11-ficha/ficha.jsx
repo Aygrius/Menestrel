@@ -1889,6 +1889,7 @@ const ARTE_PINTADA = new Set([
   // as armas pelo tipo (23/10/2026) — ver ARMA_POR_NOME
   'arma-arco', 'arma-besta', 'arma-lanca', 'arma-tridente', 'arma-maca', 'arma-martelo',
   'arma-mangual', 'arma-cajado', 'arma-cetro', 'arma-chicote', 'arma-foice',
+  'arma-boleadeira', 'arma-bumerangue', 'arma-fundibulo', 'arma-cimitarra', 'arma-cetro-dourado',
   /* 27/10/2026 — as 21 pinturas novas, já no vocabulário do TIPO: joia pelo
      metal, veste pelo tecido. "Brinco Nobre não existe mais, agora é Brinco de
      Ouro" (usuário). */
@@ -1913,6 +1914,8 @@ const ARTE_PINTADA = new Set([
   // porrete, maça flangeada e estrela da manhã — o tipo "maca" lido do nome (clava, porrete, maça…).
   'arma-maca-leve', 'arma-maca-medio', 'arma-maca-pesado',
   // "O marfim são ossos" (usuário, 28/11/2026): a coroa de marfim é de osso, não a de prata.
+  // Braceletes com pintura própria (28/11/2026); antes emprestavam a do anel.
+  'bracelete-ouro', 'bracelete-prata', 'bracelete-latao', 'bracelete-marfim',
   'coroa-marfim', 'brincos-marfim', 'piercing-marfim', 'colar-marfim', 'pingente-marfim',
 ]);
 
@@ -2047,6 +2050,15 @@ function versaoDaArte(base, cat, profissao) {
    Arma de duas mãos já é espelhada nas duas casas (ocupanteDefesa). Sem tipo
    reconhecido (arremesso, soqueira…), fica a pintura pelo peso, como antes. */
 const ARMA_POR_NOME = [
+  /* Tipos com pintura própria desde 28/11/2026 (usuário: "A imagem de
+     boleadeira está errada", "O bumerangue está com a imagem errada", "A
+     cimitarra é uma espada curva", "O fundíbulo é um estilingue"). O Cetro
+     Dourado guarda a pintura dourada; o cetro comum é de madeira com uma pedra. */
+  ['boleadeira', /\bboleadeira\b/],
+  ['bumerangue', /\bbumerangue\b/],
+  ['fundibulo', /\b(fundibulo|estilingue)\b/],
+  ['cimitarra', /\bcimitarra\b/],
+  ['cetro-dourado', /\bcetro dourado\b/],
   ['besta', /\b(besta|arlabesta)\b/],
   ['arco', /\b(arco|galadhrim|impetusion)\b/],
   ['tridente', /\btridente\b/],
@@ -2060,7 +2072,7 @@ const ARMA_POR_NOME = [
   ['cetro', /\bcetro\b/],
   ['cajado', /\b(cajado|libano da luz|necroptum|coracao de lena)\b/],
   ['adaga', /\b(adaga|punhal|faca)\b/],
-  ['espada', /\b(espada|montante|cimitarra|sabre|rapieira|crissaegrim|daeva do mar|jagan|kronagar|sagae|vampirus escarlate)\b/],
+  ['espada', /\b(espada|montante|sabre|rapieira|crissaegrim|daeva do mar|jagan|kronagar|sagae|vampirus escarlate)\b/],
 ];
 // Adaga usa a pintura genérica leve; espada e machado têm as suas por peso.
 const ARMA_ARTE = { adaga: 'arma-leve' };
@@ -2497,6 +2509,8 @@ const ARMA_TIPO_NOME = {
   espada: 'Espada', machado: 'Machado', lanca: 'Lança', arco: 'Arco', besta: 'Besta',
   tridente: 'Tridente', foice: 'Foice', chicote: 'Chicote', mangual: 'Mangual',
   martelo: 'Martelo', maca: 'Maça', cetro: 'Cetro', cajado: 'Cajado', adaga: 'Adaga',
+  boleadeira: 'Boleadeira', bumerangue: 'Bumerangue', fundibulo: 'Fundíbulo', cimitarra: 'Cimitarra',
+  'cetro-dourado': 'Cetro Dourado',
 };
 function artesDaBase(slugBase) {
   const slug = String(slugBase || '');

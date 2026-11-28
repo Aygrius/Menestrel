@@ -152,7 +152,8 @@ const BASES_ITEM = [
   /* A coroa de marfim tem pintura própria, de OSSO (28/11/2026, usuário: "O
      marfim são ossos, ou seja, coroa de marfim deve ser um exemplar de
      ossos"); antes emprestava a de prata. */
-  ...comArte(veste('coroa', 'Coroa', ['cabeca'], ['ouro', 'prata', 'marfim']), { ...METAL_PROPRIO('coroa'), marfim: null }),
+  // A coroa de cobre voltou em 28/11/2026 (usuário: "Adicione o item coroa de cobre e use a imagem").
+  ...comArte(veste('coroa', 'Coroa', ['cabeca'], ['ouro', 'prata', 'cobre', 'marfim']), { ...METAL_PROPRIO('coroa'), marfim: null }),
   // Sem latão e marfim desde 28/11/2026: o usuário excluiu os dois exemplares do catálogo.
   ...comArte(veste('tiara', 'Tiara', ['cabeca'], ['ouro', 'prata', 'cobre']), METAL_PROPRIO('tiara')),
   // Sem linho, cobre: os únicos exemplares eram versões de profissão, removidas em 28/11/2026.
@@ -193,7 +194,8 @@ const BASES_ITEM = [
   ...comArte(veste('bombacha', 'Bombacha', ['perna'], TECIDO),
     { seda: 'calca-seda', linho: 'calca-algodao', algodao: 'calca-algodao', couro: 'calca-couro' }),
   ...comArte(veste('anel', 'Anel', ['dedo'], ['ouro', 'prata', 'latao', 'marfim']), METAL_ANTIGO('anel')),
-  ...comArte(veste('bracelete', 'Bracelete', ['pulso'], ['ouro', 'prata', 'latao', 'marfim']), METAL_ANTIGO('anel')),
+  // Pintura própria por material desde 28/11/2026 ("Crie imagens para os braceletes"); antes, a do anel.
+  ...veste('bracelete', 'Bracelete', ['pulso'], ['ouro', 'prata', 'latao', 'marfim']),
   ...comArte(veste('pulseira', 'Pulseira', ['pulso'], METAL), METAL_ANTIGO('anel')),
   // Pintura própria desde 27/11/2026 (luva-pano-*); antes emprestava a manopla leve.
   ...veste('luva-pano', 'Luva', ['pulso'], ['seda', 'couro', 'algodao']),
@@ -250,9 +252,10 @@ const BASES_ITEM = [
   { slug: 'lamparina', nome: 'Lamparina', familia: 'Viagem', grupos: ['Itens'], onde: BASE_ITEM },
   { slug: 'pederneira', nome: 'Pederneira', familia: 'Viagem', grupos: ['Consumíveis', 'Itens'], onde: BASE_ITEM },
   { slug: 'lenha', nome: 'Lenha', familia: 'Matéria-prima', grupos: ['Consumíveis'], onde: BASE_ITEM },
-  { slug: 'agua', nome: 'Água', familia: 'Alimento', grupos: ['Consumíveis'], onde: BASE_ITEM },
+  // Água e Água Suja usam a pintura do Karmaquoso (usuário, 28/11/2026).
+  { slug: 'agua', nome: 'Água', familia: 'Alimento', grupos: ['Consumíveis'], onde: BASE_ITEM, arte: 'karmaquoso' },
   // A gota turva (30/10/2026): com a base 'agua', a Água Suja pegava a gota limpa.
-  { slug: 'agua_suja', nome: 'Água Suja', familia: 'Alimento', grupos: ['Consumíveis'], onde: BASE_ITEM },
+  { slug: 'agua_suja', nome: 'Água Suja', familia: 'Alimento', grupos: ['Consumíveis'], onde: BASE_ITEM, arte: 'karmaquoso' },
   { slug: 'cachimbo', nome: 'Cachimbo', familia: 'Viagem', grupos: ['Itens'], onde: BASE_ITEM },
 
   { slug: 'gema', nome: 'Gema', familia: 'Mineral', grupos: ['Minerais'], onde: BASE_ITEM },

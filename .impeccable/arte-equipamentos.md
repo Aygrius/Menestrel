@@ -791,3 +791,22 @@ capuz-linho, anel-cobre, bracelete-cobre.
 | ✔ ogro | Ogro, Ogro Líder, Ogro Rei — pele verrugosa, mandíbula com dentes tortos |
 | ✔ gigante | Gigante da Colina, do Deserto e da Neve — pele de pedra, colar de seixos (o 1º saiu humano demais; refeito) |
 | ✔ dragoniano | Dragoniano Jovem, Dragoniano, Guerreiro, Líder — escamas vermelho-bronze, olhos dourados |
+
+## Revisão 2 de 28/11/2026
+
+| arquivo | o que mudou |
+|---|---|
+| ✔ arma-boleadeira | três bolas de pedra em couro presas por cordas trançadas (antes caía na arma leve genérica) |
+| ✔ arma-bumerangue | bumerangue de madeira com entalhes (antes, arma leve genérica) |
+| ✔ arma-cetro | o cetro comum agora é de madeira com uma safira; o dourado virou `arma-cetro-dourado` (Cetro Dourado) |
+| ✔ arma-cimitarra | espada curva com guarda de latão (antes, a espada média reta) |
+| ✔ arma-fundibulo | estilingue de galho com pedra na bolsa (antes, a maça) |
+| ✔ bracelete-ouro · -prata · -latao · -marfim | braceletes próprios (antes, a pintura do anel); marfim de osso |
+
+Coroa de Cobre voltou como item (1000 latões; scripts/sql/coroa-cobre-2026-11-28.sql),
+com a pintura coroa-cobre que já existia. Água e Água Suja usam a pintura do
+Karmaquoso (base com `arte: 'karmaquoso'`).
+
+Pinturas no disco que nenhum item nem casa vazia usa (28/11/2026):
+arma-arco-leve, arma-lanca, arma-maca, mascara-couro, agua, agua_suja,
+algibeira_grande, aljava_reforcada, equipamento_de_viagem, marfim_demoniaca.
