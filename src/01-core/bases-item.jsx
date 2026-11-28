@@ -151,9 +151,10 @@ const BASES_ITEM = [
   ...comArte(veste('capuz', 'Capuz', ['cabeca'], TECIDO), { linho: 'capuz-algodao' }),
   ...comArte(veste('mascara', 'Máscara', ['rosto'], METAL),
     { ouro: 'mascara-ferro', prata: 'mascara-ferro', cobre: 'mascara-ferro', latao: 'mascara-ferro', marfim: 'mascara-porcelana' }),
-  ...veste('tapa-olho', 'Tapa-olho', ['rosto'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']),
+  // Tapa-olho e piercing: pintura própria por metal desde 27/11/2026.
+  ...comArte(veste('tapa-olho', 'Tapa-olho', ['rosto'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']), METAL_PROPRIO('tapa-olho')),
   ...comArte(veste('brincos', 'Brinco', ['orelha'], METAL), METAL_ANTIGO('brincos')),
-  ...veste('piercing', 'Piercing', ['orelha'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']),
+  ...comArte(veste('piercing', 'Piercing', ['orelha'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']), METAL_PROPRIO('piercing')),
   ...comArte(veste('colar', 'Colar', ['pescoco'], METAL), METAL_ANTIGO('colar')),
   ...comArte(veste('pingente', 'Pingente', ['pescoco'], METAL), METAL_PROPRIO('pingente')),
   ...comArte(veste('gargantilha', 'Gargantilha', ['pescoco'], METAL), METAL_ANTIGO('colar')),
@@ -171,7 +172,8 @@ const BASES_ITEM = [
     { seda: 'casaco-nobre', linho: 'casaco-algodao', algodao: 'casaco-algodao', couro: 'casaco-couro' }),
   ...comArte(veste('capa', 'Capa', ['costas'], TECIDO),
     { seda: 'capa-nobre', linho: 'capa-ornado', algodao: 'capa-simples', couro: 'capa-simples' }),
-  ...veste('sobretudo', 'Sobretudo', ['costas'], TECIDO),
+  // Sobretudo e sapato: pintura própria desde 27/11/2026; o linho usa a do algodão.
+  ...comArte(veste('sobretudo', 'Sobretudo', ['costas'], TECIDO), { linho: 'sobretudo-algodao' }),
   ...comArte(veste('calca', 'Calça', ['perna'], TECIDO), { linho: 'calca-algodao' }),
   ...comArte(veste('bombacha', 'Bombacha', ['perna'], TECIDO),
     { seda: 'calca-seda', linho: 'calca-algodao', algodao: 'calca-algodao', couro: 'calca-couro' }),
@@ -181,7 +183,7 @@ const BASES_ITEM = [
   // Pintura própria desde 27/11/2026 (luva-pano-*); antes emprestava a manopla leve.
   ...veste('luva-pano', 'Luva', ['pulso'], ['seda', 'couro', 'algodao']),
   ...veste('sandalia', 'Sandália', ['pe'], TECIDO, BASE_ITEM).map((b) => ({ ...b, arte: 'sandalias' })),
-  ...veste('sapato', 'Sapato', ['pe'], TECIDO),
+  ...comArte(veste('sapato', 'Sapato', ['pe'], TECIDO), { linho: 'sapato-algodao' }),
 
   /* O cinto não tem material na lista do usuário: segue com as três bases
      de sempre, e os cintos do catálogo são exemplares de nome próprio. */

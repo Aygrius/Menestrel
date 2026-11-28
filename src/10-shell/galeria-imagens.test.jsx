@@ -26,7 +26,7 @@ const shellFonte = readFileSync(
 const CAT = [
   { slug: 'mascara_verrogari', nome: 'Máscara Verrogari', base: 'mascara-cobre', slot_equip: 'rosto', grupo: 'Vestimentas' },
   { slug: 'mascara_decorativa', nome: 'Máscara Decorativa', base: 'mascara-cobre', slot_equip: 'rosto', grupo: 'Vestimentas' },
-  // O lenço segue sem pintura (o cachecol ganhou a sua em 27/11/2026); a luva de pano ganhou a emprestada em 30/10/2026.
+  // O lenço ganhou pintura em 27/11/2026; o teste da base sem pintura a tira do conjunto por um instante.
   { slug: 'lenco_algodao', nome: 'Lenço de Algodão', base: 'lenco-algodao', slot_equip: 'pescoco', grupo: 'Vestimentas' },
   { slug: 'avestruz_pardo', nome: 'Avestruz Pardo', base: null, slot_equip: null, grupo: 'Animais' },
   { slug: 'livro_de_maira', nome: 'Livro de Maira', base: 'livro-milagres', slot_equip: null, grupo: 'Itens' },
@@ -194,12 +194,19 @@ describe('o que falta sai do catálogo', () => {
     expect(nomes).not.toContain('Livro de Maira');
   });
   it('a base sem pintura aparece com quantos itens ela cobre', async () => {
-    abrir();
-    await waitFor(() => expect(document.querySelectorAll('.gi-base-linha').length).toBeGreaterThan(0));
-    const linha = [...document.querySelectorAll('.gi-base-linha')]
-      .find((l) => l.querySelector('.gi-base-nome').textContent === 'Lenço de Algodão');
-    expect(linha, 'a base sem arte do lenço está na lista').toBeTruthy();
-    expect(linha.querySelector('.mn-quadro-num').textContent).toBe('1');
+    /* Desde 27/11/2026 toda base tem pintura. Para a lista ter o que mostrar,
+       o teste tira a do lenço de algodão do conjunto e devolve no fim. */
+    window.ARTE_PINTADA.delete('lenco-algodao');
+    try {
+      abrir();
+      await waitFor(() => expect(document.querySelectorAll('.gi-base-linha').length).toBeGreaterThan(0));
+      const linha = [...document.querySelectorAll('.gi-base-linha')]
+        .find((l) => l.querySelector('.gi-base-nome').textContent === 'Lenço de Algodão');
+      expect(linha, 'a base sem arte do lenço está na lista').toBeTruthy();
+      expect(linha.querySelector('.mn-quadro-num').textContent).toBe('1');
+    } finally {
+      window.ARTE_PINTADA.add('lenco-algodao');
+    }
   });
 });
 

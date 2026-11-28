@@ -658,3 +658,27 @@ rasgando) · ataque_halito (sopro de fogo, gelo e veneno juntos) · ataque_mordi
 
 Contagem: 209. Restam só Animais (58) e Vestimentas (55 — lenço, piercing,
 sapato, sobretudo, tapa-olho).
+
+## As vestimentas que faltavam (27/11/2026 — 15 pinturas)
+
+Pedido do usuário: "vamos para as vestimentas e materiais." Todas na primeira
+chamada. `public/equip/<arquivo>.webp` (320px) e ARTE_PINTADA; os empréstimos
+em 01-core/bases-item.jsx (`comArte`).
+
+| Arquivo | Objeto |
+|---|---|
+| ✔ lenco-algodao · lenco-linho · lenco-seda | lenço quadrado dobrado em triângulo e amarrado: cru / ocre de borda vermelha / seda esmeralda com borda de ouro. "a small NECKERCHIEF, not a scarf" |
+| ✔ sapato-couro · sapato-algodao · sapato-seda | UM sapato baixo: couro com fivela / pano cru com sola de corda / seda vinho bordada. Linho → algodão |
+| ✔ sobretudo-couro · sobretudo-algodao · sobretudo-seda | casaco longo vazio, como em manequim invisível: couro de montaria / algodão de trabalho com cinto de corda / brocado azul-real com ouro. Linho → algodão |
+| ✔ piercing-ouro · piercing-prata · piercing-cobre | argola curva: ouro com rubi / prata com pedra-da-lua / cobre azinhavrado. Latão → cobre, marfim → prata (METAL_PROPRIO) |
+| ✔ tapa-olho-ouro · tapa-olho-prata · tapa-olho-cobre | placa oval na tira de couro: ouro em filigrana com rubi / prata com lua crescente / cobre rebitado. Mesmos empréstimos |
+
+No banco: as quatro joias mágicas sem base ganharam a sua pela descrição —
+Juízo Perfeito, Lágrimas de Ganis e Outras Memórias → `anel-prata`; Maldição
+de Menard → `bracelete-marfim` (scripts/sql/base-joias-magicas-2026-11-27.sql).
+
+Desde aqui TODA base do vocabulário (218) tem pintura. Os dois testes que
+usavam uma base sem pintura como exemplo (bases-item.test, galeria-imagens.test)
+tiram uma do ARTE_PINTADA por um instante e devolvem no fim.
+
+Contagem: 224. No catálogo, só os **Animais (58)** seguem no glifo.

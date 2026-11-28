@@ -108,12 +108,17 @@ describe('a pintura vem da BASE, não do nome do exemplar', () => {
   });
 
   it('base conhecida mas ainda sem pintura fica no glifo, sem chutar pelo nome', () => {
-    // "Tapa-olho de Ouro" não tem pintura: a base já disse o que a peça é, e
-    // o palpite antigo (rosto → máscara) seria pior que o glifo. (Até
-    // 31/10/2026 o exemplo era o Chapéu de Seda, que ganhou pintura.)
-    expect(window.arteDaBase('tapa-olho-ouro')).toBe(null);
-    expect(window.arteDoItem({ nome: 'Tapa-olho de Ouro', slot_equip: 'rosto', base: 'tapa-olho-ouro' }))
-      .toBe(null);
+    // Base sem pintura: a base já disse o que a peça é, e o palpite antigo
+    // (rosto → máscara) seria pior que o glifo. Desde 27/11/2026 toda base
+    // tem pintura, então o teste tira a do Tapa-olho de Ouro por um instante.
+    window.ARTE_PINTADA.delete('tapa-olho-ouro');
+    try {
+      expect(window.arteDaBase('tapa-olho-ouro')).toBe(null);
+      expect(window.arteDoItem({ nome: 'Tapa-olho de Ouro', slot_equip: 'rosto', base: 'tapa-olho-ouro' }))
+        .toBe(null);
+    } finally {
+      window.ARTE_PINTADA.add('tapa-olho-ouro');
+    }
   });
 
   it('sem base, o palpite pelo nome continua valendo como rede', () => {

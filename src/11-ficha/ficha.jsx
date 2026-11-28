@@ -1875,6 +1875,14 @@ const ARTE_PINTADA = new Set([
   'cachecol-algodao', 'cachecol-linho', 'cachecol-seda',
   // A LUVA DE PANO (27/11/2026, Figma): emprestava a manopla leve de armadura.
   'luva-pano-algodao', 'luva-pano-couro', 'luva-pano-seda',
+  /* As vestimentas que faltavam (27/11/2026, Figma). Tecido: o linho usa o
+     algodão (menos o lenço, que tem os três, como o cachecol). Metal: latão
+     usa o cobre e marfim a prata (METAL_PROPRIO, 01-core/bases-item.jsx). */
+  'lenco-algodao', 'lenco-linho', 'lenco-seda',
+  'sapato-couro', 'sapato-algodao', 'sapato-seda',
+  'sobretudo-couro', 'sobretudo-algodao', 'sobretudo-seda',
+  'piercing-ouro', 'piercing-prata', 'piercing-cobre',
+  'tapa-olho-ouro', 'tapa-olho-prata', 'tapa-olho-cobre',
   'cinto-simples', 'cinto-ornado', 'cinto-nobre',
   'anel-simples', 'anel-ornado', 'anel-nobre',
   // as armas pelo tipo (23/10/2026) — ver ARMA_POR_NOME
