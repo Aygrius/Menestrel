@@ -1908,6 +1908,11 @@ const ARTE_PINTADA = new Set([
   'arma-arco-leve', 'arma-arco-medio', 'arma-arco-pesado',
   'arma-lanca-leve', 'arma-lanca-medio', 'arma-lanca-pesado',
   'arma-machado-leve', 'arma-machado-medio', 'arma-machado-pesado',
+  // As de esmagamento por peso (28/11/2026, usuário: "está faltando as armas de esmagamento leve, médio e pesado"):
+  // porrete, maça flangeada e estrela da manhã — o tipo "maca" lido do nome (clava, porrete, maça…).
+  'arma-maca-leve', 'arma-maca-medio', 'arma-maca-pesado',
+  // "O marfim são ossos" (usuário, 28/11/2026): a coroa de marfim é de osso, não a de prata.
+  'coroa-marfim',
 ]);
 
 /* A PINTURA SAI DO TIPO DA PEÇA (26/10/2026). As famílias novas são nomeadas

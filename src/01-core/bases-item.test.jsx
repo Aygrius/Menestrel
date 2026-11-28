@@ -256,3 +256,26 @@ describe('a base da arma é a classe de peso do grupo', () => {
     })).toBe('/equip/arma-besta.webp');   // besta ainda não tem versão por peso
   });
 });
+
+/* Ajustes de 28/11/2026 pedidos pelo usuário ao rever a página Imagens. */
+describe('os ajustes de 28/11/2026', () => {
+  it('as armas de esmagamento têm pintura por peso: porrete, maça, estrela da manhã', () => {
+    const arma = (nome, grupo_armas) => window.arteDoItem({ nome, slug: nome, categoria_equip: 'arma', grupo_armas, slot_equip: 'mao' });
+    expect(arma('Porrete', 'EL')).toBe('/equip/arma-maca-leve.webp');
+    expect(arma('Maça', 'EM')).toBe('/equip/arma-maca-medio.webp');
+    expect(arma('Clava', 'EM')).toBe('/equip/arma-maca-medio.webp');
+    expect(arma('Estrela da Manhã', 'EP')).toBe('/equip/arma-maca-pesado.webp');
+    for (const peso of ['leve', 'medio', 'pesado']) {
+      expect(window.artesDaBase('arma-' + peso).map((t) => t.variante)).toContain('Maça');
+    }
+  });
+
+  it('"o marfim são ossos": a coroa de marfim tem a sua pintura, não a de prata', () => {
+    expect(window.arteDaBase('coroa-marfim')).toBe('/equip/coroa-marfim.webp');
+  });
+
+  it('a tiara ficou com ouro, prata e cobre — latão e marfim saíram do catálogo', () => {
+    const tiaras = window.BASES_ITEM.filter((b) => b.familia === 'Tiara').map((b) => b.slug);
+    expect(tiaras).toEqual(['tiara-ouro', 'tiara-prata', 'tiara-cobre']);
+  });
+});

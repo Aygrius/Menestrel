@@ -146,8 +146,12 @@ const BASES_ITEM = [
      -prima dos dois. A Coroa ficou sem os dois (usuário, no mesmo dia:
      "Remova as coroas de cobre e latão"). */
   ...comArte(veste('chapeu', 'Chapéu', ['cabeca'], TECIDO), { linho: 'chapeu-algodao' }),
-  ...comArte(veste('coroa', 'Coroa', ['cabeca'], ['ouro', 'prata', 'marfim']), METAL_PROPRIO('coroa')),
-  ...comArte(veste('tiara', 'Tiara', ['cabeca'], METAL), METAL_PROPRIO('tiara')),
+  /* A coroa de marfim tem pintura própria, de OSSO (28/11/2026, usuário: "O
+     marfim são ossos, ou seja, coroa de marfim deve ser um exemplar de
+     ossos"); antes emprestava a de prata. */
+  ...comArte(veste('coroa', 'Coroa', ['cabeca'], ['ouro', 'prata', 'marfim']), { ...METAL_PROPRIO('coroa'), marfim: null }),
+  // Sem latão e marfim desde 28/11/2026: o usuário excluiu os dois exemplares do catálogo.
+  ...comArte(veste('tiara', 'Tiara', ['cabeca'], ['ouro', 'prata', 'cobre']), METAL_PROPRIO('tiara')),
   ...comArte(veste('capuz', 'Capuz', ['cabeca'], TECIDO), { linho: 'capuz-algodao' }),
   ...comArte(veste('mascara', 'Máscara', ['rosto'], METAL),
     { ouro: 'mascara-ferro', prata: 'mascara-ferro', cobre: 'mascara-ferro', latao: 'mascara-ferro', marfim: 'mascara-porcelana' }),

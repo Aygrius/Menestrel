@@ -714,3 +714,22 @@ Contagem: 229.
 | ✔ haalin | Haalin — lobo com chifres de carneiro, olhos de alma pálida |
 
 Contagem: 235.
+
+## Revisão de 28/11/2026 (usuário, ao rever a página Imagens)
+
+Os arquivos antigos ficaram em `preview/equip-arte/antigo-2026-11-28/`.
+
+| arquivo | o que mudou |
+|---|---|
+| ↻✔ ombreiras-leve | era o PAR; agora uma ombreira só, como o espaldar e o espaldar pesado |
+| ↻✔ bracos-leve · bracos-medio · bracos-pesado | braçadeira, avambraço e manopla: uma peça só, não o par |
+| ↻✔ pernas-leve · pernas-pesado | calça e greva fechada só até o joelho, como a greva (pernas-medio) |
+| ↻✔ arma-lanca-leve · arma-machado-leve | o fundo destoava (vinheta clara); refeitas no #17110A liso |
+| ✔ arma-maca-leve · arma-maca-medio · arma-maca-pesado | esmagamento por peso: porrete, maça flangeada, estrela da manhã |
+| ✔ coroa-marfim | "o marfim são ossos": coroa de osso entalhado com contas de âmbar (antes emprestava a de prata) |
+
+Catálogo: o usuário excluiu Chapéu de Linho, Tiara de Latão e Tiara de
+Marfim. As bases tiara-latao e tiara-marfim saíram do vocabulário;
+chapeu-linho fica (o Chapéu de Mago e o de Sacerdote a usam).
+
+Contagem: 239.
