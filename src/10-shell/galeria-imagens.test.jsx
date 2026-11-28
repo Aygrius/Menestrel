@@ -30,6 +30,9 @@ const CAT = [
   { slug: 'lenco_algodao', nome: 'Lenço de Algodão', base: 'lenco-algodao', slot_equip: 'pescoco', grupo: 'Vestimentas' },
   { slug: 'avestruz_pardo', nome: 'Avestruz Pardo', base: null, slot_equip: null, grupo: 'Animais' },
   { slug: 'livro_de_maira', nome: 'Livro de Maira', base: 'livro-milagres', slot_equip: null, grupo: 'Itens' },
+  // Armas: uma moldura por arma (28/11/2026).
+  { slug: 'espada_longa', nome: 'Espada Longa', base: 'arma-medio', slot_equip: 'mao', grupo: 'Armas', categoria_equip: 'arma', grupo_armas: 'CM' },
+  { slug: 'maca_de_guerra', nome: 'Maça de Guerra', base: 'arma-medio', slot_equip: 'mao', grupo: 'Armas', categoria_equip: 'arma', grupo_armas: 'EM' },
 ];
 
 beforeAll(async () => {
@@ -81,146 +84,104 @@ const celula = (rotulo) => screen.getByText(rotulo, { selector: '.mn-rotulo' })
   .closest('.mn-celula').querySelector('.mn-celula-valor').textContent;
 const nomesNaParede = () => [...document.querySelectorAll('.gi-nome')].map((n) => n.textContent);
 
-describe('o placar conta o que existe de verdade', () => {
-  it('"Bases" é o tamanho do vocabulário, não um número escrito à mão', () => {
-    abrir();
-    expect(celula('Bases')).toBe(String(window.BASES_ITEM.length));
-  });
-  /* "Pintadas" conta TELAS, não bases (27/10/2026): a base da ARMA é só o
-     peso, e o tipo vem do nome do exemplar — três bases cobrem as doze telas
-     de espada, arco, lança e machado. "Bases sem arte" segue contando bases:
-     é a encomenda seguinte do Figma, e uma base com quatro telas não está
-     faltando quatro vezes. */
-  /* Desde 30/10/2026 "Pintadas" soma também as pinturas SEM base (armas por
-     tipo, itens por slug, energias): é o número de molduras da parede, menos
-     as condições, que têm a célula delas. */
-  it('"Pintadas" conta as telas da parede; "Bases sem arte", as bases sem nenhuma', () => {
-    abrir();
-    const semNenhuma = window.BASES_ITEM.filter((b) => !window.artesDaBase(b.slug).length).length;
-    const molduras = document.querySelectorAll('.gi-peca').length;
-    expect(celula('Pintadas')).toBe(String(molduras - Number(celula('Condições'))));
-    expect(celula('Bases sem arte')).toBe(String(semNenhuma));
-  });
+/* A PAREDE SAI DO CATÁLOGO (28/11/2026). Usuário: "Ainda está aparecendo
+   máscara de prata, etc. […] Não tem como essa página de imagens só mostrar
+   os itens que existem? As armas não vão mostrar por tipo, vão mostrar por
+   arma." */
+const carregada = () => waitFor(() => expect(document.querySelectorAll('.gi-peca').length).toBeGreaterThan(0));
 
-  /* ── TODA PINTURA DO SISTEMA ESTÁ NA PAREDE (30/10/2026) ─────────────────
-     "No menu imagens não está aparecendo todas as imagens que temos no
-     sistema." (usuário) Ficavam fora 39: as que nenhuma base aponta. O teste
-     passa por TODOS os registros que a ficha consulta, então pintura nova
-     registrada sem base não some de novo. */
-  it('toda pintura registrada aparece, tenha base ou não', () => {
+describe('a parede mostra só o que o catálogo usa', () => {
+  it('a base sem item nenhum não aparece — só a que algum exemplar usa', async () => {
     abrir();
-    const naParede = new Set([...document.querySelectorAll('.gi-peca img')].map((i) => i.getAttribute('src')));
-    const registradas = [
-      ...[...window.ARTE_PINTADA].map((n) => '/equip/' + n + '.webp'),
-      ...[...window.ARTE_ITEM_SLUG, ...window.ARTE_ITEM_NOVA].map((n) => '/itens/' + n + '.webp'),
-      ...Object.values(window.ARTE_GEMA),
-      ...window.ARTE_CRIATURA.map(([, a]) => '/criaturas/' + a + '.webp'),
-    ];
-    expect(registradas.filter((s) => !naParede.has(s))).toEqual([]);
-    // As que motivaram o pedido, pelo nome.
-    // Os rostos das criaturas entraram em 28/11/2026 ("não estou vendo todas as imagens no menu imagem").
-    for (const s of ['/itens/pelo_de_fogo.webp', '/itens/flor.webp', '/equip/arma-besta.webp', '/energia/gema-rubi.webp', '/criaturas/enviado.webp']) {
-      expect(naParede.has(s), s).toBe(true);
-    }
-  });
-  it('a arma pendura mais telas do que tem bases', () => {
-    const doPeso = window.artesDaBase('arma-pesado');
-    expect(doPeso.length).toBeGreaterThan(1);
-    expect(doPeso.map((t) => t.variante)).toContain('Machado');
-  });
-});
-
-describe('a legenda é o nome da BASE, nunca o do exemplar', () => {
-  it('a máscara se chama pelo material, e não "Decorativa"', () => {
-    abrir();
+    await carregada();
     const nomes = nomesNaParede();
     expect(nomes).toContain('Máscara de Latão');
-    // Porcelana saiu em 31/10/2026; o marfim herdou a pintura dela.
-    expect(nomes).toContain('Máscara de Marfim');
-    expect(nomes).not.toContain('Máscara Decorativa');
-    expect(nomes).not.toContain('Máscara Verrogari');
+    for (const fora of ['Máscara de Marfim', 'Coroa de Ouro', 'Tiara de Prata', 'Elmo Pesado']) {
+      expect(nomes, fora).not.toContain(fora);
+    }
   });
-  it('a joia antiga se chama pelo metal — "Brinco de Ouro", não "Brinco Nobre"', () => {
+  it('a pintura aparece uma vez, com quantos itens a usam e, no balão, quais', async () => {
     abrir();
-    const nomes = nomesNaParede();
-    expect(nomes).toContain('Brinco de Ouro');
-    expect(nomes).not.toContain('Brinco Nobre');
+    await carregada();
+    const mascara = [...document.querySelectorAll('.gi-peca')]
+      .find((p) => p.querySelector('.gi-nome').textContent === 'Máscara de Latão');
+    expect(mascara.querySelector('.gi-arq').textContent).toBe('2 itens');
+    fireEvent.mouseEnter(mascara);
+    await waitFor(() => expect(screen.getByText('Máscara Decorativa · Máscara Verrogari')).toBeTruthy());
+    expect(nomesNaParede().filter((n) => n === 'Máscara de Latão')).toHaveLength(1);
   });
-  it('a parede inteira sai do vocabulário de bases', () => {
+  it('as armas aparecem uma a uma, pelo nome da arma', async () => {
     abrir();
-    const doVocabulario = new Set(window.BASES_ITEM.map((b) => b.nome));
-    // As seções SEM base (30/10/2026) levam o nome do item ou do arquivo —
-    // é justamente o que elas são. A regra vale para a parede das bases.
-    const foraDoVocabulario = [...document.querySelectorAll('.gi-sec:not(.gi-sec--sem-base) .gi-nome')]
-      .map((n) => n.textContent)
-      /* A tela de arma leva o tipo depois do nome da base ("Arma Pesada ·
-         Machado", 27/10/2026): a base continua mandando na legenda, e o que
-         vem depois do ponto é qual das telas dela está na moldura. */
-      .map((n) => n.split(' · ')[0])
-      .filter((n) => !doVocabulario.has(n))
-      // as condições não são bases de item: têm a sua própria lista
-      .filter((n) => !['Doença', 'Sono', 'Sede', 'Fome', 'Frio', 'Calor', 'Vício',
-        'Loucura', 'Má Fama', 'Peso (guardada)'].includes(n));
-    expect(foraDoVocabulario).toEqual([]);
+    await carregada();
+    const sec = [...document.querySelectorAll('.gi-sec')].find((s) => s.querySelector('.gi-sec-titulo').textContent === 'Armas');
+    const nomes = [...sec.querySelectorAll('.gi-nome')].map((n) => n.textContent);
+    expect(nomes).toEqual(['Espada Longa', 'Maça de Guerra']);
+    const img = [...sec.querySelectorAll('.gi-peca')].map((p) => p.querySelector('img').getAttribute('src'));
+    expect(img).toEqual(['/equip/arma-espada-medio.webp', '/equip/arma-maca-medio.webp']);
+  });
+  it('o placar conta pinturas e itens do catálogo', async () => {
+    abrir();
+    await carregada();
+    expect(celula('Itens pintados')).toBe(String(CAT.length - 1));   // o avestruz não tem pintura
+    expect(celula('Itens sem pintura')).toBe('1');
+    expect(celula('Criaturas')).toBe(String(window.ARTE_CRIATURA.length));
+  });
+  it('as imagens do sistema seguem na parede: criaturas, condições e energias', async () => {
+    abrir();
+    await carregada();
+    const srcs = new Set([...document.querySelectorAll('.gi-peca img')].map((i) => i.getAttribute('src')));
+    expect(srcs.has('/criaturas/enviado.webp')).toBe(true);
+    expect(srcs.has('/cond/cond-sono.webp')).toBe(true);
+    expect(srcs.has('/energia/gema-rubi.webp')).toBe(true);
   });
 });
 
 describe('a busca filtra a parede', () => {
-  it('"coroa" deixa só as três coroas (31/10/2026: sem cobre, latão e porcelana)', async () => {
+  it('procura também pelos itens da pintura', async () => {
     abrir();
-    fireEvent.change(document.querySelector('.gi-barra input'), { target: { value: 'coroa' } });
-    await waitFor(() => {
-      // E a pintura de cobre, que perdeu a base mas segue na parede (Peças sem base).
-      expect(nomesNaParede()).toEqual(['Coroa de Ouro', 'Coroa de Prata', 'Coroa de Marfim', 'Coroa cobre']);
-    });
+    await carregada();
+    fireEvent.change(document.querySelector('.gi-barra input'), { target: { value: 'verrogari' } });
+    await waitFor(() => expect(nomesNaParede()).toEqual(['Máscara de Latão']));
   });
   it('a busca sem resultado diz isso em vez de mostrar a parede vazia', async () => {
     abrir();
+    await carregada();
     fireEvent.change(document.querySelector('.gi-barra input'), { target: { value: 'zzzz' } });
     await waitFor(() => {
       expect(document.querySelectorAll('.gi-peca').length).toBe(0);
-      expect(screen.getAllByText(/Nenhuma base com/).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Nenhuma pintura com/).length).toBeGreaterThan(0);
     });
   });
 });
 
 describe('o que falta sai do catálogo', () => {
-  it('o item sem base nenhuma entra na lista, agrupado pelo grupo', async () => {
+  it('o item sem pintura entra na lista, agrupado pelo grupo', async () => {
     abrir();
     await waitFor(() => expect(screen.getByText(/Avestruz Pardo/)).toBeTruthy());
     const linhas = [...document.querySelectorAll('.gi-falta-linha')]
       .map((l) => l.querySelector('.gi-falta-regiao').textContent);
     expect(linhas).toContain('Animais');
-    // A máscara e o livro têm base pintada: não entram.
     const nomes = [...document.querySelectorAll('.gi-falta-nomes')].map((n) => n.textContent).join(' ');
     expect(nomes).not.toContain('Máscara Verrogari');
     expect(nomes).not.toContain('Livro de Maira');
   });
-  it('a base sem pintura aparece com quantos itens ela cobre', async () => {
-    /* Desde 27/11/2026 toda base tem pintura. Para a lista ter o que mostrar,
-       o teste tira a do lenço de algodão do conjunto e devolve no fim. */
-    window.ARTE_PINTADA.delete('lenco-algodao');
-    try {
-      abrir();
-      await waitFor(() => expect(document.querySelectorAll('.gi-base-linha').length).toBeGreaterThan(0));
-      const linha = [...document.querySelectorAll('.gi-base-linha')]
-        .find((l) => l.querySelector('.gi-base-nome').textContent === 'Lenço de Algodão');
-      expect(linha, 'a base sem arte do lenço está na lista').toBeTruthy();
-      expect(linha.querySelector('.mn-quadro-num').textContent).toBe('1');
-    } finally {
-      window.ARTE_PINTADA.add('lenco-algodao');
-    }
-  });
 });
 
 describe('as faixas', () => {
-  it('"Condições" esconde as bases', async () => {
+  it('"Condições" esconde os itens', async () => {
     abrir();
+    await carregada();
     fireEvent.click(screen.getByRole('button', { name: 'Condições' }));
     await waitFor(() => {
-      expect(screen.queryByText('Elmo Pesado')).toBeNull();
+      expect(screen.queryByText('Máscara de Latão')).toBeNull();
       expect(screen.getByText('Loucura')).toBeTruthy();
     });
+  });
+  it('"Armas" mostra só as armas', async () => {
+    abrir();
+    await carregada();
+    fireEvent.click(screen.getByRole('button', { name: 'Armas' }));
+    await waitFor(() => expect(nomesNaParede()).toEqual(['Espada Longa', 'Maça de Guerra']));
   });
 });
 

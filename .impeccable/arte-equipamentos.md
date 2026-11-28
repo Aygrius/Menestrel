@@ -767,3 +767,17 @@ também, colar e pingente também." Antes emprestavam a pintura de prata.
 | ✔ pingente-marfim | meia-lua de osso com runas e pedra de âmbar |
 
 Contagem: 246.
+
+## A página Imagens sai do catálogo (28/11/2026)
+
+Usuário: "Não tem como essa página de imagens só mostrar os itens que existem?
+As armas não vão mostrar por tipo, vão mostrar por arma." A parede deixou de
+nascer do vocabulário de bases: cada item do catálogo passa por arteDoItem;
+armas uma moldura por arma, o resto uma moldura por pintura (base na legenda,
+"N itens" no pé, os nomes no balão). Base ou pintura sem item não aparece.
+
+No mesmo dia saíram do catálogo as 279 versões de profissão (138 peças + 141
+"Receita de … de <Profissão>") e as 138 receitas delas
+(scripts/sql/remove-versoes-profissao-2026-11-28.sql); os inventários
+trocaram pelo item comum. Bases que ficaram sem item e saíram do vocabulário:
+capuz-linho, anel-cobre, bracelete-cobre.

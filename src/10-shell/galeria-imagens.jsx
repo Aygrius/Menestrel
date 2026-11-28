@@ -4,20 +4,24 @@
    Pedido do usuário em 25/10/2026: "Adicione a página [das pinturas] no nosso
    sistema para controle do mestre, abaixo de Paleta, chamado Imagens."
 
-   E, em 26/10/2026, o que reorganizou esta página inteira:
+   A PAREDE SAI DO CATÁLOGO (28/11/2026). Usuário: "Ainda está aparecendo
+   máscara de prata, etc. […] Não tem como essa página de imagens só mostrar
+   os itens que existem? As armas não vão mostrar por tipo, vão mostrar por
+   arma."
 
-     "Existe a base do item, por exemplo 'Máscara de Ouro', e existe o exemplar
-      do item, 'Máscara Decorativa', 'Máscara Verrogari'."
+   Até aqui a parede nascia do vocabulário de bases (window.BASES_ITEM) e dos
+   registros de pintura — e por isso mostrava o que nenhum item usa mais: a
+   base de um item excluído, a pintura antiga que ficou no disco. Agora cada
+   item do catálogo passa pelo MESMO window.arteDoItem que a ficha usa, e a
+   parede é o que sai dali:
 
-   A versão anterior listava as pinturas com rótulos digitados à mão — e por
-   isso mostrava "Máscara Decorativa" (um exemplar) no lugar de "Máscara de
-   Ferro" (a base). Agora a parede inteira é desenhada a partir de
-   window.BASES_ITEM (01-core/bases-item.jsx): o nome na legenda é o nome da
-   base, e a pintura é a que a base aponta. Nada é digitado duas vezes.
+   - as ARMAS, uma moldura por arma, com o nome dela;
+   - o resto, uma moldura por PINTURA, agrupada pela região do corpo (ou pelo
+     grupo do catálogo), com a base na legenda e quantos itens a usam no pé.
 
-   O resto da página sai do CATÁLOGO: o bloco "Itens sem pintura" carrega os
-   itens e passa cada um por window.arteDoItem — quem volta null entra na
-   lista. Item novo aparece aqui sozinho, sem ninguém atualizar nada.
+   Item excluído some daqui sozinho; pintura que nenhum item usa não aparece.
+   Fora do catálogo ficam só as imagens do próprio sistema: os rostos das
+   criaturas, as condições e as pedras das Energias.
    ============================================================ */
 
 const { useState, useEffect, useMemo } = React;
@@ -30,23 +34,28 @@ const GI_CONDICOES = [
   ['cond-desonra', 'Má Fama'], ['cond-pesado', 'Peso (guardada)'],
 ];
 
+// A ordem do corpo, de cima para baixo: é a ordem das seções equipáveis.
 const GI_REGIAO_NOME = {
   cabeca: 'Cabeça', orelha: 'Orelha', rosto: 'Rosto', pescoco: 'Pescoço', ombro: 'Ombro',
-  costas: 'Costas', dorso: 'Dorso', peito: 'Peito', braco: 'Braço', dedo: 'Dedo', pulso: 'Pulso',
-  mao: 'Mão', perna: 'Perna', cintura: 'Cintura', canela: 'Canela', pe: 'Pé', alforje: 'Alforje',
+  costas: 'Costas', dorso: 'Dorso', peito: 'Peito', braco: 'Braço', pulso: 'Pulso', dedo: 'Dedo',
+  mao: 'Mão', cintura: 'Cintura', alforje: 'Alforje', perna: 'Perna', canela: 'Canela', pe: 'Pé',
 };
+const GI_ORDEM_REGIAO = Object.keys(GI_REGIAO_NOME);
 
 const giNormal = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-// Onde a base vive, em palavras: as regiões do corpo, ou os grupos do catálogo.
-const giOnde = (base) => [
-  ...(base.slots || []).map((s) => GI_REGIAO_NOME[s] || s),
-  ...(base.grupos || []),
-].join(' · ');
+const giArquivo = (src) => String(src || '').replace(/^.*\/|\.webp$/g, '');
+const giLegivel = (k) => { const t = String(k).replace(/[_-]+/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1); };
+const giItens = (n) => n + (n === 1 ? ' item' : ' itens');
+// A arma de verdade: o ataque natural (grupo Livre) é pintado pelo nome, como item.
+const giEhArma = (c) => c.categoria_equip === 'arma' && c.grupo_armas && c.grupo_armas !== 'Livre';
 
-/* Uma pintura na parede: moldura quadrada, nome da BASE e o que ela cobre. */
-function GiPeca({ src, nome, pe }) {
+/* Uma pintura na parede: moldura quadrada, legenda e o pé. `dica` lista os
+   itens que a usam, para o Mestre conferir sem abrir nada — no balão do
+   projeto (propsTip), nunca no title nativo. */
+function GiPeca({ src, nome, pe, dica, tip }) {
+  const comDica = dica && tip ? { tabIndex: 0, ...window.propsTip(tip.abrir, tip.fechar, dica) } : {};
   return (
-    <figure className="gi-peca">
+    <figure className="gi-peca" {...comDica}>
       <span className="gi-moldura"><img src={src} alt="" loading="lazy" /></span>
       <figcaption className="gi-nome">{nome}</figcaption>
       {pe && <span className="gi-arq">{pe}</span>}
@@ -54,20 +63,32 @@ function GiPeca({ src, nome, pe }) {
   );
 }
 
+function GiSecao({ titulo, conta, nota, children }) {
+  return (
+    <section className="gi-sec">
+      <div className="mn-quadro-cabeca">
+        <h3 className="gi-sec-titulo">{titulo}</h3>
+        <span className="gi-conta">{conta}</span>
+      </div>
+      {nota && <p className="gi-sec-nota">{nota}</p>}
+      {children}
+    </section>
+  );
+}
+
 function GaleriaImagensModal({ lang = 'pt', onClose }) {
   const [catalogo, setCatalogo] = useState(null);   // null = carregando
   const [busca, setBusca] = useState('');
-  const [faixa, setFaixa] = useState('tudo');        // tudo | equip | itens | cond | falta
-
-  const bases = (typeof window !== 'undefined' && window.BASES_ITEM) || [];
-  const arteDaBase = (typeof window !== 'undefined' && window.arteDaBase) || (() => null);
+  const [faixa, setFaixa] = useState('tudo');        // tudo | armas | equip | itens | criaturas | cond | falta
+  const [tip, abrirTip, fecharTip, manterTip] = window.useTooltip(60);
+  const giTip = { abrir: abrirTip, fechar: fecharTip };
 
   useEffect(() => {
     let vivo = true;
     (async () => {
       const { data, error } = await supabaseClient
         .from('itens')
-        .select('slug, nome, base, grupo, slot_equip, tipo_equip, categoria_equip, tipo_armadura, grupo_armas, valor_latao')
+        .select('slug, nome, base, arte, grupo, slot_equip, tipo_equip, categoria_equip, tipo_armadura, grupo_armas, valor_latao, tipo_item, magico')
         .order('nome');
       if (!vivo) return;
       if (error) { console.error('[imagens] catálogo não carregou:', error); setCatalogo([]); return; }
@@ -76,159 +97,106 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
     return () => { vivo = false; };
   }, []);
 
-  /* Cada base com as pinturas que ela aponta — a mesma consulta que a ficha,
-     o inventário e a loja fazem, só que no PLURAL: a base da ARMA é o peso, e
-     o tipo (espada, machado, lança, arco) vem do nome do exemplar, então três
-     bases cobrem doze telas. Ver `artesDaBase` (11-ficha/ficha.jsx), pedido do
-     usuário de 27/10/2026 ("fez o desenho de um machado duplo [...] mas não
-     vejo ele nas imagens do sistema"). */
-  const artesDaBase = (typeof window !== 'undefined' && window.artesDaBase) || null;
-  const basesComArte = useMemo(
-    () => bases.map((b) => {
-      const telas = artesDaBase ? artesDaBase(b.slug) : [];
-      const src = arteDaBase(b.slug);
-      return { base: b, src: (telas[0] && telas[0].src) || src, telas: telas.length ? telas : (src ? [{ src, variante: null }] : []) };
-    }),
-    [bases.length],
-  );
-
-  /* Quantos itens do catálogo cada base cobre: é o que diz qual pintar antes. */
-  const itensPorBase = useMemo(() => {
+  const nomeDaBase = useMemo(() => {
     const m = {};
-    (catalogo || []).forEach((c) => { if (c.base) m[c.base] = (m[c.base] || 0) + 1; });
+    ((typeof window !== 'undefined' && window.BASES_ITEM) || []).forEach((b) => { m[b.slug] = b.nome; });
     return m;
-  }, [catalogo]);
+  }, []);
 
-  /* O que o catálogo tem e a arte não cobre. Cada item passa pelo MESMO
-     window.arteDoItem que a ficha usa; peça vestível se agrupa pela REGIÃO
-     (é assim que a arte é encomendada) e o resto, pelo grupo do catálogo. */
-  const semPintura = useMemo(() => {
-    if (!catalogo || typeof window === 'undefined' || !window.arteDoItem) return [];
-    const porGrupo = new Map();
-    for (const cat of catalogo) {
-      if (window.arteDoItem(cat)) continue;
-      const chave = cat.slot_equip
-        ? (GI_REGIAO_NOME[cat.slot_equip] || cat.slot_equip)
-        : (cat.grupo || 'Outros');
-      if (!porGrupo.has(chave)) porGrupo.set(chave, []);
-      porGrupo.get(chave).push(cat.nome);
+  /* O catálogo inteiro passa uma vez pelo arteDoItem: o que volta é a parede
+     (armas uma a uma, o resto agrupado por pintura) e o que volta null é a
+     lista do que falta pintar. */
+  const parede = useMemo(() => {
+    const vazio = { armas: [], secoes: [], falta: [], itensPintados: 0, pinturas: 0 };
+    if (!catalogo || typeof window === 'undefined' || !window.arteDoItem) return vazio;
+    const armas = [];
+    const porSecao = new Map();   // secao → Map(src → { src, itens: [] })
+    const falta = new Map();      // secao → [nomes]
+    const srcs = new Set();
+    let itensPintados = 0;
+    for (const c of catalogo) {
+      const src = window.arteDoItem(c);
+      const secao = c.slot_equip ? (GI_REGIAO_NOME[c.slot_equip] || c.slot_equip) : (c.grupo || 'Outros');
+      if (!src) {
+        if (!falta.has(secao)) falta.set(secao, []);
+        falta.get(secao).push(c.nome);
+        continue;
+      }
+      itensPintados += 1;
+      srcs.add(src);
+      if (giEhArma(c)) { armas.push({ item: c, src }); continue; }
+      if (!porSecao.has(secao)) porSecao.set(secao, new Map());
+      const doSrc = porSecao.get(secao);
+      if (!doSrc.has(src)) doSrc.set(src, { src, itens: [] });
+      doSrc.get(src).itens.push(c);
     }
-    return [...porGrupo.entries()]
-      .map(([regiao, nomes]) => ({ regiao, nomes }))
-      .sort((a, b) => b.nomes.length - a.nomes.length);
-  }, [catalogo]);
+    const ordemSecao = (nome) => {
+      const i = GI_ORDEM_REGIAO.findIndex((k) => GI_REGIAO_NOME[k] === nome);
+      return i < 0 ? 100 : i;
+    };
+    const secoes = [...porSecao.entries()]
+      .map(([nome, m]) => ({
+        nome,
+        equip: ordemSecao(nome) < 100,
+        pecas: [...m.values()].map((p) => {
+          /* A legenda: a base, quando todos os itens da pintura dividem uma;
+             o próprio item, quando é um só; senão, o nome do arquivo. */
+          const bases = new Set(p.itens.map((i) => i.base).filter(Boolean));
+          const base = bases.size === 1 && p.itens.every((i) => i.base) ? [...bases][0] : null;
+          const nome = (base && nomeDaBase[base])
+            || (p.itens.length === 1 ? p.itens[0].nome : giLegivel(giArquivo(p.src)));
+          return { ...p, nome };
+        }).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
+      }))
+      .sort((a, b) => ordemSecao(a.nome) - ordemSecao(b.nome) || a.nome.localeCompare(b.nome, 'pt-BR'));
+    return {
+      armas: armas.sort((a, b) => a.item.nome.localeCompare(b.item.nome, 'pt-BR')),
+      secoes,
+      falta: [...falta.entries()].map(([regiao, nomes]) => ({ regiao, nomes }))
+        .sort((a, b) => b.nomes.length - a.nomes.length),
+      itensPintados,
+      pinturas: srcs.size,
+    };
+  }, [catalogo, nomeDaBase]);
 
-  // Casa com a busca? Vale para o nome da base, a família e o arquivo.
+  /* As imagens do próprio sistema, que não são de item. */
+  const sistema = useMemo(() => {
+    if (typeof window === 'undefined') return { criaturas: [], energia: [] };
+    const NOME_ENERGIA = { ef: 'Energia Física', eh: 'Energia Heroica', ka: 'Karma' };
+    return {
+      criaturas: (window.ARTE_CRIATURA || [])
+        .map(([, arq, nome]) => ({ src: '/criaturas/' + arq + '.webp', nome: nome || giLegivel(arq), arq })),
+      energia: Object.entries(window.ARTE_GEMA || {})
+        .map(([k, src]) => ({ src, nome: NOME_ENERGIA[k] || k, arq: giArquivo(src) })),
+    };
+  }, []);
+
+  // A busca vale para a legenda, os itens da pintura e o arquivo.
   const q = giNormal(busca.trim());
   const casa = (...partes) => !q || partes.some((p) => giNormal(p).includes(q));
-
-  /* As famílias pintadas, na ordem do vocabulário. `equip` separa quem mora
-     numa região do corpo de quem é item solto — são as duas faixas da barra. */
-  const familias = useMemo(() => {
-    const ordem = [];
-    const porFamilia = new Map();
-    basesComArte.forEach(({ base, telas }) => {
-      if (!telas.length) return;
-      if (!casa(base.nome, base.familia, base.slug, giOnde(base))) return;
-      if (!porFamilia.has(base.familia)) { porFamilia.set(base.familia, []); ordem.push(base.familia); }
-      /* Uma moldura por TELA: a base da arma pendura quatro. O nome ganha a
-         variante ("Arma Pesada · Machado") para a parede dizer qual é qual. */
-      telas.forEach((t) => porFamilia.get(base.familia).push({ base, src: t.src, variante: t.variante }));
-    });
-    return ordem.map((nome) => ({
-      nome,
-      pecas: porFamilia.get(nome),
-      equip: (porFamilia.get(nome)[0].base.slots || []).length > 0,
-    }));
-  }, [basesComArte, q]);
-
-  /* As bases que ainda não têm pintura — a encomenda seguinte do Figma, já
-     com quantos itens do catálogo cada uma cobre. */
-  const basesSemArte = useMemo(
-    () => basesComArte
-      .filter(({ base, src }) => !src && casa(base.nome, base.familia, base.slug))
-      .map(({ base }) => ({ base, itens: itensPorBase[base.slug] || 0 }))
-      .sort((a, b) => b.itens - a.itens),
-    [basesComArte, itensPorBase, q],
-  );
-
-  /* ── AS PINTURAS SEM BASE (30/10/2026, usuário: "no menu imagens não está
-     aparecendo todas as imagens que temos no sistema") ────────────────────
-     A parede acima nasce do vocabulário de bases, e ficavam fora 39 pinturas
-     que o sistema usa sem base nenhuma: as armas por tipo que a escada da
-     mão acha pelo nome (arco, besta, maça…), as pinturas por slug (penas,
-     couros, pelos, água suja…), as de tipo sem base (erva, cogumelo, flor,
-     planta) e as três gemas da Energia. A lista sai dos MESMOS registros que
-     a ficha consulta — ARTE_PINTADA, ARTE_ITEM_SLUG, ARTE_ITEM_NOVA,
-     ARTE_GEMA —, menos o que alguma base já pendurou: pintura nova
-     registrada aparece aqui sozinha. */
-  const avulsas = useMemo(() => {
-    if (typeof window === 'undefined') return { armas: [], pecas: [], itens: [], energia: [], criaturas: [] };
-    const jaNaParede = new Set();
-    basesComArte.forEach(({ telas }) => telas.forEach((t) => jaNaParede.add(t.src)));
-    const nomeNoCatalogo = {};
-    (catalogo || []).forEach((c) => { if (c.slug && !nomeNoCatalogo[c.slug]) nomeNoCatalogo[c.slug] = c.nome; });
-    const legivel = (k) => { const t = String(k).replace(/[_-]+/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1); };
-    const armas = [...(window.ARTE_PINTADA || [])]
-      .filter((n) => /^arma-/.test(n) && !jaNaParede.has('/equip/' + n + '.webp'))
-      .map((n) => ({ src: '/equip/' + n + '.webp', nome: 'Arma · ' + legivel(n.slice(5)), arq: n }));
-    const itens = [...new Set([...(window.ARTE_ITEM_SLUG || []), ...(window.ARTE_ITEM_NOVA || [])])]
-      .filter((n) => !jaNaParede.has('/itens/' + n + '.webp'))
-      .map((n) => ({ src: '/itens/' + n + '.webp', nome: nomeNoCatalogo[n] || legivel(n), arq: n }))
-      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-    /* A pintura de peça que nenhuma base usa mais (30/10/2026): a reforma das
-       vestimentas tirou o cobre da coroa e do pingente, e as manoplas viraram
-       peça de braço. O arquivo continua no sistema — e na parede. */
-    const pecas = [...(window.ARTE_PINTADA || [])]
-      .filter((n) => !/^arma-/.test(n) && !jaNaParede.has('/equip/' + n + '.webp'))
-      .map((n) => ({ src: '/equip/' + n + '.webp', nome: legivel(n), arq: n }));
-    const NOME_ENERGIA = { ef: 'Energia Física', eh: 'Energia Heroica', ka: 'Karma' };
-    const energia = Object.entries(window.ARTE_GEMA || {})
-      .map(([k, src]) => ({ src, nome: NOME_ENERGIA[k] || k, arq: src.replace(/^.*\/|\.webp$/g, '') }));
-    /* Os rostos das criaturas (28/11/2026, usuário: "não estou vendo todas
-       as imagens no menu imagem"): um por TIPO, do ARTE_CRIATURA. */
-    const criaturas = (window.ARTE_CRIATURA || [])
-      .map(([, arq, nome]) => ({ src: '/criaturas/' + arq + '.webp', nome: nome || legivel(arq), arq }));
-    return { armas, pecas, itens, energia, criaturas };
-  }, [basesComArte, catalogo]);
-  const SECOES_AVULSAS = [
-    { id: 'armas', titulo: 'Armas por tipo', faixa: 'equip',
-      nota: 'Sem base própria: a mão escolhe pelo tipo lido no nome da arma (arco, besta, maça…).' },
-    { id: 'pecas', titulo: 'Peças sem base', faixa: 'equip',
-      nota: 'Pinturas de peça que nenhuma base usa hoje; voltam para a parede quando uma base apontar para elas.' },
-    { id: 'itens', titulo: 'Itens sem base', faixa: 'itens',
-      nota: 'Pinturas por item ou por tipo de nome (erva, flor, planta…), que nenhuma base aponta.' },
-    { id: 'energia', titulo: 'Energias', faixa: 'cond',
-      nota: 'As três pedras do cartão Energias da ficha.' },
-    { id: 'criaturas', titulo: 'Criaturas', faixa: 'criaturas',
-      nota: 'O rosto de cada tipo de criatura: todas as fichas do tipo dividem a mesma pintura.' },
-  ];
-  const totalAvulsas = avulsas.armas.length + avulsas.pecas.length + avulsas.itens.length + avulsas.energia.length + avulsas.criaturas.length;
-
-  const condFiltradas = GI_CONDICOES.filter(([a, n]) => casa(n, a));
-  const faltaFiltrada = semPintura
-    .map((g) => ({ ...g, nomes: g.nomes.filter((n) => casa(n, g.regiao)) }))
-    .filter((g) => g.nomes.length);
-
-  /* "Pintadas" conta TELAS (a arma tem quatro por base); "Bases sem arte"
-     conta as bases que não têm nenhuma. Antes os dois eram a mesma conta, e
-     ela parava de fechar no dia em que uma base ganhou a segunda tela. */
-  const totalPintadas = basesComArte.reduce((s, x) => s + x.telas.length, 0);
-  const basesPintadas = basesComArte.filter((x) => x.telas.length).length;
-  const totalFalta = semPintura.reduce((s, g) => s + g.nomes.length, 0);
-  const faltaAVista = faltaFiltrada.reduce((s, g) => s + g.nomes.length, 0);
   const mostra = (f) => faixa === 'tudo' || faixa === f;
 
-  const FAIXAS = [
-    ['tudo', 'Tudo'], ['equip', 'Equipáveis'], ['itens', 'Itens'],
-    ['cond', 'Condições'], ['criaturas', 'Criaturas'], ['falta', 'Sem pintura'],
-  ];
-  const familiasAVista = familias.filter((f) => mostra(f.equip ? 'equip' : 'itens'));
+  const armasAVista = mostra('armas')
+    ? parede.armas.filter(({ item, src }) => casa(item.nome, item.grupo_armas, giArquivo(src))) : [];
+  const secoesAVista = parede.secoes
+    .filter((s) => mostra(s.equip ? 'equip' : 'itens'))
+    .map((s) => ({ ...s, pecas: s.pecas.filter((p) => casa(p.nome, giArquivo(p.src), ...p.itens.map((i) => i.nome))) }))
+    .filter((s) => s.pecas.length);
+  const criaturasAVista = mostra('criaturas') ? sistema.criaturas.filter((p) => casa(p.nome, p.arq)) : [];
+  const condAVista = mostra('cond') ? GI_CONDICOES.filter(([a, n]) => casa(n, a)) : [];
+  const energiaAVista = mostra('cond') ? sistema.energia.filter((p) => casa(p.nome, p.arq)) : [];
+  const faltaAVista = mostra('falta')
+    ? parede.falta.map((g) => ({ ...g, nomes: g.nomes.filter((n) => casa(n, g.regiao)) })).filter((g) => g.nomes.length)
+    : [];
+  const totalFalta = parede.falta.reduce((s, g) => s + g.nomes.length, 0);
+  const faltaContada = faltaAVista.reduce((s, g) => s + g.nomes.length, 0);
 
-  const avulsasAVista = SECOES_AVULSAS.some(({ id, faixa: f }) => mostra(f)
-    && avulsas[id].some((p) => casa(p.nome, p.arq)));
-  const vazio = !familiasAVista.length && !condFiltradas.length
-    && !faltaFiltrada.length && !basesSemArte.length && !avulsasAVista;
+  const FAIXAS = [
+    ['tudo', 'Tudo'], ['armas', 'Armas'], ['equip', 'Equipáveis'], ['itens', 'Itens'],
+    ['criaturas', 'Criaturas'], ['cond', 'Condições'], ['falta', 'Sem pintura'],
+  ];
+  const vazio = catalogo && !armasAVista.length && !secoesAVista.length && !criaturasAVista.length
+    && !condAVista.length && !energiaAVista.length && !faltaAVista.length && faixa !== 'falta';
 
   return (
     <ModalShell
@@ -242,22 +210,12 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
         {/* ── o placar ── */}
         <div className="mn-passe mn-passe--igual gi-placar">
           <div className="mn-celula">
-            <span className="mn-rotulo">Bases</span>
-            <span className="mn-celula-valor">{bases.length}</span>
+            <span className="mn-rotulo">Pinturas em uso</span>
+            <span className="mn-celula-valor">{catalogo ? parede.pinturas : '—'}</span>
           </div>
           <div className="mn-celula">
-            <span className="mn-rotulo">Pintadas</span>
-            <span className="mn-celula-valor">{totalPintadas + totalAvulsas}</span>
-          </div>
-          <div className="mn-celula">
-            <span className="mn-rotulo">Bases sem arte</span>
-            <span className={'mn-celula-valor' + (bases.length - basesPintadas ? ' mn-celula-valor--alerta' : '')}>
-              {bases.length - basesPintadas}
-            </span>
-          </div>
-          <div className="mn-celula">
-            <span className="mn-rotulo">Condições</span>
-            <span className="mn-celula-valor">{GI_CONDICOES.length}</span>
+            <span className="mn-rotulo">Itens pintados</span>
+            <span className="mn-celula-valor">{catalogo ? parede.itensPintados : '—'}</span>
           </div>
           <div className="mn-celula">
             <span className="mn-rotulo">Itens sem pintura</span>
@@ -265,13 +223,20 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
               {catalogo ? totalFalta : '—'}
             </span>
           </div>
+          <div className="mn-celula">
+            <span className="mn-rotulo">Criaturas</span>
+            <span className="mn-celula-valor">{sistema.criaturas.length}</span>
+          </div>
+          <div className="mn-celula">
+            <span className="mn-rotulo">Condições</span>
+            <span className="mn-celula-valor">{GI_CONDICOES.length}</span>
+          </div>
         </div>
 
         <p className="gi-intro">
-          Cada pintura é de uma <b>base</b>, não de um item: "Máscara de Ferro" é uma imagem
-          só, valha ela para a Máscara Decorativa ou para a Máscara Verrogari. O nome do item
-          é o <b>exemplar</b>; a base é o que ele é — e é ela, escolhida no editor do item,
-          que decide a pintura.
+          A parede sai do <b>catálogo</b>: cada pintura aparece com os itens que a usam, e item
+          excluído some daqui sozinho. As armas aparecem uma a uma; o resto, uma vez por pintura,
+          com a <b>base</b> na legenda.
         </p>
 
         {/* ── busca e faixas ── */}
@@ -279,8 +244,8 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
           <span className="best-search">
             <input
               type="search" value={busca} onChange={(e) => setBusca(e.target.value)}
-              placeholder={lang === 'en' ? 'Search a base…' : 'Procurar uma base…'}
-              aria-label={lang === 'en' ? 'Search bases' : 'Procurar bases'}
+              placeholder={lang === 'en' ? 'Search an item…' : 'Procurar um item…'}
+              aria-label={lang === 'en' ? 'Search items' : 'Procurar itens'}
             />
           </span>
           <div className="best-chips" role="group" aria-label="Faixa">
@@ -295,106 +260,71 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
           </div>
         </div>
 
+        {!catalogo && <p className="gi-nada">Carregando o catálogo…</p>}
+
         {vazio && (
           <p className="gi-nada">
             {busca.trim()
-              ? <>Nenhuma base com <b>{busca.trim()}</b>.</>
+              ? <>Nenhuma pintura com <b>{busca.trim()}</b>.</>
               : 'Nada nesta faixa.'}
           </p>
         )}
 
-        {/* ── as famílias pintadas ── */}
-        {familiasAVista.map(({ nome, pecas }) => (
-          <section className="gi-sec" key={nome}>
-            <div className="mn-quadro-cabeca">
-              <h3 className="gi-sec-titulo">{nome}</h3>
-              {/* A conta é de TELAS penduradas, não de bases: a família Arma
-                  tem três bases e doze pinturas (27/10/2026). */}
-              <span className="gi-conta">{pecas.length} {pecas.length === 1 ? 'pintura' : 'pinturas'}</span>
-            </div>
+        {/* ── as armas, uma a uma ── */}
+        {armasAVista.length > 0 && (
+          <GiSecao titulo="Armas" conta={armasAVista.length + (armasAVista.length === 1 ? ' arma' : ' armas')}>
             <div className="gi-grade">
-              {pecas.map(({ base, src, variante }) => (
-                <GiPeca key={base.slug + (variante || '')} src={src}
-                  nome={variante ? `${base.nome} · ${variante}` : base.nome}
-                  pe={itensPorBase[base.slug]
-                    ? `${itensPorBase[base.slug]} ${itensPorBase[base.slug] === 1 ? 'item' : 'itens'}`
-                    : giOnde(base)} />
+              {armasAVista.map(({ item, src }) => (
+                <GiPeca key={item.slug} src={src} nome={item.nome} pe={item.grupo_armas} />
               ))}
             </div>
-          </section>
-        ))}
-
-        {/* ── as pinturas sem base: armas por tipo, itens, energias ── */}
-        {SECOES_AVULSAS.map(({ id, titulo, faixa: f, nota }) => {
-          const pecas = avulsas[id].filter((p) => casa(p.nome, p.arq));
-          if (!mostra(f) || !pecas.length) return null;
-          return (
-            <section className="gi-sec gi-sec--sem-base" key={'avulsa-' + id}>
-              <div className="mn-quadro-cabeca">
-                <h3 className="gi-sec-titulo">{titulo}</h3>
-                <span className="gi-conta">{pecas.length} {pecas.length === 1 ? 'pintura' : 'pinturas'}</span>
-              </div>
-              <p className="gi-sec-nota">{nota}</p>
-              <div className="gi-grade">
-                {pecas.map((p) => <GiPeca key={p.src} src={p.src} nome={p.nome} pe={p.arq} />)}
-              </div>
-            </section>
-          );
-        })}
-
-        {/* ── condições ── */}
-        {mostra('cond') && condFiltradas.length > 0 && (
-          <section className="gi-sec">
-            <div className="mn-quadro-cabeca">
-              <h3 className="gi-sec-titulo">Condições</h3>
-              <span className="gi-conta">{condFiltradas.length} pinturas</span>
-            </div>
-            <div className="gi-grade">
-              {condFiltradas.map(([arq, nome]) => (
-                <GiPeca key={arq} src={'/cond/' + arq + '.webp'} nome={nome} />
-              ))}
-            </div>
-          </section>
+          </GiSecao>
         )}
 
-        {/* ── bases sem pintura: a próxima encomenda ── */}
-        {mostra('falta') && basesSemArte.length > 0 && (
-          <section className="gi-sec">
-            <div className="mn-quadro-cabeca">
-              <h3 className="gi-sec-titulo">Bases sem pintura</h3>
-              <span className="gi-conta">{basesSemArte.length} bases</span>
-            </div>
-            <p className="gi-sec-nota">
-              A base já classifica o item; a casa mostra o glifo da região até alguém pintar.
-              Ordenadas por <b>quantos itens do catálogo</b> cada uma cobre — quem cobre mais,
-              aparece mais na mesa.
-            </p>
-            <div className="gi-falta">
-              {basesSemArte.map(({ base, itens }) => (
-                <div className="mn-quadro-linha gi-base-linha" key={base.slug}>
-                  <span className="gi-base-nome">{base.nome}</span>
-                  <span className="gi-base-onde">{giOnde(base)}</span>
-                  <span className={'mn-quadro-num' + (itens ? ' gi-base-num' : '')}>{itens || '—'}</span>
-                </div>
+        {/* ── o resto do catálogo, uma moldura por pintura ── */}
+        {secoesAVista.map(({ nome, pecas }) => (
+          <GiSecao key={nome} titulo={nome} conta={pecas.length + (pecas.length === 1 ? ' pintura' : ' pinturas')}>
+            <div className="gi-grade">
+              {pecas.map((p) => (
+                <GiPeca key={p.src} src={p.src} nome={p.nome}
+                  pe={giItens(p.itens.length)}
+                  dica={p.itens.map((i) => i.nome).sort((a, b) => a.localeCompare(b, 'pt-BR')).join(' · ')} tip={giTip} />
               ))}
             </div>
-          </section>
+          </GiSecao>
+        ))}
+
+        {/* ── as imagens do sistema ── */}
+        {criaturasAVista.length > 0 && (
+          <GiSecao titulo="Criaturas" conta={criaturasAVista.length + (criaturasAVista.length === 1 ? ' rosto' : ' rostos')}
+            nota="Um rosto por tipo de criatura: todas as fichas do tipo dividem a mesma pintura.">
+            <div className="gi-grade">
+              {criaturasAVista.map((p) => <GiPeca key={p.src} src={p.src} nome={p.nome} />)}
+            </div>
+          </GiSecao>
+        )}
+
+        {condAVista.length > 0 && (
+          <GiSecao titulo="Condições" conta={condAVista.length + ' pinturas'}>
+            <div className="gi-grade">
+              {condAVista.map(([arq, nome]) => <GiPeca key={arq} src={'/cond/' + arq + '.webp'} nome={nome} />)}
+            </div>
+          </GiSecao>
+        )}
+
+        {energiaAVista.length > 0 && (
+          <GiSecao titulo="Energias" conta={energiaAVista.length + ' pinturas'} nota="As três pedras do cartão Energias da ficha.">
+            <div className="gi-grade">
+              {energiaAVista.map((p) => <GiPeca key={p.src} src={p.src} nome={p.nome} />)}
+            </div>
+          </GiSecao>
         )}
 
         {/* ── itens do catálogo que ainda caem no glifo ── */}
-        {mostra('falta') && (
-          <section className="gi-sec">
-            <div className="mn-quadro-cabeca">
-              <h3 className="gi-sec-titulo">Itens sem pintura</h3>
-              <span className="gi-conta">
-                {catalogo ? faltaAVista + (faltaAVista === 1 ? ' item' : ' itens') : 'carregando…'}
-              </span>
-            </div>
-            <p className="gi-sec-nota">
-              Sem base escolhida, ou com uma base que ainda não foi pintada. Sai do próprio
-              catálogo: item novo aparece aqui sozinho.
-            </p>
-            {catalogo && faltaFiltrada.length === 0 && (
+        {mostra('falta') && catalogo && (
+          <GiSecao titulo="Itens sem pintura" conta={giItens(faltaContada)}
+            nota="Sem base escolhida, ou com uma base que ainda não foi pintada. Sai do próprio catálogo: item novo aparece aqui sozinho.">
+            {faltaAVista.length === 0 && (
               <p className="gi-nada">
                 {busca.trim()
                   ? <>Nenhum item sem pintura com <b>{busca.trim()}</b>.</>
@@ -402,7 +332,7 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
               </p>
             )}
             <div className="gi-falta">
-              {faltaFiltrada.map((g) => (
+              {faltaAVista.map((g) => (
                 <div className="mn-quadro-linha gi-falta-linha" key={g.regiao}>
                   <span className="gi-falta-regiao">{g.regiao}</span>
                   <span className="gi-falta-nomes">
@@ -413,12 +343,14 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
                 </div>
               ))}
             </div>
-          </section>
+          </GiSecao>
         )}
 
+        <window.Tooltip tip={tip} onEnter={manterTip} onLeave={fecharTip} />
+
         <p className="gi-rodape">
-          O vocabulário das bases vive em <code>src/01-core/bases-item.jsx</code> e cada item
-          guarda a sua em <code>itens.base</code>, escolhida no editor. Os arquivos ficam em
+          A pintura de cada item é a mesma da ficha e do inventário: vem da base escolhida no
+          editor (<code>itens.base</code>) ou, sem base, do nome. Os arquivos ficam em
           {' '}<code>public/equip/</code>, <code>public/itens/</code>, <code>public/cond/</code> e <code>public/criaturas/</code>;
           a pauta do Figma, em <code>.impeccable/arte-equipamentos.md</code>.
         </p>

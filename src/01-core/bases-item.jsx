@@ -155,7 +155,8 @@ const BASES_ITEM = [
   ...comArte(veste('coroa', 'Coroa', ['cabeca'], ['ouro', 'prata', 'marfim']), { ...METAL_PROPRIO('coroa'), marfim: null }),
   // Sem latão e marfim desde 28/11/2026: o usuário excluiu os dois exemplares do catálogo.
   ...comArte(veste('tiara', 'Tiara', ['cabeca'], ['ouro', 'prata', 'cobre']), METAL_PROPRIO('tiara')),
-  ...comArte(veste('capuz', 'Capuz', ['cabeca'], TECIDO), { linho: 'capuz-algodao' }),
+  // Sem linho, cobre: os únicos exemplares eram versões de profissão, removidas em 28/11/2026.
+  ...veste('capuz', 'Capuz', ['cabeca'], ['couro', 'algodao', 'seda']),
   /* Sem as bases que ficaram sem item (28/11/2026, usuário: "Os itens que eu
      excluí é para saírem"): máscara de ouro, prata e cobre (o Olhar da Infâmia
      passou para latão), tapa-olho de prata, cobre e latão, medalha de latão e
@@ -191,8 +192,8 @@ const BASES_ITEM = [
   ...comArte(veste('calca', 'Calça', ['perna'], TECIDO), { linho: 'calca-algodao' }),
   ...comArte(veste('bombacha', 'Bombacha', ['perna'], TECIDO),
     { seda: 'calca-seda', linho: 'calca-algodao', algodao: 'calca-algodao', couro: 'calca-couro' }),
-  ...comArte(veste('anel', 'Anel', ['dedo'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']), METAL_ANTIGO('anel')),
-  ...comArte(veste('bracelete', 'Bracelete', ['pulso'], METAL), METAL_ANTIGO('anel')),
+  ...comArte(veste('anel', 'Anel', ['dedo'], ['ouro', 'prata', 'latao', 'marfim']), METAL_ANTIGO('anel')),
+  ...comArte(veste('bracelete', 'Bracelete', ['pulso'], ['ouro', 'prata', 'latao', 'marfim']), METAL_ANTIGO('anel')),
   ...comArte(veste('pulseira', 'Pulseira', ['pulso'], METAL), METAL_ANTIGO('anel')),
   // Pintura própria desde 27/11/2026 (luva-pano-*); antes emprestava a manopla leve.
   ...veste('luva-pano', 'Luva', ['pulso'], ['seda', 'couro', 'algodao']),
