@@ -1913,7 +1913,7 @@ const ARTE_PINTADA = new Set([
   // porrete, maça flangeada e estrela da manhã — o tipo "maca" lido do nome (clava, porrete, maça…).
   'arma-maca-leve', 'arma-maca-medio', 'arma-maca-pesado',
   // "O marfim são ossos" (usuário, 28/11/2026): a coroa de marfim é de osso, não a de prata.
-  'coroa-marfim',
+  'coroa-marfim', 'brincos-marfim', 'piercing-marfim', 'colar-marfim', 'pingente-marfim',
 ]);
 
 /* A PINTURA SAI DO TIPO DA PEÇA (26/10/2026). As famílias novas são nomeadas

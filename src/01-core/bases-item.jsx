@@ -162,10 +162,11 @@ const BASES_ITEM = [
   ...comArte(veste('tapa-olho', 'Tapa-olho', ['rosto'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']), METAL_PROPRIO('tapa-olho')),
   // De couro e de algodão desde 28/11/2026 (usuário: "Vamos criar o item e imagem do tapa olho de couro, e o tapa olho de algodão").
   ...veste('tapa-olho', 'Tapa-olho', ['rosto'], ['couro', 'algodao']),
-  ...comArte(veste('brincos', 'Brinco', ['orelha'], METAL), METAL_ANTIGO('brincos')),
-  ...comArte(veste('piercing', 'Piercing', ['orelha'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']), METAL_PROPRIO('piercing')),
-  ...comArte(veste('colar', 'Colar', ['pescoco'], METAL), METAL_ANTIGO('colar')),
-  ...comArte(veste('pingente', 'Pingente', ['pescoco'], METAL), METAL_PROPRIO('pingente')),
+  // Marfim é osso (28/11/2026): brinco, piercing, colar e pingente de marfim têm pintura própria.
+  ...comArte(veste('brincos', 'Brinco', ['orelha'], METAL), { ...METAL_ANTIGO('brincos'), marfim: null }),
+  ...comArte(veste('piercing', 'Piercing', ['orelha'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']), { ...METAL_PROPRIO('piercing'), marfim: null }),
+  ...comArte(veste('colar', 'Colar', ['pescoco'], METAL), { ...METAL_ANTIGO('colar'), marfim: null }),
+  ...comArte(veste('pingente', 'Pingente', ['pescoco'], METAL), { ...METAL_PROPRIO('pingente'), marfim: null }),
   ...comArte(veste('gargantilha', 'Gargantilha', ['pescoco'], METAL), METAL_ANTIGO('colar')),
   ...veste('cachecol', 'Cachecol', ['pescoco'], ['seda', 'linho', 'algodao']),
   ...veste('lenco', 'Lenço', ['pescoco'], ['seda', 'linho', 'algodao']),

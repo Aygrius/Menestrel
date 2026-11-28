@@ -753,3 +753,17 @@ Contagem: 242.
 Chapéu sem linho (28/11/2026): o Chapéu de Mago e o de Sacerdote passaram
 para `chapeu-algodao` (scripts/sql/chapeu-linho-vira-algodao-2026-11-28.sql),
 e a base chapeu-linho saiu do vocabulário e da página Imagens.
+
+## Joias de marfim = osso (28/11/2026)
+
+Usuário: "brinco de marfim precisa de uma nova imagem, piercing de marfim
+também, colar e pingente também." Antes emprestavam a pintura de prata.
+
+| arquivo | |
+|---|---|
+| ✔ brincos-marfim | um brinco só: gancho de osso com presa entalhada e conta de âmbar |
+| ✔ piercing-marfim | argola curva de osso com entalhes e conta de âmbar |
+| ✔ colar-marfim | fio de contas de osso, presas e âmbar num cordão de couro |
+| ✔ pingente-marfim | meia-lua de osso com runas e pedra de âmbar |
+
+Contagem: 246.

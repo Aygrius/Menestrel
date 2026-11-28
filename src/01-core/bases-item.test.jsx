@@ -296,3 +296,11 @@ describe('o chapéu sem linho (28/11/2026)', () => {
       .toEqual(['chapeu-couro', 'chapeu-algodao', 'chapeu-seda']);
   });
 });
+
+describe('joias de marfim são de osso (28/11/2026)', () => {
+  it('brinco, piercing, colar e pingente de marfim têm pintura própria', () => {
+    for (const p of ['brincos', 'piercing', 'colar', 'pingente']) {
+      expect(window.arteDaBase(p + '-marfim')).toBe('/equip/' + p + '-marfim.webp');
+    }
+  });
+});
