@@ -216,7 +216,7 @@ gente: a barda do cavalo e a couraça do cavaleiro não são a mesma base.
 
 Contagem de imagens geradas no plano Pro (o saldo exato só aparece nas
 configurações do time no Figma): 63 até os 20 consumíveis; 69 com os 6 fundos de batalha (excluídos); 89 com os 20 itens seguintes (24/10/2026); 110 com as 21 das regiões novas (26/10/2026); 130 com as 20 pinturas de TIPO de item (26/10/2026); 138 com as 8 do arreamento de montaria (27/10/2026); 142 com as 3 calças de
-pano (28/10/2026 — 4 chamadas, uma refeita); 152 com flor, planta, as duas gotas e os seis pelos (30/10/2026 — 10 chamadas, nenhuma refeita); 153 com o ticket das diárias (30/10/2026); 156 com os três chapéus (31/10/2026 — o crédito do mês acabou aqui; volta em 24/11).
+pano (28/10/2026 — 4 chamadas, uma refeita); 152 com flor, planta, as duas gotas e os seis pelos (30/10/2026 — 10 chamadas, nenhuma refeita); 153 com o ticket das diárias (30/10/2026); 156 com os três chapéus (31/10/2026 — o crédito do mês acabou aqui; volta em 24/11); 168 com os 3 cachecóis e os 9 consumíveis (27/11/2026 — 12 chamadas, nenhuma refeita).
 
 ## Regiões novas do boneco de armar (26/10/2026 — proposta de slots aprovada)
 
@@ -519,7 +519,7 @@ Continuam no glifo (candidatos a pintura própria): animais (≈42), instrumento
 (≈13), ovos (5), algodão/linho/cânhamo/corda/feno, chave, bússola, luneta,
 espelho, escada, jaula/gaiola, estojo, chapéu de palha e de veludo, cachecol.
 
-## O Chapéu e o Cachecol (31/10/2026 — 3 de 6 pinturas; crédito acabou)
+## O Chapéu e o Cachecol (31/10/2026 — 3 de 6 pinturas; os 3 cachecóis em 27/11/2026)
 
 Pedido do usuário: "No figma, vamos fazer a arte do Chapéu e do Cachecol."
 Mesmo molde dos equipamentos (75% do quadro). O chapéu precisa de "This is a
@@ -531,9 +531,9 @@ not a bag, not a towel".
 | ✔ chapeu-couro | Chapéu de Couro (antes emprestava `elmo-leve`) | wide-brimmed brown leather traveler's hat, tooled leather band with a small brass buckle, weathered brim, saddle stitching |
 | ✔ chapeu-algodao | Chapéu de Algodão e de Linho (o antigo Chapéu de Palha) | simple peasant hat of undyed coarse cotton cloth, soft rounded crown, modest floppy brim, a plain twine band, slightly frayed edges |
 | ✔ chapeu-seda | Chapéu de Seda (o antigo Chapéu de Veludo) | courtly noble's hat of deep wine-red silk velvet, soft draped crown, upturned brim, gold embroidered band with a small gem brooch and one long white plume feather |
-| ☐ cachecol-algodao | Cachecol de Algodão | scarf of thick undyed coarse cotton, loosely folded and coiled, homespun weave texture, simple fringed ends hanging down |
-| ☐ cachecol-linho | Cachecol de Linho | scarf of fine dyed linen, muted forest-green with a thin ochre stripe near each end, light airy weave, loosely folded and coiled with the two ends hanging down, short knotted tassels |
-| ☐ cachecol-seda | Cachecol de Seda | courtly silk scarf, lustrous deep royal-blue silk with delicate gold embroidered border and fine gold-thread fringe, flowing and loosely folded with the two ends draping down, soft sheen |
+| ✔ cachecol-algodao | Cachecol de Algodão | scarf of thick undyed coarse cotton, loosely folded and coiled, homespun weave texture, simple fringed ends hanging down |
+| ✔ cachecol-linho | Cachecol de Linho | scarf of fine dyed linen, muted forest-green with a thin ochre stripe near each end, light airy weave, loosely folded and coiled with the two ends hanging down, short knotted tassels |
+| ✔ cachecol-seda | Cachecol de Seda | courtly silk scarf, lustrous deep royal-blue silk with delicate gold embroidered border and fine gold-thread fringe, flowing and loosely folded with the two ends draping down, soft sheen |
 
 **Crédito esgotado** em 31/10/2026, depois do chapéu de seda: "Insufficient
 Figma AI credits", volta em **24/11/2026 01:44 UTC**. Os três cachecóis
@@ -545,7 +545,7 @@ scratchpad), nomes em ARTE_PINTADA (11-ficha/ficha.jsx) e, na base,
 elmo saiu. Para os cachecóis: mesmos passos, e `veste('cachecol', …)` só
 precisa de `comArte` se algum tecido ficar sem arquivo próprio.
 
-## Consumíveis sem pintura: 9 pinturas de tipo (23/11/2026 — aguardando crédito)
+## Consumíveis sem pintura: 9 pinturas de tipo (23/11/2026 — ✔ feitas em 27/11/2026)
 
 Levantamento de 23/11: 37 consumíveis do catálogo no glifo. Decisão do usuário:
 uma pintura por TIPO (como erva/cogumelo); **não fazer agora** fogueira/fogo
@@ -559,14 +559,22 @@ Crédito: tentativa em 23/11 recusada ("Insufficient Figma AI credits"), volta e
 
 | Arquivo | Cobre | Objeto |
 |---|---|---|
-| ☐ osso | os 6 Ossos | weathered animal bone, a large thick femur, ivory-yellowed with darker worn knuckle ends and fine cracks |
-| ☐ ovo | os 5 Ovos | single large speckled egg, cream shell with brown speckles, smooth subtle sheen |
-| ☐ tecido | os 4 Tecidos | neatly folded stack of woven cloth bolt, undyed linen and wool layers, visible weave, tied with a thin twine; This is folded CLOTH, not a book |
-| ☐ fibra | Algodão, Linho, Cânhamo, Seda (e Algodoeiro, Bicho de Seda a decidir) | loose twisted skein (hank) of raw spun fiber, pale natural color, bound in the middle with twine, soft fluffy loose ends |
-| ☐ corda | Corda | neatly coiled thick hemp rope, one knotted end hanging loose, rough twisted fibers |
-| ☐ feno | Feno | small bound bundle of dry golden hay, tied around the middle with twine, loose straws sticking out |
-| ☐ vela | Vela | single thick tallow candle, lit with a small warm flame, wax drips running down the sides |
-| ☐ vidro | Vidro | small round medieval crown-glass pane, greenish translucent glass with a central bullseye swirl and bubbles, catching light |
-| ☐ incenso | Incenso | small bundle of dark incense sticks tied with a red cord, tips glowing, thin curling wisps of fragrant smoke |
+| ✔ osso | os 6 Ossos | weathered animal bone, a large thick femur, ivory-yellowed with darker worn knuckle ends and fine cracks |
+| ✔ ovo | os 5 Ovos | single large speckled egg, cream shell with brown speckles, smooth subtle sheen |
+| ✔ tecido | os 4 Tecidos | neatly folded stack of woven cloth bolt, undyed linen and wool layers, visible weave, tied with a thin twine; This is folded CLOTH, not a book |
+| ✔ fibra | Algodão, Linho, Cânhamo, Seda (e Algodoeiro, Bicho de Seda a decidir) | loose twisted skein (hank) of raw spun fiber, pale natural color, bound in the middle with twine, soft fluffy loose ends |
+| ✔ corda | Corda | neatly coiled thick hemp rope, one knotted end hanging loose, rough twisted fibers |
+| ✔ feno | Feno | small bound bundle of dry golden hay, tied around the middle with twine, loose straws sticking out |
+| ✔ vela | Vela | single thick tallow candle, lit with a small warm flame, wax drips running down the sides |
+| ✔ vidro | Vidro | small round medieval crown-glass pane, greenish translucent glass with a central bullseye swirl and bubbles, catching light |
+| ✔ incenso | Incenso | small bundle of dark incense sticks tied with a red cord, tips glowing, thin curling wisps of fragrant smoke |
 
 Ficam no glifo por enquanto: Condimento, Karmaquoso, Fogueira, Fogo Vivo, Pó de Diamante.
+
+**27/11/2026: feitas as 12** (3 cachecóis + 9 consumíveis), todas na primeira
+chamada, gemini-3.1-flash-image. Cachecóis em `public/equip/cachecol-*.webp`
+(320px) e em ARTE_PINTADA — os 9 cachecóis do catálogo já têm base
+`cachecol-*`, então não precisou de `comArte`. Consumíveis em
+`public/itens/<tipo>.webp` (240px), em ARTE_ITEM_NOVA e ARTE_ITEM_TIPO; a fibra
+casa só o nome inteiro (Algodão, Linho, Cânhamo, Seda). Algodoeiro e Bicho de
+Seda seguem no glifo, a decidir. Contrato em 11-ficha/arte-de-item-por-tipo.test.jsx.

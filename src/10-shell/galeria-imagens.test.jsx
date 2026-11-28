@@ -26,8 +26,8 @@ const shellFonte = readFileSync(
 const CAT = [
   { slug: 'mascara_verrogari', nome: 'Máscara Verrogari', base: 'mascara-cobre', slot_equip: 'rosto', grupo: 'Vestimentas' },
   { slug: 'mascara_decorativa', nome: 'Máscara Decorativa', base: 'mascara-cobre', slot_equip: 'rosto', grupo: 'Vestimentas' },
-  // O cachecol segue sem pintura; a luva de pano ganhou a emprestada em 30/10/2026.
-  { slug: 'cachecol_algodao', nome: 'Cachecol de Algodão', base: 'cachecol-algodao', slot_equip: 'pescoco', grupo: 'Vestimentas' },
+  // O lenço segue sem pintura (o cachecol ganhou a sua em 27/11/2026); a luva de pano ganhou a emprestada em 30/10/2026.
+  { slug: 'lenco_algodao', nome: 'Lenço de Algodão', base: 'lenco-algodao', slot_equip: 'pescoco', grupo: 'Vestimentas' },
   { slug: 'gaiola', nome: 'Gaiola', base: null, slot_equip: null, grupo: 'Recipientes' },
   { slug: 'livro_de_maira', nome: 'Livro de Maira', base: 'livro-milagres', slot_equip: null, grupo: 'Itens' },
 ];
@@ -197,8 +197,8 @@ describe('o que falta sai do catálogo', () => {
     abrir();
     await waitFor(() => expect(document.querySelectorAll('.gi-base-linha').length).toBeGreaterThan(0));
     const linha = [...document.querySelectorAll('.gi-base-linha')]
-      .find((l) => l.querySelector('.gi-base-nome').textContent === 'Cachecol de Algodão');
-    expect(linha, 'a base sem arte do cachecol está na lista').toBeTruthy();
+      .find((l) => l.querySelector('.gi-base-nome').textContent === 'Lenço de Algodão');
+    expect(linha, 'a base sem arte do lenço está na lista').toBeTruthy();
     expect(linha.querySelector('.mn-quadro-num').textContent).toBe('1');
   });
 });

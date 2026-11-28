@@ -1870,6 +1870,9 @@ const ARTE_PINTADA = new Set([
   /* O CHAPÉU (31/10/2026, Figma): até aqui o de couro emprestava o elmo leve
      e os outros ficavam no glifo. O linho usa o de algodão. */
   'chapeu-couro', 'chapeu-algodao', 'chapeu-seda',
+  /* O CACHECOL (27/11/2026, Figma): até aqui ficava no glifo do pescoço. Um
+     por tecido, sem empréstimo. */
+  'cachecol-algodao', 'cachecol-linho', 'cachecol-seda',
   'cinto-simples', 'cinto-ornado', 'cinto-nobre',
   'anel-simples', 'anel-ornado', 'anel-nobre',
   // as armas pelo tipo (23/10/2026) — ver ARMA_POR_NOME
@@ -2196,6 +2199,9 @@ const ARTE_ITEM_NOVA = new Set([
   'flor', 'planta',
   // O ticket das diárias (30/10/2026): estalagem, hospital, estábulo.
   'ticket',
+  /* Consumíveis que estavam no glifo (27/11/2026, Figma): uma pintura por
+     TIPO, como erva e cogumelo. */
+  'osso', 'ovo', 'tecido', 'fibra', 'corda', 'feno', 'vela', 'vidro', 'incenso',
 ]);
 const ARTE_ITEM_TIPO = [
   // As obras: ~145 "Livro de …" e 14 "Manual do …" numa pintura só.
@@ -2215,6 +2221,19 @@ const ARTE_ITEM_TIPO = [
   [/^planta\b/, 'planta'],
   // Serviços: toda "Diária em/no …" é um ticket (30/10/2026).
   [/^diaria\b/, 'ticket'],
+  /* Consumíveis (27/11/2026): os 6 Ossos, os 5 Ovos, os 4 Tecidos e as
+     quatro fibras cruas. A fibra casa o nome INTEIRO: "Seda" é a matéria,
+     "Tecido de Seda" já caiu no tecido; Algodoeiro e Bicho de Seda ficam de
+     fora (planta e bicho, a decidir). */
+  [/^osso\b/, 'osso'],
+  [/^ovo\b/, 'ovo'],
+  [/^tecido\b/, 'tecido'],
+  [/^(algodao|linho|canhamo|seda)$/, 'fibra'],
+  [/^corda\b/, 'corda'],
+  [/^feno\b/, 'feno'],
+  [/^vela\b/, 'vela'],
+  [/^vidro\b/, 'vidro'],
+  [/^incenso\b/, 'incenso'],
   /* Materiais sem pintura própria — o comum, o Arcano, o Podre, o Sagrado —
      emprestam a da versão que existe (30/10/2026, "reaproveite algumas
      imagens"). Os que TÊM pintura (Carne Titânica, Pena Sagrada…) não

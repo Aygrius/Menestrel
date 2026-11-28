@@ -185,6 +185,23 @@ describe('a gota e os pelos: uma pintura por slug', () => {
   });
 });
 
+describe('os consumíveis de 27/11/2026', () => {
+  it('cada nome cai na pintura do seu tipo', () => {
+    const casos = {
+      'Osso Animal': 'osso', 'Osso Titânico': 'osso', 'Ovo': 'ovo', 'Ovo Dracônico': 'ovo',
+      'Tecido de Seda': 'tecido', 'Algodão': 'fibra', 'Linho': 'fibra', 'Cânhamo': 'fibra',
+      'Seda': 'fibra', 'Corda': 'corda', 'Feno': 'feno', 'Vela': 'vela', 'Vidro': 'vidro',
+      'Incenso': 'incenso',
+    };
+    for (const [nome, arquivo] of Object.entries(casos)) {
+      expect(arte(nome), nome).toBe('/itens/' + arquivo + '.webp');
+    }
+  });
+  it('Bicho de Seda não é fibra', () => {
+    expect(arte('Bicho de Seda')).toBe(null);
+  });
+});
+
 describe('a regra não invade o equipável', () => {
   it('"Anel Dourado" é joia de dedo, não minério', () => {
     expect(window.arteDoItem({ nome: 'Anel Dourado', slot_equip: 'dedo', tipo_equip: 'adorno' }))
@@ -196,7 +213,7 @@ describe('a regra não invade o equipável', () => {
   });
   it('o nome fora de qualquer tipo continua sem pintura', () => {
     expect(arte('Gaiola')).toBe(null);
-    expect(arte('Corda')).toBe(null);
+    expect(arte('Algodoeiro')).toBe(null);
   });
 });
 
