@@ -749,3 +749,7 @@ Itens novos no catálogo (scripts/sql/tapa-olho-couro-algodao-2026-11-28.sql):
 Tapa-olho de Couro (300 latões) e Tapa-olho de Algodão (150), Comum, rosto.
 
 Contagem: 242.
+
+Chapéu sem linho (28/11/2026): o Chapéu de Mago e o de Sacerdote passaram
+para `chapeu-algodao` (scripts/sql/chapeu-linho-vira-algodao-2026-11-28.sql),
+e a base chapeu-linho saiu do vocabulário e da página Imagens.

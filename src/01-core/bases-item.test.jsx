@@ -289,3 +289,10 @@ describe('o tapa-olho de couro e o de algodão (28/11/2026)', () => {
     }
   });
 });
+
+describe('o chapéu sem linho (28/11/2026)', () => {
+  it('o vocabulário do chapéu é couro, algodão e seda', () => {
+    expect(window.BASES_ITEM.filter((b) => b.familia === 'Chapéu').map((b) => b.slug))
+      .toEqual(['chapeu-couro', 'chapeu-algodao', 'chapeu-seda']);
+  });
+});

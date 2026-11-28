@@ -145,7 +145,10 @@ const BASES_ITEM = [
      em 31/10/2026 (usuário: "Adicione cobre e latão"), junto com a matéria-
      -prima dos dois. A Coroa ficou sem os dois (usuário, no mesmo dia:
      "Remova as coroas de cobre e latão"). */
-  ...comArte(veste('chapeu', 'Chapéu', ['cabeca'], TECIDO), { linho: 'chapeu-algodao' }),
+  /* Sem linho desde 28/11/2026: o usuário excluiu o Chapéu de Linho, e o de
+     Mago e o de Sacerdote passaram para o algodão
+     (scripts/sql/chapeu-linho-vira-algodao-2026-11-28.sql). */
+  ...veste('chapeu', 'Chapéu', ['cabeca'], ['couro', 'algodao', 'seda']),
   /* A coroa de marfim tem pintura própria, de OSSO (28/11/2026, usuário: "O
      marfim são ossos, ou seja, coroa de marfim deve ser um exemplar de
      ossos"); antes emprestava a de prata. */
