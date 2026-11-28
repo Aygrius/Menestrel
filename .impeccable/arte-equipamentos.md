@@ -867,3 +867,9 @@ scripts/sql/itens-para-pinturas-2026-11-28.sql): Máscara de Couro (400),
 de Ferro (300), de Porcelana (800, receita com Vidro) e Tapa-olho de Prata
 (1000), com receita e item "Receita de". Ganharam receita: Tapa-olho de Couro,
 de Algodão e (o item) de Ouro; Moeda de Latão (metalurgia, como a de prata).
+
+**Regra para as próximas criaturas (usuário, 28/11/2026):** "não recorte o
+pescoço, a imagem deve ocupar o espaço todo, como foi feito com Gorila". As
+já feitas ficam. Prompt: "head and shoulders filling the entire square frame
+edge to edge, the neck and shoulders continuing past the bottom edge, no
+cut-off neck, no floating head".
