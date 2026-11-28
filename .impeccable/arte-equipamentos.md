@@ -733,3 +733,7 @@ Marfim. As bases tiara-latao e tiara-marfim saíram do vocabulário;
 chapeu-linho fica (o Chapéu de Mago e o de Sacerdote a usam).
 
 Contagem: 239.
+
+| ↻✔ arma-lanca | a lança genérica (sem peso) tinha brilho dourado no fundo; refeita no fundo liso |
+
+Contagem: 240.
