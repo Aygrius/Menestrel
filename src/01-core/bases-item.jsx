@@ -56,6 +56,8 @@ const comArte = (bases, mapa) => bases.map((b) => {
 const MATERIAIS = {
   ouro: 'Ouro', prata: 'Prata', cobre: 'Cobre', latao: 'Latão',
   marfim: 'Marfim', couro: 'Couro', algodao: 'Algodão', linho: 'Linho', seda: 'Seda',
+  // Ferro e Porcelana: só a máscara (28/11/2026, itens criados para as pinturas que sobravam).
+  ferro: 'Ferro', porcelana: 'Porcelana',
 };
 // Sem Porcelana desde 31/10/2026 (usuário: "Remova tudo de porcelana").
 const METAL = ['ouro', 'prata', 'cobre', 'latao', 'marfim'];
@@ -162,10 +164,11 @@ const BASES_ITEM = [
      excluí é para saírem"): máscara de ouro, prata e cobre (o Olhar da Infâmia
      passou para latão), tapa-olho de prata, cobre e latão, medalha de latão e
      marfim. Ver scripts/sql/olhar-da-infamia-latao-2026-11-28.sql. */
-  ...comArte(veste('mascara', 'Máscara', ['rosto'], ['latao', 'marfim']),
+  // Couro, Ferro e Porcelana voltaram em 28/11/2026, cada uma com a sua pintura.
+  ...comArte(veste('mascara', 'Máscara', ['rosto'], ['latao', 'marfim', 'couro', 'ferro', 'porcelana']),
     { latao: 'mascara-ferro', marfim: 'mascara-porcelana' }),
   // Tapa-olho e piercing: pintura própria por metal desde 27/11/2026.
-  ...comArte(veste('tapa-olho', 'Tapa-olho', ['rosto'], ['ouro', 'marfim']), METAL_PROPRIO('tapa-olho')),
+  ...comArte(veste('tapa-olho', 'Tapa-olho', ['rosto'], ['ouro', 'prata', 'marfim']), METAL_PROPRIO('tapa-olho')),
   // De couro e de algodão desde 28/11/2026 (usuário: "Vamos criar o item e imagem do tapa olho de couro, e o tapa olho de algodão").
   ...veste('tapa-olho', 'Tapa-olho', ['rosto'], ['couro', 'algodao']),
   // Marfim é osso (28/11/2026): brinco, piercing, colar e pingente de marfim têm pintura própria.

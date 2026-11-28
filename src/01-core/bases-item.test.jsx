@@ -308,7 +308,8 @@ describe('joias de marfim são de osso (28/11/2026)', () => {
 describe('as bases dos itens excluídos saíram (28/11/2026)', () => {
   it('máscara de ouro, prata e cobre; tapa-olho de prata, cobre e latão; medalha de latão e marfim', () => {
     const slugs = new Set(window.BASES_ITEM.map((b) => b.slug));
-    for (const s of ['mascara-ouro', 'mascara-prata', 'mascara-cobre', 'tapa-olho-prata', 'tapa-olho-cobre',
+    // O tapa-olho de prata voltou em 28/11/2026, com item e receita.
+    for (const s of ['mascara-ouro', 'mascara-prata', 'mascara-cobre', 'tapa-olho-cobre',
       'tapa-olho-latao', 'medalha-latao', 'medalha-marfim']) {
       expect(slugs.has(s), s).toBe(false);
     }
@@ -351,5 +352,14 @@ describe('a pintura própria do item ganha da base (28/11/2026)', () => {
   it('a túnica usa a pintura do sobretudo', () => {
     expect(window.arteDaBase('tunica-seda')).toBe('/equip/sobretudo-seda.webp');
     expect(window.arteDaBase('tunica-linho')).toBe('/equip/sobretudo-algodao.webp');
+  });
+});
+
+describe('itens criados para as pinturas que sobravam (28/11/2026)', () => {
+  it('máscara de couro, ferro e porcelana e tapa-olho de prata usam a sua pintura', () => {
+    expect(window.arteDaBase('mascara-couro')).toBe('/equip/mascara-couro.webp');
+    expect(window.arteDaBase('mascara-ferro')).toBe('/equip/mascara-ferro.webp');
+    expect(window.arteDaBase('mascara-porcelana')).toBe('/equip/mascara-porcelana.webp');
+    expect(window.arteDaBase('tapa-olho-prata')).toBe('/equip/tapa-olho-prata.webp');
   });
 });

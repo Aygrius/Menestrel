@@ -861,3 +861,9 @@ túnicas usam a pintura do sobretudo (linho → algodão).
 
 Próxima parcela: Leão, Lince, Lobo, Mamute, Morcego, Mula, Pombo, Pônei, Puma,
 Raposa (depois Rinoceronte, Serpente, Tigre, Touro, Tubarão, Urso, Vaca).
+
+Itens criados para pinturas que sobravam (28/11/2026,
+scripts/sql/itens-para-pinturas-2026-11-28.sql): Máscara de Couro (400),
+de Ferro (300), de Porcelana (800, receita com Vidro) e Tapa-olho de Prata
+(1000), com receita e item "Receita de". Ganharam receita: Tapa-olho de Couro,
+de Algodão e (o item) de Ouro; Moeda de Latão (metalurgia, como a de prata).
