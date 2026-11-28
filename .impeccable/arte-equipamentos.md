@@ -682,3 +682,22 @@ usavam uma base sem pintura como exemplo (bases-item.test, galeria-imagens.test)
 tiram uma do ARTE_PINTADA por um instante e devolvem no fim.
 
 Contagem: 224. No catálogo, só os **Animais (58)** seguem no glifo.
+
+## Rostos das criaturas — celestiais (28/11/2026)
+
+Usuário: "quero apenas o rosto dos animais em destaque e vamos fazer
+parcelado […] uma imagem para cada tipo de criatura". Molde: o mesmo das
+pinturas, trocando o objeto por "head-and-face portrait … only the head in
+close-up … filling about 70%". Saem em `public/criaturas/` (320px) e a regra
+nome → arquivo mora em `01-core/arte-criatura.jsx` (`ARTE_CRIATURA`,
+`arteDaCriatura`). Aparecem no retrato do cartão do Bestiário.
+
+| arquivo | serve a |
+|---|---|
+| ✔ enviado | Enviado Menor, I, II, III, IV e V — elmo de luz com símbolos, halo, asas |
+| ✔ pegaso | Pégaso — cabeça de cavalo branco, crina prateada, asa atrás |
+| ✔ planindea | Planindea — mulher pálida e bela, cabelo prateado, brilho de espelho |
+| ✔ aguia_real | Águia Real (celestial; a Águia-careca NÃO usa) |
+| ✔ cronomante | Cronomante — capuz escuro, olhos acesos, anéis de tempo |
+
+Contagem: 229.

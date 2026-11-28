@@ -25,6 +25,7 @@ import './01-core/grupos.jsx'          // colégios de magia (13/11/2026)
 import './01-core/helpers.jsx'
 import './01-core/inventario-helpers.jsx'
 import './01-core/bases-item.jsx'      // a BASE do item, separada do exemplar (26/10/2026)
+import './01-core/arte-criatura.jsx'   // o rosto pintado de cada TIPO de criatura (28/11/2026)
 // A BANCADA (06/10/2026, ligada ao app em 26/10/2026): receita, teste de
 // habilidade, consumo de material e dias de construção. As 226 receitas
 // moram no banco (scripts/sql/fabricacao-2026-10-06.sql).

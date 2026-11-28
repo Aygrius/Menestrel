@@ -135,6 +135,7 @@ arquivo daqui conhece tela.
 | `inventario-concorrencia.jsx` | Compare-and-swap de `personagens.inventario` (ver §6). |
 | `inventario-casas.jsx` | Posição dos itens na grade do baú. |
 | `bases-item.jsx` | A **base** do item (o que ele é) separada do **exemplar** (como se chama). |
+| `arte-criatura.jsx` | O rosto pintado de cada **tipo** de criatura (`arteDaCriatura`, nome → `public/criaturas/*.webp`). |
 | `game-data.jsx` | `GAME_DATA` + `calcularFicha` — a função central do sistema. |
 | `magias-efeito.jsx` | O parser de prosa das magias (~2 180 linhas) e o registro de semântica. |
 | `tecnicas-efeito.jsx` | O registro das técnicas e a auditoria texto-do-banco × número-do-código. |

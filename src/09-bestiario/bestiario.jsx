@@ -1719,6 +1719,9 @@ function CriaturasList({ ac, lang, modoJogador, historiaId, filtro, titulo, pedi
               const vis = visibilidadeDaCriatura(row);
               return {
                 chave: row.id, nome: row.nome, icone: iconeTipoCriatura(row.tipo) || 'ti-paw',
+                /* O rosto pintado do tipo (arteDaCriatura, 28/11/2026); sem
+                   ele, o ícone do tipo. */
+                imagem: (typeof window !== 'undefined' && typeof window.arteDaCriatura === 'function' && window.arteDaCriatura(row)) || null,
                 linha1: _partes(row.tipo, row.subtipo),
                 linha2: row.estagio != null && row.estagio !== '' ? (lang === 'en' ? 'Stage ' : 'Estágio ') + row.estagio : null,
                 canto: vis ? (
