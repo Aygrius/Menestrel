@@ -1882,7 +1882,7 @@ const ARTE_PINTADA = new Set([
   'sapato-couro', 'sapato-algodao', 'sapato-seda',
   'sobretudo-couro', 'sobretudo-algodao', 'sobretudo-seda',
   'piercing-ouro', 'piercing-prata', 'piercing-cobre',
-  'tapa-olho-ouro', 'tapa-olho-prata', 'tapa-olho-cobre',
+  'tapa-olho-ouro', 'tapa-olho-prata',
   'tapa-olho-couro', 'tapa-olho-algodao',
   'cinto-simples', 'cinto-ornado', 'cinto-nobre',
   'anel-simples', 'anel-ornado', 'anel-nobre',

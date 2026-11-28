@@ -1487,13 +1487,13 @@ describe('item: a BASE é escolhida no editor', () => {
   it('as opções saem da REGIÃO do item', () => {
     montar({ tabela: 'itens', linha: { slug: 'm', nome: 'Máscara Verrogari', grupo: 'Vestimentas', slot_equip: 'rosto' } });
     const opcoes = window.opcoesDeBase({ slot_equip: 'rosto', grupo: 'Vestimentas' }).map((o) => o.value);
-    expect(opcoes).toContain('mascara-cobre');
+    expect(opcoes).toContain('mascara-latao');
     expect(opcoes).not.toContain('elmo-leve');
   });
 
   it('a base gravada aparece escolhida', () => {
-    montar({ tabela: 'itens', linha: { slug: 'm', nome: 'Máscara Verrogari', grupo: 'Vestimentas', slot_equip: 'rosto', base: 'mascara-cobre' } });
-    expect(screen.getAllByText(/Máscara de Cobre/).length).toBeGreaterThan(0);
+    montar({ tabela: 'itens', linha: { slug: 'm', nome: 'Máscara Verrogari', grupo: 'Vestimentas', slot_equip: 'rosto', base: 'mascara-latao' } });
+    expect(screen.getAllByText(/Máscara de Latão/).length).toBeGreaterThan(0);
   });
 });
 

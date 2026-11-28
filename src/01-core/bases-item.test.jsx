@@ -87,7 +87,7 @@ describe('a pintura vem da BASE, não do nome do exemplar', () => {
     const semBase = window.arteDoItem(verrogari);
     expect(semBase).toBe(window.arteDoItem({ ...verrogari, nome: 'Máscara Padmarashka' }));
     // Com base: a pintura é a da base, qualquer que seja o nome.
-    expect(window.arteDoItem({ ...verrogari, base: 'mascara-cobre' })).toBe('/equip/mascara-ferro.webp');
+    expect(window.arteDoItem({ ...verrogari, base: 'mascara-latao' })).toBe('/equip/mascara-ferro.webp');
     expect(window.arteDoItem({ ...verrogari, base: 'mascara-marfim' })).toBe('/equip/mascara-porcelana.webp');
     // E a base ganha do nome: "Decorativa" iria para o ferro pelo palpite.
     expect(window.arteDoItem({ nome: 'Máscara Decorativa', slot_equip: 'rosto', base: 'mascara-marfim' }))
@@ -136,7 +136,7 @@ describe('a pintura vem da BASE, não do nome do exemplar', () => {
 
 describe('o nome da base, para a frase da ficha do item', () => {
   it.each([
-    ['mascara-cobre', 'Máscara de Cobre'],
+    ['mascara-latao', 'Máscara de Latão'],
     ['brincos-ouro', 'Brinco de Ouro'],
     // As peças de armadura têm nome por classe desde 30/10/2026.
     ['escudo-pesado', 'Escudo Pipa'],
@@ -155,7 +155,7 @@ describe('as opções do editor saem do lugar do item', () => {
   it('um item de rosto só oferece as bases de rosto', () => {
     const opcoes = window.opcoesDeBase({ slot_equip: 'rosto' });
     const slugs = opcoes.map((o) => o.value);
-    expect(slugs).toContain('mascara-cobre');
+    expect(slugs).toContain('mascara-latao');
     expect(slugs).toContain('tapa-olho-ouro');
     // O capuz subiu para a cabeça em 30/10/2026.
     expect(slugs).not.toContain('capuz-seda');
@@ -172,8 +172,8 @@ describe('as opções do editor saem do lugar do item', () => {
     expect(window.opcoesDeBase({}).length).toBe(window.BASES_ITEM.length);
   });
   it('a opção mostra a família na frente, para agrupar a lista', () => {
-    const o = window.opcoesDeBase({ slot_equip: 'rosto' }).find((x) => x.value === 'mascara-cobre');
-    expect(o.label).toBe('Máscara · Máscara de Cobre');
+    const o = window.opcoesDeBase({ slot_equip: 'rosto' }).find((x) => x.value === 'mascara-latao');
+    expect(o.label).toBe('Máscara · Máscara de Latão');
   });
 });
 
@@ -301,6 +301,16 @@ describe('joias de marfim são de osso (28/11/2026)', () => {
   it('brinco, piercing, colar e pingente de marfim têm pintura própria', () => {
     for (const p of ['brincos', 'piercing', 'colar', 'pingente']) {
       expect(window.arteDaBase(p + '-marfim')).toBe('/equip/' + p + '-marfim.webp');
+    }
+  });
+});
+
+describe('as bases dos itens excluídos saíram (28/11/2026)', () => {
+  it('máscara de ouro, prata e cobre; tapa-olho de prata, cobre e latão; medalha de latão e marfim', () => {
+    const slugs = new Set(window.BASES_ITEM.map((b) => b.slug));
+    for (const s of ['mascara-ouro', 'mascara-prata', 'mascara-cobre', 'tapa-olho-prata', 'tapa-olho-cobre',
+      'tapa-olho-latao', 'medalha-latao', 'medalha-marfim']) {
+      expect(slugs.has(s), s).toBe(false);
     }
   });
 });

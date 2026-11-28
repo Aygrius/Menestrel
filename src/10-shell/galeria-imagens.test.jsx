@@ -24,8 +24,8 @@ const shellFonte = readFileSync(
 );
 
 const CAT = [
-  { slug: 'mascara_verrogari', nome: 'Máscara Verrogari', base: 'mascara-cobre', slot_equip: 'rosto', grupo: 'Vestimentas' },
-  { slug: 'mascara_decorativa', nome: 'Máscara Decorativa', base: 'mascara-cobre', slot_equip: 'rosto', grupo: 'Vestimentas' },
+  { slug: 'mascara_verrogari', nome: 'Máscara Verrogari', base: 'mascara-latao', slot_equip: 'rosto', grupo: 'Vestimentas' },
+  { slug: 'mascara_decorativa', nome: 'Máscara Decorativa', base: 'mascara-latao', slot_equip: 'rosto', grupo: 'Vestimentas' },
   // O lenço ganhou pintura em 27/11/2026; o teste da base sem pintura a tira do conjunto por um instante.
   { slug: 'lenco_algodao', nome: 'Lenço de Algodão', base: 'lenco-algodao', slot_equip: 'pescoco', grupo: 'Vestimentas' },
   { slug: 'avestruz_pardo', nome: 'Avestruz Pardo', base: null, slot_equip: null, grupo: 'Animais' },
@@ -134,7 +134,7 @@ describe('a legenda é o nome da BASE, nunca o do exemplar', () => {
   it('a máscara se chama pelo material, e não "Decorativa"', () => {
     abrir();
     const nomes = nomesNaParede();
-    expect(nomes).toContain('Máscara de Cobre');
+    expect(nomes).toContain('Máscara de Latão');
     // Porcelana saiu em 31/10/2026; o marfim herdou a pintura dela.
     expect(nomes).toContain('Máscara de Marfim');
     expect(nomes).not.toContain('Máscara Decorativa');

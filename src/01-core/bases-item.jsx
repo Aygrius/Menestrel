@@ -156,10 +156,14 @@ const BASES_ITEM = [
   // Sem latão e marfim desde 28/11/2026: o usuário excluiu os dois exemplares do catálogo.
   ...comArte(veste('tiara', 'Tiara', ['cabeca'], ['ouro', 'prata', 'cobre']), METAL_PROPRIO('tiara')),
   ...comArte(veste('capuz', 'Capuz', ['cabeca'], TECIDO), { linho: 'capuz-algodao' }),
-  ...comArte(veste('mascara', 'Máscara', ['rosto'], METAL),
-    { ouro: 'mascara-ferro', prata: 'mascara-ferro', cobre: 'mascara-ferro', latao: 'mascara-ferro', marfim: 'mascara-porcelana' }),
+  /* Sem as bases que ficaram sem item (28/11/2026, usuário: "Os itens que eu
+     excluí é para saírem"): máscara de ouro, prata e cobre (o Olhar da Infâmia
+     passou para latão), tapa-olho de prata, cobre e latão, medalha de latão e
+     marfim. Ver scripts/sql/olhar-da-infamia-latao-2026-11-28.sql. */
+  ...comArte(veste('mascara', 'Máscara', ['rosto'], ['latao', 'marfim']),
+    { latao: 'mascara-ferro', marfim: 'mascara-porcelana' }),
   // Tapa-olho e piercing: pintura própria por metal desde 27/11/2026.
-  ...comArte(veste('tapa-olho', 'Tapa-olho', ['rosto'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']), METAL_PROPRIO('tapa-olho')),
+  ...comArte(veste('tapa-olho', 'Tapa-olho', ['rosto'], ['ouro', 'marfim']), METAL_PROPRIO('tapa-olho')),
   // De couro e de algodão desde 28/11/2026 (usuário: "Vamos criar o item e imagem do tapa olho de couro, e o tapa olho de algodão").
   ...veste('tapa-olho', 'Tapa-olho', ['rosto'], ['couro', 'algodao']),
   // Marfim é osso (28/11/2026): brinco, piercing, colar e pingente de marfim têm pintura própria.
@@ -172,7 +176,7 @@ const BASES_ITEM = [
   ...veste('lenco', 'Lenço', ['pescoco'], ['seda', 'linho', 'algodao']),
   ...comArte(veste('dragona', 'Dragona', ['ombro'], TECIDO),
     { couro: 'ombreiras-leve', algodao: 'ombreiras-leve', linho: 'ombreiras-leve', seda: 'ombreiras-leve' }),
-  ...comArte(veste('medalha', 'Medalha', ['ombro'], METAL), METAL_PROPRIO('medalha')),
+  ...comArte(veste('medalha', 'Medalha', ['ombro'], ['ouro', 'prata', 'cobre']), METAL_PROPRIO('medalha')),
   ...comArte(veste('broche', 'Broche', ['peito'], METAL), METAL_PROPRIO('broche')),
   ...comArte(veste('tunica', 'Túnica', ['peito'], TECIDO),
     { seda: 'roupa-nobre', linho: 'roupa-ornado', algodao: 'roupa-simples', couro: 'roupa-simples' }),
