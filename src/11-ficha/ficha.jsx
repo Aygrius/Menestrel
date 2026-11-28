@@ -2106,6 +2106,13 @@ function arteDoSlot(regiao, cat, profissao) {
       const arquivo = (regiao === 'mao_e' || regiao === 'saque_e') ? par.e : par.d;
       return ARTE_PINTADA.has(arquivo) ? '/equip/' + arquivo + '.webp' : null;
     }
+    /* Ataque natural (grupo Livre) e instrumento na mão: a mesma pintura do
+       inventário, pelo nome — não a espada média da base (27/11/2026). */
+    if (cat.grupo_armas === 'Livre' || cat.categoria_equip !== 'arma') {
+      const n = String(cat.nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+      const peloNome = arteDoItemPorTipo(n);
+      if (peloNome) return peloNome;
+    }
     /* TIPO E PESO (26/10/2026, pedido do usuário: "crie imagens para espada
        leve, espada média, espada pesada, arco leve, …"). Uma espada leve e um
        montante são a mesma palavra e desenhos diferentes, e o catálogo já
@@ -2213,6 +2220,12 @@ const ARTE_ITEM_NOVA = new Set([
   'algodoeiro', 'bicho_de_seda', 'condimento', 'fogueira', 'fogo_vivo',
   'karmaquoso', 'po_de_diamante',
   'bussola', 'chave', 'escada', 'espelho', 'luneta', 'sarcofago', 'gaiola', 'moeda_ferro',
+  // Os ataques naturais das criaturas (27/11/2026): a parte do corpo que fere.
+  'ataque_bico', 'ataque_cauda', 'ataque_chifre', 'ataque_coice', 'ataque_garra',
+  'ataque_halito', 'ataque_mordida', 'ataque_patada', 'ataque_toque',
+  // Os instrumentos (27/11/2026): 13 pinturas para os 23 do catálogo.
+  'alaude', 'violao', 'harpa', 'rabeca', 'viela', 'flauta', 'apito', 'berrante',
+  'tambor', 'pandeiro', 'sino', 'triangulo', 'chocalho',
 ]);
 const ARTE_ITEM_TIPO = [
   // As obras: ~145 "Livro de …" e 14 "Manual do …" numa pintura só.
@@ -2262,6 +2275,33 @@ const ARTE_ITEM_TIPO = [
   [/^escada\b/, 'escada'],
   [/^sarcofago\b/, 'sarcofago'],
   [/^moeda (antiga )?de ferro/, 'moeda_ferro'],
+  /* Ataques naturais: o nome é a palavra sozinha ("Garra", "Mordida"), e só
+     ela casa — "Garra de Grifo" seria outra coisa. */
+  [/^bico$/, 'ataque_bico'],
+  [/^cauda$/, 'ataque_cauda'],
+  [/^chifre$/, 'ataque_chifre'],
+  [/^coice$/, 'ataque_coice'],
+  [/^garra$/, 'ataque_garra'],
+  [/^halito$/, 'ataque_halito'],
+  [/^mordida$/, 'ataque_mordida'],
+  [/^patada$/, 'ataque_patada'],
+  [/^toque$/, 'ataque_toque'],
+  /* Instrumentos, pela família do desenho: os de cordas em pera (Bandolim e os
+     mágicos Sonho de Helena e Zeena) usam o alaúde; o Banjo, o violão; o
+     Saltério, a harpa; os sopros de madeira, a flauta; o Tormund, o tambor. */
+  [/^(alaude|bandolim|sonho de helena|zeena)\b/, 'alaude'],
+  [/^(violao|banjo)\b/, 'violao'],
+  [/^(harpa|salterio)\b/, 'harpa'],
+  [/^rabeca\b/, 'rabeca'],
+  [/^viela\b/, 'viela'],
+  [/^(flauta|charamela|clarineta|gaita)\b/, 'flauta'],
+  [/^apito\b/, 'apito'],
+  [/^berrante\b/, 'berrante'],
+  [/^(tambor|atabaque|tormund)\b/, 'tambor'],
+  [/^pandeiro\b/, 'pandeiro'],
+  [/^sino\b/, 'sino'],
+  [/^triangulo\b/, 'triangulo'],
+  [/^chocalho\b/, 'chocalho'],
   /* Materiais sem pintura própria — o comum, o Arcano, o Podre, o Sagrado —
      emprestam a da versão que existe (30/10/2026, "reaproveite algumas
      imagens"). Os que TÊM pintura (Carne Titânica, Pena Sagrada…) não
@@ -2393,7 +2433,10 @@ function arteDoItem(cat) {
   if (!s) return arteDoItemPorTipo(n);
   // M\u00e3o: arma pelo tipo (arco, machado\u2026) ou escudo pela classe de peso.
   if (s === 'mao' || s === 'maos') {
-    if (c !== 'arma' || cat.grupo_armas === 'Livre') return null;
+    /* O que vai na mão sem ser arma de verdade — o instrumento e o ataque
+       natural de criatura (grupo Livre: Garra, Mordida…) — tem pintura pelo
+       NOME, como o item sem região (27/11/2026). Sem tipo reconhecido, glifo. */
+    if (c !== 'arma' || cat.grupo_armas === 'Livre') return arteDoItemPorTipo(n);
     return arteDoSlot(ehEscudo(cat) ? 'mao_e' : 'mao_d', cat);
   }
   // Manoplas s\u00e3o pe\u00e7a de m\u00e3o, n\u00e3o de bra\u00e7o.

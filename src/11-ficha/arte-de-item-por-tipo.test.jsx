@@ -214,6 +214,37 @@ describe('os consumíveis de 27/11/2026', () => {
   });
 });
 
+describe('o que vai na mão sem ser arma (27/11/2026)', () => {
+  const naMao = (nome, extra = {}) => window.arteDoItem({ nome, slot_equip: 'mao', ...extra });
+  it('o ataque natural de criatura (grupo Livre) mostra a parte do corpo', () => {
+    const livre = { categoria_equip: 'arma', grupo_armas: 'Livre' };
+    for (const n of ['Bico', 'Cauda', 'Chifre', 'Coice', 'Garra', 'Mordida', 'Patada', 'Toque']) {
+      expect(naMao(n, livre), n).toBe('/itens/ataque_' + n.toLowerCase() + '.webp');
+    }
+    expect(naMao('Hálito', livre)).toBe('/itens/ataque_halito.webp');
+  });
+  it('na casa da mão da ficha também — não a espada média da base', () => {
+    const garra = { nome: 'Garra', slot_equip: 'mao', categoria_equip: 'arma', grupo_armas: 'Livre', base: 'arma-medio' };
+    expect(window.arteDoSlot('mao_d', garra)).toBe('/itens/ataque_garra.webp');
+    expect(window.arteDoSlot('mao_d', { nome: 'Alaúde', slot_equip: 'mao' })).toBe('/itens/alaude.webp');
+  });
+  it('o instrumento usa a pintura da sua família', () => {
+    const casos = {
+      'Alaúde': 'alaude', 'Bandolim': 'alaude', 'Sonho de Helena': 'alaude', 'Zeena': 'alaude',
+      'Banjo': 'violao', 'Harpa': 'harpa', 'Saltério': 'harpa', 'Rabeca': 'rabeca', 'Viela': 'viela',
+      'Flauta': 'flauta', 'Charamela': 'flauta', 'Clarineta': 'flauta', 'Gaita': 'flauta',
+      'Apito': 'apito', 'Berrante': 'berrante', 'Tambor': 'tambor', 'Atabaque': 'tambor',
+      'Tormund': 'tambor', 'Pandeiro': 'pandeiro', 'Sino': 'sino', 'Triângulo': 'triangulo',
+      'Chocalho': 'chocalho',
+    };
+    for (const [nome, arquivo] of Object.entries(casos)) {
+      expect(naMao(nome), nome).toBe('/itens/' + arquivo + '.webp');
+    }
+    // O Violão do catálogo não tem região: cai na mesma tabela.
+    expect(arte('Violão')).toBe('/itens/violao.webp');
+  });
+});
+
 describe('a regra não invade o equipável', () => {
   it('"Anel Dourado" é joia de dedo, não minério', () => {
     expect(window.arteDoItem({ nome: 'Anel Dourado', slot_equip: 'dedo', tipo_equip: 'adorno' }))
@@ -224,8 +255,8 @@ describe('a regra não invade o equipável', () => {
       .toBe('/equip/coroa-ouro.webp');
   });
   it('o nome fora de qualquer tipo continua sem pintura', () => {
-    expect(arte('Violão')).toBe(null);
-    expect(arte('Apito')).toBe(null);
+    expect(arte('Avestruz Pardo')).toBe(null);
+    expect(arte('Búfalo Lanoso')).toBe(null);
   });
 });
 

@@ -628,3 +628,33 @@ Moedas ficaram SEM nenhum item no glifo (conferido rodando arteDoItem sobre os
 2247 itens do catálogo). Restam: Animais (58), Vestimentas (55 — lenço,
 piercing, sapato, sobretudo, tapa-olho), Instrumentos (23) e 9 ataques
 naturais de criatura (Bico, Garra, Mordida…).
+
+## Ataques de criatura e instrumentos (27/11/2026 — 22 pinturas)
+
+Pedido do usuário: "Faça o ataque das criaturas. Depois os instrumentos." Todas
+na primeira chamada. `public/itens/<arquivo>.webp` (240px), ARTE_ITEM_NOVA e
+ARTE_ITEM_TIPO. Os dois vão na MÃO sem ser arma de verdade, e por isso o
+arteDoItem devolvia null para eles; agora a mão sem arma (instrumento, ou
+grupo_armas Livre) cai na tabela por nome — no inventário (arteDoItem) e na
+casa da mão da ficha (arteDoSlot), que antes mostraria a espada média da base.
+
+**Ataques** (nome exato, `^garra$`): ataque_bico (bico curvo de ave de rapina) ·
+ataque_cauda (cauda escamosa com espinhos) · ataque_chifre (chifre espiralado) ·
+ataque_coice (casco ferrado chutando, poeira) · ataque_garra (três garras
+rasgando) · ataque_halito (sopro de fogo, gelo e veneno juntos) · ataque_mordida
+(mandíbula de presas) · ataque_patada (pata de urso golpeando) · ataque_toque
+(mão esquelética espectral, névoa necrótica).
+
+**Instrumentos** (13 pinturas, 23 itens):
+
+| Arquivo | Cobre |
+|---|---|
+| ✔ alaude | Alaúde, Bandolim, Sonho de Helena, Zeena |
+| ✔ violao | Violão, Banjo |
+| ✔ harpa | Harpa, Saltério |
+| ✔ flauta | Flauta, Charamela, Clarineta, Gaita |
+| ✔ tambor | Tambor, Atabaque, Tormund |
+| ✔ rabeca · viela · apito · berrante · pandeiro · sino · triangulo · chocalho | um cada |
+
+Contagem: 209. Restam só Animais (58) e Vestimentas (55 — lenço, piercing,
+sapato, sobretudo, tapa-olho).

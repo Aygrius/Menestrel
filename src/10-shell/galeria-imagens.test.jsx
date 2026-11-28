@@ -28,7 +28,7 @@ const CAT = [
   { slug: 'mascara_decorativa', nome: 'Máscara Decorativa', base: 'mascara-cobre', slot_equip: 'rosto', grupo: 'Vestimentas' },
   // O lenço segue sem pintura (o cachecol ganhou a sua em 27/11/2026); a luva de pano ganhou a emprestada em 30/10/2026.
   { slug: 'lenco_algodao', nome: 'Lenço de Algodão', base: 'lenco-algodao', slot_equip: 'pescoco', grupo: 'Vestimentas' },
-  { slug: 'violao', nome: 'Violão', base: null, slot_equip: null, grupo: 'Instrumentos' },
+  { slug: 'avestruz_pardo', nome: 'Avestruz Pardo', base: null, slot_equip: null, grupo: 'Animais' },
   { slug: 'livro_de_maira', nome: 'Livro de Maira', base: 'livro-milagres', slot_equip: null, grupo: 'Itens' },
 ];
 
@@ -184,10 +184,10 @@ describe('a busca filtra a parede', () => {
 describe('o que falta sai do catálogo', () => {
   it('o item sem base nenhuma entra na lista, agrupado pelo grupo', async () => {
     abrir();
-    await waitFor(() => expect(screen.getByText(/Violão/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/Avestruz Pardo/)).toBeTruthy());
     const linhas = [...document.querySelectorAll('.gi-falta-linha')]
       .map((l) => l.querySelector('.gi-falta-regiao').textContent);
-    expect(linhas).toContain('Instrumentos');
+    expect(linhas).toContain('Animais');
     // A máscara e o livro têm base pintada: não entram.
     const nomes = [...document.querySelectorAll('.gi-falta-nomes')].map((n) => n.textContent).join(' ');
     expect(nomes).not.toContain('Máscara Verrogari');
