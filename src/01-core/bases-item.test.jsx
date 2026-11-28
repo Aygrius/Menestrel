@@ -279,3 +279,13 @@ describe('os ajustes de 28/11/2026', () => {
     expect(tiaras).toEqual(['tiara-ouro', 'tiara-prata', 'tiara-cobre']);
   });
 });
+
+describe('o tapa-olho de couro e o de algodão (28/11/2026)', () => {
+  it('são bases de rosto com pintura própria', () => {
+    for (const m of ['couro', 'algodao']) {
+      const b = window.BASES_ITEM.find((x) => x.slug === 'tapa-olho-' + m);
+      expect(b && b.slots).toEqual(['rosto']);
+      expect(window.arteDaBase('tapa-olho-' + m)).toBe('/equip/tapa-olho-' + m + '.webp');
+    }
+  });
+});

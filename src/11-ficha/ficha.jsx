@@ -1883,6 +1883,7 @@ const ARTE_PINTADA = new Set([
   'sobretudo-couro', 'sobretudo-algodao', 'sobretudo-seda',
   'piercing-ouro', 'piercing-prata', 'piercing-cobre',
   'tapa-olho-ouro', 'tapa-olho-prata', 'tapa-olho-cobre',
+  'tapa-olho-couro', 'tapa-olho-algodao',
   'cinto-simples', 'cinto-ornado', 'cinto-nobre',
   'anel-simples', 'anel-ornado', 'anel-nobre',
   // as armas pelo tipo (23/10/2026) — ver ARMA_POR_NOME

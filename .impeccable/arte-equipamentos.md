@@ -737,3 +737,15 @@ Contagem: 239.
 | ↻✔ arma-lanca | a lança genérica (sem peso) tinha brilho dourado no fundo; refeita no fundo liso |
 
 Contagem: 240.
+
+## Tapa-olho de couro e de algodão (28/11/2026)
+
+| arquivo | |
+|---|---|
+| ✔ tapa-olho-couro | oval de couro escuro costurado, rebite de latão, tira de couro |
+| ✔ tapa-olho-algodao | oval de algodão cru acolchoado, cordão trançado |
+
+Itens novos no catálogo (scripts/sql/tapa-olho-couro-algodao-2026-11-28.sql):
+Tapa-olho de Couro (300 latões) e Tapa-olho de Algodão (150), Comum, rosto.
+
+Contagem: 242.

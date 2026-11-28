@@ -157,6 +157,8 @@ const BASES_ITEM = [
     { ouro: 'mascara-ferro', prata: 'mascara-ferro', cobre: 'mascara-ferro', latao: 'mascara-ferro', marfim: 'mascara-porcelana' }),
   // Tapa-olho e piercing: pintura própria por metal desde 27/11/2026.
   ...comArte(veste('tapa-olho', 'Tapa-olho', ['rosto'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']), METAL_PROPRIO('tapa-olho')),
+  // De couro e de algodão desde 28/11/2026 (usuário: "Vamos criar o item e imagem do tapa olho de couro, e o tapa olho de algodão").
+  ...veste('tapa-olho', 'Tapa-olho', ['rosto'], ['couro', 'algodao']),
   ...comArte(veste('brincos', 'Brinco', ['orelha'], METAL), METAL_ANTIGO('brincos')),
   ...comArte(veste('piercing', 'Piercing', ['orelha'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']), METAL_PROPRIO('piercing')),
   ...comArte(veste('colar', 'Colar', ['pescoco'], METAL), METAL_ANTIGO('colar')),
