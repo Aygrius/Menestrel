@@ -180,8 +180,9 @@ const BASES_ITEM = [
     { couro: 'ombreiras-leve', algodao: 'ombreiras-leve', linho: 'ombreiras-leve', seda: 'ombreiras-leve' }),
   ...comArte(veste('medalha', 'Medalha', ['ombro'], ['ouro', 'prata', 'cobre']), METAL_PROPRIO('medalha')),
   ...comArte(veste('broche', 'Broche', ['peito'], METAL), METAL_PROPRIO('broche')),
+  // A túnica usa a pintura do sobretudo (usuário, 28/11/2026); antes, a da roupa.
   ...comArte(veste('tunica', 'Túnica', ['peito'], TECIDO),
-    { seda: 'roupa-nobre', linho: 'roupa-ornado', algodao: 'roupa-simples', couro: 'roupa-simples' }),
+    { seda: 'sobretudo-seda', linho: 'sobretudo-algodao', algodao: 'sobretudo-algodao', couro: 'sobretudo-couro' }),
   ...comArte(veste('blusa', 'Blusa', ['peito'], TECIDO),
     { seda: 'roupa-nobre', linho: 'roupa-ornado', algodao: 'roupa-simples', couro: 'roupa-simples' }),
   ...comArte(veste('casaco', 'Casaco', ['peito'], TECIDO),

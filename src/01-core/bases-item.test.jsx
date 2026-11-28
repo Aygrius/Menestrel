@@ -338,3 +338,18 @@ describe('ajustes de armas, braceletes, coroa e água (28/11/2026)', () => {
     expect(window.arteDaBase('agua_suja')).toBe('/itens/karmaquoso.webp');
   });
 });
+
+describe('a pintura própria do item ganha da base (28/11/2026)', () => {
+  it('Algibeira Grande, Aljava Dupla e Equipamento de Viagem mostram a sua', () => {
+    expect(window.arteDoItem({ slug: 'algibeira_grande', nome: 'Algibeira Grande', base: 'algibeira' })).toBe('/itens/algibeira_grande.webp');
+    expect(window.arteDoItem({ slug: 'aljava_reforcada', nome: 'Aljava Dupla', base: 'aljava' })).toBe('/itens/aljava_reforcada.webp');
+    expect(window.arteDoItem({ slug: 'equipamento_de_viagem', nome: 'Equipamento de Viagem', base: 'equipamento' })).toBe('/itens/equipamento_de_viagem.webp');
+  });
+  it('a base que declara a pintura continua mandando: a Água usa a do Karmaquoso', () => {
+    expect(window.arteDoItem({ slug: 'agua', nome: 'Água', base: 'agua' })).toBe('/itens/karmaquoso.webp');
+  });
+  it('a túnica usa a pintura do sobretudo', () => {
+    expect(window.arteDaBase('tunica-seda')).toBe('/equip/sobretudo-seda.webp');
+    expect(window.arteDaBase('tunica-linho')).toBe('/equip/sobretudo-algodao.webp');
+  });
+});

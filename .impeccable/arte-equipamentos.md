@@ -837,3 +837,9 @@ Jaguar, Jaguatirica, Javali (depois Leão … Vaca; Sobek e Urso Polar estão se
 
 A página Imagens ganhou a faixa **Sobrando**: pintura registrada que nenhum
 item nem casa vazia usa.
+
+Regra nova (28/11/2026): a pintura própria do item (/itens/<slug>.webp) ganha
+da base, salvo quando a base declara `arte` (Água → Karmaquoso). Voltaram:
+Algibeira Grande, Aljava Dupla, Equipamento de Viagem. O "Arco" (PM) usa
+`arte = arma-arco-leve` (scripts/sql/arco-pintura-leve-2026-11-28.sql). As
+túnicas usam a pintura do sobretudo (linho → algodão).

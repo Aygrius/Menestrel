@@ -2440,6 +2440,18 @@ function arteDoItem(cat) {
   const armaDeMao = typeof window !== 'undefined' && window.ehArmaDeMao
     ? window.ehArmaDeMao(cat)
     : (cat.categoria_equip === 'arma' && !ehEscudo(cat));
+  /* A PINTURA PRÓPRIA DO ITEM GANHA DA BASE (28/11/2026, usuário: "quando o
+     item tiver pintura própria, vamos usar"). Algibeira Grande, Aljava Dupla
+     e Equipamento de Viagem têm a sua em /itens/<slug>.webp desde outubro, e a
+     base (Algibeira, Aljava, Equipamento) as escondia. A exceção é a base que
+     DECLARA a pintura (`arte`) — foi escolha explícita, como a Água e a Água
+     Suja com a do Karmaquoso. */
+  const aliasProprio = cat.slug && ARTE_SLUG_ALIAS[cat.slug];
+  const propria = (aliasProprio && ARTE_ITEM_SLUG.has(aliasProprio)) ? aliasProprio
+    : (cat.slug && ARTE_ITEM_SLUG.has(cat.slug)) ? cat.slug : null;
+  const baseEscolheu = cat.base && typeof window !== 'undefined' && window.baseDoItem
+    && (window.baseDoItem(cat.base) || {}).arte;
+  if (propria && !baseEscolheu) return '/itens/' + propria + '.webp';
   if (cat.base && !armaDeMao) {
     const daBase = arteDaBase(cat.base);
     if (daBase) return daBase;
