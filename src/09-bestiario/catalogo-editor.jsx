@@ -1252,7 +1252,16 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
       onConfirm={salvar}
       confirmLabel={saving ? t.editorSalvando : undefined}
       confirmDisabled={saving || excluindo || !obrigatoriosOk}
-      footerLeft={botaoExcluir}>
+      footerLeft={botaoExcluir}
+      /* O trilho das abas mora na faixa própria da janela, fora do corpo
+         (28/11/2026): a régua dele vai de borda a borda. */
+      trilho={(() => {
+        const Abas = (typeof AbasDoFormulario === 'function' ? AbasDoFormulario : window.AbasDoFormulario);
+        const falta = (id) => descritor.campos.some((c) => c.obrigatorio && !c.autoDeNome && abaDoCampo(descritor.tabela, c) === id
+          && (form[c.col] === undefined || form[c.col] === null || String(form[c.col]).trim() === ''));
+        return Abas ? <Abas abas={abasVisiveis.map(([id, pt, ing]) => ({ id, rotulo: lang === 'en' ? ing : pt, alerta: falta(id) }))}
+          ativa={abaAberta} onTrocar={setAbaAberta} rotulo={lang === 'en' ? 'Sections' : 'Seções'} /> : null;
+      })()}>
       {/* O Excluir armado avisa NO TOPO — o formulário é longo e quem rolou
           até o rodapé não lê o fim dele. Com itens, diz também quantos
           personagens perdem o item. */}
@@ -1264,13 +1273,6 @@ function CatalogoEditor({ tabela, linha, lang, onSalvo, onCancel, onExcluido }) 
             : `${emUso} personage${emUso === 1 ? 'm carrega' : 'ns carregam'} este item. Excluir o tira ${emUso === 1 ? 'desse inventário' : 'desses inventários'}.`)}
         </div>
       )}
-      {(() => {
-        const Abas = (typeof AbasDoFormulario === 'function' ? AbasDoFormulario : window.AbasDoFormulario);
-        const falta = (id) => descritor.campos.some((c) => c.obrigatorio && !c.autoDeNome && abaDoCampo(descritor.tabela, c) === id
-          && (form[c.col] === undefined || form[c.col] === null || String(form[c.col]).trim() === ''));
-        return Abas ? <Abas abas={abasVisiveis.map(([id, pt, ing]) => ({ id, rotulo: lang === 'en' ? ing : pt, alerta: falta(id) }))}
-          ativa={abaAberta} onTrocar={setAbaAberta} rotulo={lang === 'en' ? 'Sections' : 'Seções'} /> : null;
-      })()}
       <div className="catalogo-form-grid" ref={gradeRef} data-aba-aberta={abasVisiveis.length > 1 ? abaAberta || undefined : undefined}>
         {/* `largura: 'curta'` (25/09/2026): meia coluna da grade — Estágio,
             Montaria, Peso e Altura cabem na linha de Nome e Subtipo. */}

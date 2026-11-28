@@ -302,7 +302,9 @@
   width: 100%;
   max-height: calc(100vh - 80px);
   max-height: calc(100dvh - 80px);
-  background: rgba(var(--chao-rgb), 0.90);
+  /* Sólido (28/11/2026, usuário: "decidimos que nosso sistema não terá fundo
+     transparente, apenas sólido"). Era rgba(…, .90): o fundo da tela vazava. */
+  background: rgb(var(--chao-rgb));
   border: 1px solid var(--regua-forte);
   border-radius: 6px;
   box-shadow: 0 30px 80px -24px rgba(var(--chao-rgb),0.82);

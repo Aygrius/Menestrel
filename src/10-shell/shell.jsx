@@ -641,6 +641,7 @@ function ModalShell({
   footerLeft = null,
   extraClass = '',
   lang = 'pt',
+  trilho = null,
   children,
 }) {
   const en = lang === 'en';
@@ -713,6 +714,13 @@ function ModalShell({
             </button>
           )}
         </div>
+
+        {/* ── Trilho (28/11/2026) ── entre o cabeçalho e o corpo, FORA dele:
+            dentro do corpo, a régua de baixo parava no espaço reservado da
+            barra de rolagem (usuário: "a linha separadora do trilho não está
+            indo de um extremo ao outro do modal"). Fora, ela vai de borda a
+            borda, e o trilho fica parado enquanto o corpo rola. */}
+        {trilho}
 
         {/* ── Body ── */}
         <div className="ms-body">

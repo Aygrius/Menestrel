@@ -511,18 +511,19 @@ function EditorMundo({ tipo, entrada, lang, onClose, onSalvo, onExcluido }) {
     <Modal title={titulo} lang={lang} size="lg" extraClass="modal-catalogo modal-mundo"
       onClose={onClose} onConfirm={salvar}
       confirmLabel={salvando ? (en ? 'Saving…' : 'Salvando…') : undefined}
-      confirmDisabled={salvando || !nomeOk} footerLeft={botaoExcluir}>
+      confirmDisabled={salvando || !nomeOk} footerLeft={botaoExcluir}
+      /* O trilho na faixa própria da janela, fora do corpo (28/11/2026): régua de borda a borda. */
+      trilho={(() => {
+        const Abas = (typeof AbasDoFormulario === 'function' ? AbasDoFormulario : _cmw('AbasDoFormulario'));
+        const def = ABAS_MUNDO[tipo];
+        return Abas && def ? <Abas ativa={abaAberta} onTrocar={setAbaAberta} rotulo={en ? 'Sections' : 'Seções'}
+          abas={def.abas.map(([id, pt, ing]) => ({ id, rotulo: en ? ing : pt, alerta: id === 'geral' && !nomeOk }))} /> : null;
+      })()}>
       {armado && (
         <div className="err-msg" role="alert">
           {en ? 'Click "Confirm delete" to delete. It disappears for every table.' : 'Clique em "Confirmar exclusão" para excluir. Some para todas as mesas.'}
         </div>
       )}
-      {(() => {
-        const Abas = (typeof AbasDoFormulario === 'function' ? AbasDoFormulario : _cmw('AbasDoFormulario'));
-        const def = ABAS_MUNDO[tipo];
-        return Abas && def ? <Abas ativa={abaAberta} onTrocar={setAbaAberta} rotulo={en ? 'Sections' : 'Seções'}
-          abas={def.abas.map(([id, pt, ing]) => ({ id, rotulo: en ? ing : pt, alerta: id === 'geral' && !nomeOk }))} /> : null;
-      })()}
       <div className="mundo-form" data-aba-aberta={ABAS_MUNDO[tipo] ? abaAberta : undefined}>
         {campos.filter((c) => !ABAS_MUNDO[tipo] || abaDoCampoMundo(tipo, c) === abaAberta)
           .map((c) => (c.tipo === 'lista' ? campoLista(c) : campoSimples(c)))}
