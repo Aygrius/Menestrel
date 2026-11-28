@@ -701,3 +701,16 @@ nome → arquivo mora em `01-core/arte-criatura.jsx` (`ARTE_CRIATURA`,
 | ✔ cronomante | Cronomante — capuz escuro, olhos acesos, anéis de tempo |
 
 Contagem: 229.
+
+## Rostos das criaturas — infernais (28/11/2026)
+
+| arquivo | serve a |
+|---|---|
+| ✔ demonio | Demônio Menor, I, II, III, IV e V — pele cinza escamosa, chifres serrilhados, olhos verdes |
+| ✔ simbionte | Simbionte, Simbionte I, II e III — rosto de piche vivo escorrendo, olhos violeta |
+| ✔ cerberus | Cérberus — três cabeças de cão negro, olhos em brasa |
+| ✔ bulgae | Bulgae — cão infernal carmesim e marfim, mandíbula enorme |
+| ✔ cavalum | Cavalum — cavalo negro metálico, crina de brasa |
+| ✔ haalin | Haalin — lobo com chifres de carneiro, olhos de alma pálida |
+
+Contagem: 235.

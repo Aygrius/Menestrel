@@ -19,6 +19,13 @@ const ARTE_CRIATURA = [
   [/^planindea\b/, 'planindea', 'Planindea'],
   [/^aguia real$/, 'aguia_real', 'Águia Real'],
   [/^cronomante\b/, 'cronomante', 'Cronomante'],
+  // Infernais (28/11/2026). O Simbionte é subtipo Demônio no banco, mas tem rosto próprio.
+  [/^demonio\b/, 'demonio', 'Demônio (Menor, I a V)'],
+  [/^simbionte\b/, 'simbionte', 'Simbionte (e I a III)'],
+  [/^cerberus\b/, 'cerberus', 'Cérberus'],
+  [/^bulgae\b/, 'bulgae', 'Bulgae'],
+  [/^cavalum\b/, 'cavalum', 'Cavalum'],
+  [/^haalin\b/, 'haalin', 'Haalin'],
 ];
 
 function arteDaCriatura(criatura) {
