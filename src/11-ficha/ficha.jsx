@@ -2206,6 +2206,13 @@ const ARTE_ITEM_NOVA = new Set([
   'osso', 'ovo', 'tecido', 'fibra', 'corda', 'feno', 'vela', 'vidro', 'incenso',
   // O Estojo (alforje), pela base `estojo` (27/11/2026).
   'estojo',
+  /* Os que faltavam (27/11/2026, Figma), uma pintura por TIPO: o resto dos
+     consumíveis e os objetos soltos. O mágico usa a do comum — Astralícia é
+     bússola, Olhos de Ganis é luneta, Portão de Cruine é espelho, Jaula é
+     gaiola. Ver ARTE_ITEM_TIPO. */
+  'algodoeiro', 'bicho_de_seda', 'condimento', 'fogueira', 'fogo_vivo',
+  'karmaquoso', 'po_de_diamante',
+  'bussola', 'chave', 'escada', 'espelho', 'luneta', 'sarcofago', 'gaiola', 'moeda_ferro',
 ]);
 const ARTE_ITEM_TIPO = [
   // As obras: ~145 "Livro de …" e 14 "Manual do …" numa pintura só.
@@ -2238,6 +2245,23 @@ const ARTE_ITEM_TIPO = [
   [/^vela\b/, 'vela'],
   [/^vidro\b/, 'vidro'],
   [/^incenso\b/, 'incenso'],
+  [/^algodoeiro\b/, 'algodoeiro'],
+  [/^bicho de seda\b/, 'bicho_de_seda'],
+  [/^condimento\b/, 'condimento'],
+  [/^fogueira\b/, 'fogueira'],
+  // As três bebidas e o pó dos elementais.
+  [/^fogo vivo\b/, 'fogo_vivo'],
+  [/^karmaquoso\b/, 'karmaquoso'],
+  [/^po de diamante\b/, 'po_de_diamante'],
+  // Objetos: o exemplar mágico usa a pintura do comum (27/11/2026).
+  [/^(bussola|astralicia)\b/, 'bussola'],
+  [/^(luneta|olhos de ganis)\b/, 'luneta'],
+  [/^(espelho|portao de cruine)\b/, 'espelho'],
+  [/^(gaiola|jaula)\b/, 'gaiola'],
+  [/^chave\b/, 'chave'],
+  [/^escada\b/, 'escada'],
+  [/^sarcofago\b/, 'sarcofago'],
+  [/^moeda (antiga )?de ferro/, 'moeda_ferro'],
   /* Materiais sem pintura própria — o comum, o Arcano, o Podre, o Sagrado —
      emprestam a da versão que existe (30/10/2026, "reaproveite algumas
      imagens"). Os que TÊM pintura (Carne Titânica, Pena Sagrada…) não

@@ -597,3 +597,34 @@ mora em `itens`. Contagem: 172.
 
 Ainda emprestadas, sem prompt: dragona (ombreiras), lenço (sem pintura),
 gargantilha (colar), piercing (brinco), bracelete e pulseira (anel), casaco (traje).
+
+## O resto dos consumíveis e os objetos soltos (27/11/2026 — 15 pinturas)
+
+Pedido do usuário: "Faça os consumíveis que faltam, lembrando sempre que fazer
+um item base que sirva para vários itens. Depois faça os itens Astralícia ·
+Bússola · Chave · Escada · Espelho, etc." Todas na primeira chamada. Arquivos
+em `public/itens/<arquivo>.webp` (240px), em ARTE_ITEM_NOVA e ARTE_ITEM_TIPO.
+
+| Arquivo | Cobre | Objeto |
+|---|---|---|
+| ✔ algodoeiro | Algodoeiro | handful of raw cotton bolls bursting from dry star-shaped pods, short woody stem |
+| ✔ bicho_de_seda | Bicho de Seda | three whole silkworm cocoons on a mulberry leaf; no worm |
+| ✔ condimento | Condimento | open cloth spice pouch spilling salt, peppercorns, bay leaf, cinnamon |
+| ✔ fogueira | Fogueira | small lit campfire, logs in a teepee inside a stone ring |
+| ✔ fogo_vivo | Fogo Vivo | round corked flask of glowing fiery-red elemental liquor, embers |
+| ✔ karmaquoso | Karmaquoso | round corked flask of icy glowing deep-blue elemental liquid, frost on the glass |
+| ✔ po_de_diamante | Pó de Diamante | open leather pouch spilling glittering diamond dust and tiny shards |
+| ✔ bussola | Bússola **e Astralícia** | open brass pocket compass, parchment dial; blank, no letters |
+| ✔ luneta | Luneta **e Olhos de Ganis** | extended brass spyglass, leather-wrapped middle |
+| ✔ espelho | Espelho **e Portão de Cruine** | polished bronze hand mirror, dark blurred reflection, no face |
+| ✔ gaiola | Gaiola **e Jaula** | empty wrought-iron cage with wooden base and hanging ring |
+| ✔ chave | Chave | large old wrought-iron key, ornate bow |
+| ✔ escada | Escada | short wooden ladder, rungs lashed with rope |
+| ✔ sarcofago | Sarcófago | closed carved stone sarcophagus, vines and sun relief; no letters |
+| ✔ moeda_ferro | Moeda de Ferro | stack of three crude hammered iron coins, rust spots, no letters |
+
+Contagem: 187. Depois disto, os grupos Consumíveis, Itens, Recipientes e
+Moedas ficaram SEM nenhum item no glifo (conferido rodando arteDoItem sobre os
+2247 itens do catálogo). Restam: Animais (58), Vestimentas (55 — lenço,
+piercing, sapato, sobretudo, tapa-olho), Instrumentos (23) e 9 ataques
+naturais de criatura (Bico, Garra, Mordida…).

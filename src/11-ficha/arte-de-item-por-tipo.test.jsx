@@ -198,7 +198,19 @@ describe('os consumíveis de 27/11/2026', () => {
     }
   });
   it('Bicho de Seda não é fibra', () => {
-    expect(arte('Bicho de Seda')).toBe(null);
+    expect(arte('Bicho de Seda')).toBe('/itens/bicho_de_seda.webp');
+  });
+  it('o resto dos consumíveis e os objetos, com o mágico na pintura do comum', () => {
+    const casos = {
+      'Algodoeiro': 'algodoeiro', 'Condimento': 'condimento', 'Fogueira': 'fogueira',
+      'Fogo Vivo': 'fogo_vivo', 'Karmaquoso': 'karmaquoso', 'Pó de Diamante': 'po_de_diamante',
+      'Bússola': 'bussola', 'Astralícia': 'bussola', 'Luneta': 'luneta', 'Olhos de Ganis': 'luneta',
+      'Espelho': 'espelho', 'Portão de Cruine': 'espelho', 'Gaiola': 'gaiola', 'Jaula': 'gaiola',
+      'Chave': 'chave', 'Escada': 'escada', 'Sarcófago': 'sarcofago', 'Moeda de Ferro': 'moeda_ferro',
+    };
+    for (const [nome, arquivo] of Object.entries(casos)) {
+      expect(arte(nome), nome).toBe('/itens/' + arquivo + '.webp');
+    }
   });
 });
 
@@ -212,8 +224,8 @@ describe('a regra não invade o equipável', () => {
       .toBe('/equip/coroa-ouro.webp');
   });
   it('o nome fora de qualquer tipo continua sem pintura', () => {
-    expect(arte('Gaiola')).toBe(null);
-    expect(arte('Algodoeiro')).toBe(null);
+    expect(arte('Violão')).toBe(null);
+    expect(arte('Apito')).toBe(null);
   });
 });
 
