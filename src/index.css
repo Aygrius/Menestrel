@@ -7771,6 +7771,18 @@ body:has(.batalha-tabuleiro-wrap) .menestrel-ui.amg-root { display: none; }
    volta no foco, para quem digita saber onde está. */
 #root .menestrel-ui .modal-catalogo :is(.diario-input, .diario-textarea) { border-color: transparent; }
 #root .menestrel-ui .modal-catalogo :is(.diario-input, .diario-textarea):focus { border-color: var(--campo-borda-foco); }
+/* Ícone e Valor na pele dos outros campos (28/11/2026, usuário: "alguns campos
+   dos modais estão fora do padrão, por exemplo ícone e valor, a cor de fundo
+   está diferente e estão com borda"). Vestiam a pílula do seletor de
+   quantidade (fundo próprio, aro, desfoque); no formulário, são campos: o
+   mesmo chão (--campo-bg), sem aro, e o aro dourado só no foco. */
+#root .menestrel-ui .modal-catalogo .campo-icone .campo-preco-input,
+#root .menestrel-ui .modal-catalogo .fp-pop-stepper {
+  background: var(--campo-bg); border-color: transparent;
+  backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+#root .menestrel-ui .modal-catalogo .campo-icone .campo-preco-input:focus,
+#root .menestrel-ui .modal-catalogo .fp-pop-stepper:focus-within { border-color: var(--campo-borda-foco); }
 
 
 /* Altura uniforme dos campos (10/09/2026): começou escopada aqui, em
