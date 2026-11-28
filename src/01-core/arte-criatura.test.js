@@ -42,11 +42,26 @@ describe('arteDaCriatura — um rosto por tipo (28/11/2026)', () => {
   });
 
   it('a Águia-careca (animal) não pega o rosto da Águia Real', () => {
-    expect(arteDaCriatura({ nome: 'Águia-careca' })).toBeNull();
+    expect(arteDaCriatura({ nome: 'Águia-careca' })).not.toBe('/criaturas/aguia_real.webp');
   });
 
   it('sem pintura ou sem criatura, null', () => {
     expect(arteDaCriatura({ nome: 'Lobo Alfa' })).toBeNull();
     expect(arteDaCriatura(null)).toBeNull();
+  });
+});
+
+describe('os animais vão pelo subtipo (28/11/2026)', () => {
+  it('todo cavalo divide uma pintura, seja qual for o nome', () => {
+    for (const nome of ['Andaluz', 'Ardennes', 'Cavalo do Rei', 'Cavalo Puro-Sangue Élfico', 'Cavalo Selvagem']) {
+      expect(arteDaCriatura({ nome, tipo: 'Animal', subtipo: 'Cavalo' })).toBe('/criaturas/cavalo.webp');
+    }
+    expect(arteDaCriatura({ nome: 'Labrador', tipo: 'Animal', subtipo: 'Cão' })).toBe('/criaturas/cao.webp');
+    expect(arteDaCriatura({ nome: 'Sucuri', tipo: 'Animal', subtipo: 'Cobra' })).toBe('/criaturas/cobra.webp');
+    expect(arteDaCriatura({ nome: 'Águia-careca', tipo: 'Animal', subtipo: 'Águia' })).toBe('/criaturas/aguia.webp');
+  });
+  it('o subtipo só vale para Animal: o Bulgae (Infernal, Cão) segue com o rosto dele', () => {
+    expect(arteDaCriatura({ nome: 'Bulgae', tipo: 'Infernal', subtipo: 'Cão' })).toBe('/criaturas/bulgae.webp');
+    expect(arteDaCriatura({ nome: 'Águia Real', tipo: 'Celestial', subtipo: 'Águia' })).toBe('/criaturas/aguia_real.webp');
   });
 });

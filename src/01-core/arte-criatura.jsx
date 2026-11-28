@@ -34,15 +34,49 @@ const ARTE_CRIATURA = [
   [/^dragoniano\b/, 'dragoniano', 'Dragoniano (Jovem, Guerreiro, Líder)'],
 ];
 
+/* OS ANIMAIS VÃO PELO SUBTIPO (28/11/2026, usuário: "para todos os tipos de
+   cavalos, será uma única imagem"). O nome do animal quase nunca diz a
+   espécie — Andaluz, Ardennes, Labrador, Sucuri —, e o subtipo da ficha diz.
+   Vale só para tipo Animal: o Bulgae também é subtipo Cão, mas é Infernal e
+   tem o seu rosto pela regra do nome. Chave: o subtipo normalizado. */
+const ARTE_ANIMAL = [
+  ['aguia', 'aguia', 'Águia (Águia-careca)'],
+  ['avestruz', 'avestruz', 'Avestruz'],
+  ['baleia', 'baleia', 'Baleia (Orca, Tagmariana)'],
+  ['bufalo', 'bufalo', 'Búfalo (Lanoso, Mediterrâneo)'],
+  ['camelo', 'camelo', 'Camelo'],
+  ['canario', 'canario', 'Canário'],
+  ['cao', 'cao', 'Cão (Labrador)'],
+  ['cavalo', 'cavalo', 'Cavalo (Andaluz, Ardennes, do Rei, Élfico, Selvagem)'],
+  ['cobra', 'cobra', 'Cobra (Sucuri)'],
+  ['coruja', 'coruja', 'Coruja'],
+];
+
+const _normal = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+
 function arteDaCriatura(criatura) {
   if (!criatura) return null;
-  const n = String(criatura.nome || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-  if (!n) return null;
-  for (const [re, arquivo] of ARTE_CRIATURA) {
-    if (re.test(n)) return '/criaturas/' + arquivo + '.webp';
+  const n = _normal(criatura.nome);
+  if (n) {
+    for (const [re, arquivo] of ARTE_CRIATURA) {
+      if (re.test(n)) return '/criaturas/' + arquivo + '.webp';
+    }
+  }
+  if (_normal(criatura.tipo) === 'animal') {
+    const sub = _normal(criatura.subtipo);
+    const achou = sub && ARTE_ANIMAL.find(([chave]) => chave === sub);
+    if (achou) return '/criaturas/' + achou[1] + '.webp';
   }
   return null;
 }
 
-Object.assign(window, { ARTE_CRIATURA, arteDaCriatura });
-export { ARTE_CRIATURA, arteDaCriatura };
+// Todos os rostos pintados, para a galeria: [{ arq, nome }].
+function rostosDeCriatura() {
+  return [
+    ...ARTE_CRIATURA.map(([, arq, nome]) => ({ arq, nome })),
+    ...ARTE_ANIMAL.map(([, arq, nome]) => ({ arq, nome })),
+  ];
+}
+
+Object.assign(window, { ARTE_CRIATURA, ARTE_ANIMAL, arteDaCriatura, rostosDeCriatura });
+export { ARTE_CRIATURA, ARTE_ANIMAL, arteDaCriatura, rostosDeCriatura };

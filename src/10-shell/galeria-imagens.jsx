@@ -164,12 +164,39 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
     if (typeof window === 'undefined') return { criaturas: [], energia: [] };
     const NOME_ENERGIA = { ef: 'Energia Física', eh: 'Energia Heroica', ka: 'Karma' };
     return {
-      criaturas: (window.ARTE_CRIATURA || [])
-        .map(([, arq, nome]) => ({ src: '/criaturas/' + arq + '.webp', nome: nome || giLegivel(arq), arq })),
+      criaturas: (typeof window.rostosDeCriatura === 'function' ? window.rostosDeCriatura() : [])
+        .map(({ arq, nome }) => ({ src: '/criaturas/' + arq + '.webp', nome: nome || giLegivel(arq), arq })),
       energia: Object.entries(window.ARTE_GEMA || {})
         .map(([k, src]) => ({ src, nome: NOME_ENERGIA[k] || k, arq: giArquivo(src) })),
     };
   }, []);
+
+  /* AS QUE ESTÃO SOBRANDO (28/11/2026, usuário: "Lista na página imagens, as
+     imagens que estão sobrando"). Toda pintura registrada (ARTE_PINTADA,
+     ARTE_ITEM_SLUG, ARTE_ITEM_NOVA) que nenhum item do catálogo usa e que
+     nenhuma casa vazia do boneco mostra — para o Mestre decidir se apaga,
+     cria o item ou devolve a pintura a ele. */
+  const sobrando = useMemo(() => {
+    if (!catalogo || typeof window === 'undefined') return [];
+    const usadas = new Set();
+    parede.armas.forEach((a) => usadas.add(a.src));
+    parede.secoes.forEach((s) => s.pecas.forEach((p) => usadas.add(p.src)));
+    if (typeof window.arteDoSlot === 'function') {
+      const regioes = ['cabeca', 'ombros', 'bracos', 'maos', 'pernas', 'pes', 'mao_e', 'mao_d', 'saque_e', 'saque_d',
+        'orelha', 'pescoco', 'capa', 'roupa', 'cintura', 'dedos', 'peito', 'rosto', 'costas', 'dorso', 'canela', 'pulso', 'alforje'];
+      const profissoes = ['', 'Guerreiro', 'Sacerdote', 'Ladino', 'Rastreador', 'Bardo', 'Mago'];
+      regioes.forEach((r) => profissoes.forEach((p) => {
+        try { const s = window.arteDoSlot(r, null, p); if (s) usadas.add(s); } catch (e) { /* região sem pintura */ }
+      }));
+    }
+    const registradas = [
+      ...[...(window.ARTE_PINTADA || [])].map((n) => '/equip/' + n + '.webp'),
+      ...[...new Set([...(window.ARTE_ITEM_SLUG || []), ...(window.ARTE_ITEM_NOVA || [])])].map((n) => '/itens/' + n + '.webp'),
+    ];
+    return registradas.filter((src) => !usadas.has(src))
+      .map((src) => ({ src, nome: giLegivel(giArquivo(src)), arq: giArquivo(src) }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  }, [catalogo, parede]);
 
   // A busca vale para a legenda, os itens da pintura e o arquivo.
   const q = giNormal(busca.trim());
@@ -190,13 +217,15 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
     : [];
   const totalFalta = parede.falta.reduce((s, g) => s + g.nomes.length, 0);
   const faltaContada = faltaAVista.reduce((s, g) => s + g.nomes.length, 0);
+  const sobrandoAVista = mostra('sobrando') ? sobrando.filter((p) => casa(p.nome, p.arq)) : [];
 
   const FAIXAS = [
     ['tudo', 'Tudo'], ['armas', 'Armas'], ['equip', 'Equipáveis'], ['itens', 'Itens'],
-    ['criaturas', 'Criaturas'], ['cond', 'Condições'], ['falta', 'Sem pintura'],
+    ['criaturas', 'Criaturas'], ['cond', 'Condições'], ['falta', 'Sem pintura'], ['sobrando', 'Sobrando'],
   ];
   const vazio = catalogo && !armasAVista.length && !secoesAVista.length && !criaturasAVista.length
-    && !condAVista.length && !energiaAVista.length && !faltaAVista.length && faixa !== 'falta';
+    && !condAVista.length && !energiaAVista.length && !faltaAVista.length && !sobrandoAVista.length
+    && faixa !== 'falta';
 
   return (
     <ModalShell
@@ -342,6 +371,16 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
                   <span className="mn-quadro-num gi-falta-num">{g.nomes.length}</span>
                 </div>
               ))}
+            </div>
+          </GiSecao>
+        )}
+
+        {/* ── as pinturas que nenhum item usa ── */}
+        {sobrandoAVista.length > 0 && (
+          <GiSecao titulo="Sobrando" conta={sobrandoAVista.length + (sobrandoAVista.length === 1 ? ' pintura' : ' pinturas')}
+            nota="Pinturas que já fizemos e que nenhum item do catálogo usa, nem as casas vazias do boneco. Dá para apagar o arquivo, criar o item ou devolver a pintura a ele.">
+            <div className="gi-grade">
+              {sobrandoAVista.map((p) => <GiPeca key={p.src} src={p.src} nome={p.nome} pe={p.arq} />)}
             </div>
           </GiSecao>
         )}

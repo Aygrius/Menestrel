@@ -810,3 +810,30 @@ Karmaquoso (base com `arte: 'karmaquoso'`).
 Pinturas no disco que nenhum item nem casa vazia usa (28/11/2026):
 arma-arco-leve, arma-lanca, arma-maca, mascara-couro, agua, agua_suja,
 algibeira_grande, aljava_reforcada, equipamento_de_viagem, marfim_demoniaca.
+
+## Rostos das criaturas — animais, parcela 1 (28/11/2026)
+
+Usuário: "vamos fazer as criaturas selvagens […] para todos os tipos de
+cavalos, será uma única imagem […] vamos fazer as 10 primeiras." No bestiário
+o tipo é **Animal**; o nome quase nunca diz a espécie (Andaluz, Labrador,
+Sucuri), então a regra é pelo SUBTIPO (`ARTE_ANIMAL` em 01-core/arte-criatura.jsx),
+só para tipo Animal. Ordem alfabética do subtipo.
+
+| arquivo | serve a |
+|---|---|
+| ✔ aguia | Águia-careca |
+| ✔ avestruz | Avestruz Pardo |
+| ✔ baleia | Baleia Orca, Baleia Tagmariana |
+| ✔ bufalo | Búfalo Lanoso, Búfalo Mediterrâneo |
+| ✔ camelo | Camelo Bactriano |
+| ✔ canario | Canário-belga |
+| ✔ cao | Labrador |
+| ✔ cavalo | Andaluz, Ardennes, Cavalo do Rei, Puro-Sangue Élfico, Cavalo Selvagem |
+| ✔ cobra | Sucuri |
+| ✔ coruja | Coruja-orelhuda |
+
+Próxima parcela: Corvo, Crocodilo, Elefante, Falcão, Gato, Gavião, Gorila,
+Jaguar, Jaguatirica, Javali (depois Leão … Vaca; Sobek e Urso Polar estão sem subtipo).
+
+A página Imagens ganhou a faixa **Sobrando**: pintura registrada que nenhum
+item nem casa vazia usa.

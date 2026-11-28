@@ -124,7 +124,7 @@ describe('a parede mostra só o que o catálogo usa', () => {
     await carregada();
     expect(celula('Itens pintados')).toBe(String(CAT.length - 1));   // o avestruz não tem pintura
     expect(celula('Itens sem pintura')).toBe('1');
-    expect(celula('Criaturas')).toBe(String(window.ARTE_CRIATURA.length));
+    expect(celula('Criaturas')).toBe(String(window.rostosDeCriatura().length));
   });
   it('as imagens do sistema seguem na parede: criaturas, condições e energias', async () => {
     abrir();
@@ -204,5 +204,19 @@ describe('a entrada no menu do usuário', () => {
   it('o modal é montado quando a entrada é clicada', () => {
     expect(shellFonte).toMatch(/onImagens=\{\(\) => setImagensAberto\(true\)\}/);
     expect(shellFonte).toMatch(/imagensAberto && typeof GaleriaImagensModal !== 'undefined'/);
+  });
+});
+
+/* "Lista na página imagens, as imagens que estão sobrando" (28/11/2026). */
+describe('a seção Sobrando', () => {
+  it('lista a pintura registrada que nenhum item usa, e não a que algum usa', async () => {
+    abrir();
+    await carregada();
+    fireEvent.click(screen.getByRole('button', { name: 'Sobrando' }));
+    await waitFor(() => expect(document.querySelectorAll('.gi-peca').length).toBeGreaterThan(0));
+    const srcs = [...document.querySelectorAll('.gi-peca img')].map((i) => i.getAttribute('src'));
+    expect(srcs).toContain('/equip/mascara-couro.webp');      // nenhum item é máscara de couro
+    expect(srcs).not.toContain('/equip/mascara-ferro.webp');  // a máscara de latão usa
+    expect(srcs).not.toContain('/equip/arma-espada-medio.webp'); // a Espada Longa usa
   });
 });
