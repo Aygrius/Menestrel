@@ -578,3 +578,22 @@ chamada, gemini-3.1-flash-image. Cachecóis em `public/equip/cachecol-*.webp`
 `public/itens/<tipo>.webp` (240px), em ARTE_ITEM_NOVA e ARTE_ITEM_TIPO; a fibra
 casa só o nome inteiro (Algodão, Linho, Cânhamo, Seda). Algodoeiro e Bicho de
 Seda seguem no glifo, a decidir. Contrato em 11-ficha/arte-de-item-por-tipo.test.jsx.
+
+## A Luva de pano e o Estojo (27/11/2026 — 4 pinturas)
+
+Pedido do usuário: seguir a fila depois dos cachecóis. Todas na primeira chamada.
+
+| Arquivo | Cobre | Objeto |
+|---|---|---|
+| ✔ luva-pano-algodao | Luva de Algodão, de Guerreiro, de Ladino, de Rastreador | ONE single glove (only one, not a pair) of plain undyed coarse cotton cloth, homespun weave, slightly frayed cuff; a cloth GLOVE, not an armored gauntlet |
+| ✔ luva-pano-couro | Luva de Couro, de Mago, de Sacerdote | ONE single riding glove of supple dark-tan leather, flared cuff, saddle stitching, small brass button; not armor |
+| ✔ luva-pano-seda | Luva de Seda, de Bardo | ONE single courtly glove of deep wine-red silk, gold-thread embroidery on the back and cuff |
+| ✔ estojo | Estojo | small rigid carrying case of hardened brown leather, hinged lid closed, brass corner caps and clasp, short strap; a closed hard CASE, not a book, not a bag |
+
+Ligação: luvas em `public/equip/luva-pano-*.webp` (320px) e ARTE_PINTADA, e o
+`comArte` que emprestava `luvas-leve` saiu da base (01-core/bases-item.jsx).
+Estojo em `public/itens/estojo.webp` (240px) e ARTE_ITEM_NOVA — a base `estojo`
+mora em `itens`. Contagem: 172.
+
+Ainda emprestadas, sem prompt: dragona (ombreiras), lenço (sem pintura),
+gargantilha (colar), piercing (brinco), bracelete e pulseira (anel), casaco (traje).

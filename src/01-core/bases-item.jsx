@@ -178,8 +178,8 @@ const BASES_ITEM = [
   ...comArte(veste('anel', 'Anel', ['dedo'], ['ouro', 'prata', 'cobre', 'latao', 'marfim']), METAL_ANTIGO('anel')),
   ...comArte(veste('bracelete', 'Bracelete', ['pulso'], METAL), METAL_ANTIGO('anel')),
   ...comArte(veste('pulseira', 'Pulseira', ['pulso'], METAL), METAL_ANTIGO('anel')),
-  ...comArte(veste('luva-pano', 'Luva', ['pulso'], ['seda', 'couro', 'algodao']),
-    { seda: 'luvas-leve', couro: 'luvas-leve', algodao: 'luvas-leve' }),
+  // Pintura própria desde 27/11/2026 (luva-pano-*); antes emprestava a manopla leve.
+  ...veste('luva-pano', 'Luva', ['pulso'], ['seda', 'couro', 'algodao']),
   ...veste('sandalia', 'Sandália', ['pe'], TECIDO, BASE_ITEM).map((b) => ({ ...b, arte: 'sandalias' })),
   ...veste('sapato', 'Sapato', ['pe'], TECIDO),
 

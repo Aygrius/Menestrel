@@ -1873,6 +1873,8 @@ const ARTE_PINTADA = new Set([
   /* O CACHECOL (27/11/2026, Figma): até aqui ficava no glifo do pescoço. Um
      por tecido, sem empréstimo. */
   'cachecol-algodao', 'cachecol-linho', 'cachecol-seda',
+  // A LUVA DE PANO (27/11/2026, Figma): emprestava a manopla leve de armadura.
+  'luva-pano-algodao', 'luva-pano-couro', 'luva-pano-seda',
   'cinto-simples', 'cinto-ornado', 'cinto-nobre',
   'anel-simples', 'anel-ornado', 'anel-nobre',
   // as armas pelo tipo (23/10/2026) — ver ARMA_POR_NOME
@@ -2202,6 +2204,8 @@ const ARTE_ITEM_NOVA = new Set([
   /* Consumíveis que estavam no glifo (27/11/2026, Figma): uma pintura por
      TIPO, como erva e cogumelo. */
   'osso', 'ovo', 'tecido', 'fibra', 'corda', 'feno', 'vela', 'vidro', 'incenso',
+  // O Estojo (alforje), pela base `estojo` (27/11/2026).
+  'estojo',
 ]);
 const ARTE_ITEM_TIPO = [
   // As obras: ~145 "Livro de …" e 14 "Manual do …" numa pintura só.
