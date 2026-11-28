@@ -86,10 +86,15 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
   useEffect(() => {
     let vivo = true;
     (async () => {
-      const { data, error } = await supabaseClient
-        .from('itens')
-        .select('slug, nome, base, arte, grupo, slot_equip, tipo_equip, categoria_equip, tipo_armadura, grupo_armas, valor_latao, tipo_item, magico')
-        .order('nome');
+      /* O catálogo INTEIRO, em blocos (28/11/2026). O select cru parava nas
+         primeiras 1000 linhas do PostgREST, sem erro — e tudo de "Mo…" em
+         diante (Mochila, Odre, Piercing, Tiara…) ficava fora da parede e as
+         pinturas deles caíam em "Sobrando". */
+      const paginada = (typeof fetchTabelaPaginada !== 'undefined' ? fetchTabelaPaginada : null) || window.fetchTabelaPaginada;
+      const { data, error } = await paginada('itens', {
+        colunas: 'slug, nome, base, arte, grupo, slot_equip, tipo_equip, categoria_equip, tipo_armadura, grupo_armas, valor_latao, tipo_item, magico',
+        ordem: ['nome', 'slug'],
+      });
       if (!vivo) return;
       if (error) { console.error('[imagens] catálogo não carregou:', error); setCatalogo([]); return; }
       setCatalogo(data || []);

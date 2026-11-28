@@ -38,7 +38,7 @@ const CAT = [
 beforeAll(async () => {
   const tabela = () => {
     const b = {
-      select: () => b, eq: () => b, order: () => b, limit: () => b,
+      select: () => b, eq: () => b, order: () => b, limit: () => b, range: () => b,
       single: async () => ({ data: null, error: null }),
       maybeSingle: async () => ({ data: null, error: null }),
       then: (ok, falha) => Promise.resolve({ data: CAT, error: null }).then(ok, falha),
@@ -218,5 +218,15 @@ describe('a seção Sobrando', () => {
     expect(srcs).toContain('/equip/mascara-couro.webp');      // nenhum item é máscara de couro
     expect(srcs).not.toContain('/equip/mascara-ferro.webp');  // a máscara de latão usa
     expect(srcs).not.toContain('/equip/arma-espada-medio.webp'); // a Espada Longa usa
+  });
+});
+
+/* O catálogo passa de 1000 itens, e o PostgREST corta em 1000 sem avisar:
+   a página lê em blocos, como o resto do app (28/11/2026). */
+describe('o catálogo vem inteiro', () => {
+  it('a página usa a leitura paginada, não um select cru', () => {
+    const fonte = readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'galeria-imagens.jsx'), 'utf8');
+    expect(fonte).toMatch(/fetchTabelaPaginada/);
+    expect(fonte).not.toMatch(/supabaseClient\s*\r?\n?\s*\.from\('itens'\)/);
   });
 });
