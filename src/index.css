@@ -20928,3 +20928,20 @@ html, body,
 @media (max-width: 640px) {
   #root .menestrel-ui .wiz-row-2col { row-gap: 0; }
 }
+
+/* ══ TRÊS COLUNAS NAS JANELAS DE DETALHE (28/11/2026) ═══════════════════════
+   Usuário: "Nos modais das criaturas, itens, etc, onde temos 2 colunas, eu
+   quero que sejam 3 colunas." Vale para a janela do Compêndio e do inventário
+   (Características do item, seções da criatura, equipamentos dela) e para a
+   ficha de criatura do Diário. Seletores mais fortes que as regras de duas
+   colunas espalhadas acima (inclusive a de uma coluna do item no inventário);
+   os painéis laterais (.livro-painel, .bau-painel) seguem com uma coluna. O
+   valor largo (prosa) continua ocupando a linha inteira. No celular, uma. */
+@media (min-width: 641px) {
+  #root .menestrel-ui .ms-modal.modal-best-detalhe .best-lista.best-lista--2col,
+  #root .menestrel-ui .ms-modal.modal-best-detalhe .best-detail.best-com-abas .best-lista,
+  #root .menestrel-ui .ms-modal.modal-best-detalhe .best-ficha-extra .best-lista,
+  #root .menestrel-ui .best-ficha-listas.best-ficha-listas--2 {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
