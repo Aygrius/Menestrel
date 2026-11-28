@@ -163,7 +163,7 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
      ARTE_GEMA —, menos o que alguma base já pendurou: pintura nova
      registrada aparece aqui sozinha. */
   const avulsas = useMemo(() => {
-    if (typeof window === 'undefined') return { armas: [], pecas: [], itens: [], energia: [] };
+    if (typeof window === 'undefined') return { armas: [], pecas: [], itens: [], energia: [], criaturas: [] };
     const jaNaParede = new Set();
     basesComArte.forEach(({ telas }) => telas.forEach((t) => jaNaParede.add(t.src)));
     const nomeNoCatalogo = {};
@@ -185,7 +185,11 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
     const NOME_ENERGIA = { ef: 'Energia Física', eh: 'Energia Heroica', ka: 'Karma' };
     const energia = Object.entries(window.ARTE_GEMA || {})
       .map(([k, src]) => ({ src, nome: NOME_ENERGIA[k] || k, arq: src.replace(/^.*\/|\.webp$/g, '') }));
-    return { armas, pecas, itens, energia };
+    /* Os rostos das criaturas (28/11/2026, usuário: "não estou vendo todas
+       as imagens no menu imagem"): um por TIPO, do ARTE_CRIATURA. */
+    const criaturas = (window.ARTE_CRIATURA || [])
+      .map(([, arq, nome]) => ({ src: '/criaturas/' + arq + '.webp', nome: nome || legivel(arq), arq }));
+    return { armas, pecas, itens, energia, criaturas };
   }, [basesComArte, catalogo]);
   const SECOES_AVULSAS = [
     { id: 'armas', titulo: 'Armas por tipo', faixa: 'equip',
@@ -196,8 +200,10 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
       nota: 'Pinturas por item ou por tipo de nome (erva, flor, planta…), que nenhuma base aponta.' },
     { id: 'energia', titulo: 'Energias', faixa: 'cond',
       nota: 'As três pedras do cartão Energias da ficha.' },
+    { id: 'criaturas', titulo: 'Criaturas', faixa: 'criaturas',
+      nota: 'O rosto de cada tipo de criatura: todas as fichas do tipo dividem a mesma pintura.' },
   ];
-  const totalAvulsas = avulsas.armas.length + avulsas.pecas.length + avulsas.itens.length + avulsas.energia.length;
+  const totalAvulsas = avulsas.armas.length + avulsas.pecas.length + avulsas.itens.length + avulsas.energia.length + avulsas.criaturas.length;
 
   const condFiltradas = GI_CONDICOES.filter(([a, n]) => casa(n, a));
   const faltaFiltrada = semPintura
@@ -215,7 +221,7 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
 
   const FAIXAS = [
     ['tudo', 'Tudo'], ['equip', 'Equipáveis'], ['itens', 'Itens'],
-    ['cond', 'Condições'], ['falta', 'Sem pintura'],
+    ['cond', 'Condições'], ['criaturas', 'Criaturas'], ['falta', 'Sem pintura'],
   ];
   const familiasAVista = familias.filter((f) => mostra(f.equip ? 'equip' : 'itens'));
 
@@ -413,7 +419,7 @@ function GaleriaImagensModal({ lang = 'pt', onClose }) {
         <p className="gi-rodape">
           O vocabulário das bases vive em <code>src/01-core/bases-item.jsx</code> e cada item
           guarda a sua em <code>itens.base</code>, escolhida no editor. Os arquivos ficam em
-          {' '}<code>public/equip/</code>, <code>public/itens/</code> e <code>public/cond/</code>;
+          {' '}<code>public/equip/</code>, <code>public/itens/</code>, <code>public/cond/</code> e <code>public/criaturas/</code>;
           a pauta do Figma, em <code>.impeccable/arte-equipamentos.md</code>.
         </p>
       </div>

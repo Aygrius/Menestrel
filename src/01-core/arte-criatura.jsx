@@ -4,7 +4,8 @@
 
    Uma pintura por TIPO, não por ficha: Enviado Menor, I, II… V dividem a
    mesma. A regra casa o NOME normalizado (sem acento, minúsculo), na ordem —
-   a primeira que casar vence. Pelo nome e não pelo subtipo porque o subtipo
+   a primeira que casar vence; o terceiro campo é o nome na galeria (menu
+   Imagens). Pelo nome e não pelo subtipo porque o subtipo
    mistura planos: "Águia" é tanto a Águia Real celestial quanto a
    Águia-careca do plano material, e cada uma tem o seu rosto.
 
@@ -13,11 +14,11 @@
 
 const ARTE_CRIATURA = [
   // Celestiais (28/11/2026)
-  [/^enviado\b/, 'enviado'],
-  [/^pegaso\b/, 'pegaso'],
-  [/^planindea\b/, 'planindea'],
-  [/^aguia real$/, 'aguia_real'],
-  [/^cronomante\b/, 'cronomante'],
+  [/^enviado\b/, 'enviado', 'Enviado (Menor, I a V)'],
+  [/^pegaso\b/, 'pegaso', 'Pégaso'],
+  [/^planindea\b/, 'planindea', 'Planindea'],
+  [/^aguia real$/, 'aguia_real', 'Águia Real'],
+  [/^cronomante\b/, 'cronomante', 'Cronomante'],
 ];
 
 function arteDaCriatura(criatura) {

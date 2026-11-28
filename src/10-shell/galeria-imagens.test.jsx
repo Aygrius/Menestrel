@@ -55,6 +55,7 @@ beforeAll(async () => {
   await import('../01-core/helpers.jsx');
   await import('../01-core/inventario-helpers.jsx');
   await import('../01-core/bases-item.jsx');
+  await import('../01-core/arte-criatura.jsx');
   await import('../01-core/select-pill.jsx');
   await import('../01-core/clima-desgaste.jsx');
   await import('../01-core/game-data.jsx');
@@ -113,10 +114,12 @@ describe('o placar conta o que existe de verdade', () => {
       ...[...window.ARTE_PINTADA].map((n) => '/equip/' + n + '.webp'),
       ...[...window.ARTE_ITEM_SLUG, ...window.ARTE_ITEM_NOVA].map((n) => '/itens/' + n + '.webp'),
       ...Object.values(window.ARTE_GEMA),
+      ...window.ARTE_CRIATURA.map(([, a]) => '/criaturas/' + a + '.webp'),
     ];
     expect(registradas.filter((s) => !naParede.has(s))).toEqual([]);
     // As que motivaram o pedido, pelo nome.
-    for (const s of ['/itens/pelo_de_fogo.webp', '/itens/flor.webp', '/equip/arma-besta.webp', '/energia/gema-rubi.webp']) {
+    // Os rostos das criaturas entraram em 28/11/2026 ("não estou vendo todas as imagens no menu imagem").
+    for (const s of ['/itens/pelo_de_fogo.webp', '/itens/flor.webp', '/equip/arma-besta.webp', '/energia/gema-rubi.webp', '/criaturas/enviado.webp']) {
       expect(naParede.has(s), s).toBe(true);
     }
   });
