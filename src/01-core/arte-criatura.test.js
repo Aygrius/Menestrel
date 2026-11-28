@@ -28,6 +28,19 @@ describe('arteDaCriatura — um rosto por tipo (28/11/2026)', () => {
     expect(arteDaCriatura({ nome: 'Haalin' })).toBe('/criaturas/haalin.webp');
   });
 
+  it('civilizados: uma pintura por tipo, qualquer posto', () => {
+    const casos = {
+      orc: ['Orc', 'Orc Capitão', 'Orc Rei'],
+      goblin: ['Goblin', 'Goblin Líder', 'Goblin Rei'],
+      ogro: ['Ogro', 'Ogro Líder', 'Ogro Rei'],
+      gigante: ['Gigante da Colina', 'Gigante do Deserto', 'Gigante da Neve'],
+      dragoniano: ['Dragoniano Jovem', 'Dragoniano', 'Dragoniano Guerreiro', 'Dragoniano Líder'],
+    };
+    for (const [arq, nomes] of Object.entries(casos)) {
+      for (const nome of nomes) expect(arteDaCriatura({ nome })).toBe('/criaturas/' + arq + '.webp');
+    }
+  });
+
   it('a Águia-careca (animal) não pega o rosto da Águia Real', () => {
     expect(arteDaCriatura({ nome: 'Águia-careca' })).toBeNull();
   });

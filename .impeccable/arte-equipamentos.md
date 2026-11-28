@@ -781,3 +781,13 @@ No mesmo dia saíram do catálogo as 279 versões de profissão (138 peças + 14
 (scripts/sql/remove-versoes-profissao-2026-11-28.sql); os inventários
 trocaram pelo item comum. Bases que ficaram sem item e saíram do vocabulário:
 capuz-linho, anel-cobre, bracelete-cobre.
+
+## Rostos das criaturas — civilizados (28/11/2026)
+
+| arquivo | serve a |
+|---|---|
+| ✔ orc | Orc, Orc Capitão, Orc Rei — pele cinza-esverdeada, presas, tranças, troféus de osso |
+| ✔ goblin | Goblin, Goblin Líder, Goblin Rei — orelhas pontudas, nariz torto, capuz rasgado |
+| ✔ ogro | Ogro, Ogro Líder, Ogro Rei — pele verrugosa, mandíbula com dentes tortos |
+| ✔ gigante | Gigante da Colina, do Deserto e da Neve — pele de pedra, colar de seixos (o 1º saiu humano demais; refeito) |
+| ✔ dragoniano | Dragoniano Jovem, Dragoniano, Guerreiro, Líder — escamas vermelho-bronze, olhos dourados |

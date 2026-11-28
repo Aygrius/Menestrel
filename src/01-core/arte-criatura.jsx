@@ -26,6 +26,12 @@ const ARTE_CRIATURA = [
   [/^bulgae\b/, 'bulgae', 'Bulgae'],
   [/^cavalum\b/, 'cavalum', 'Cavalum'],
   [/^haalin\b/, 'haalin', 'Haalin'],
+  // Civilizados (28/11/2026)
+  [/^orc\b/, 'orc', 'Orc (Capitão, Rei)'],
+  [/^goblin\b/, 'goblin', 'Goblin (Líder, Rei)'],
+  [/^ogro\b/, 'ogro', 'Ogro (Líder, Rei)'],
+  [/^gigante\b/, 'gigante', 'Gigante (da Colina, do Deserto, da Neve)'],
+  [/^dragoniano\b/, 'dragoniano', 'Dragoniano (Jovem, Guerreiro, Líder)'],
 ];
 
 function arteDaCriatura(criatura) {
