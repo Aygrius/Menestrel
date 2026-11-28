@@ -65,3 +65,16 @@ describe('os animais vão pelo subtipo (28/11/2026)', () => {
     expect(arteDaCriatura({ nome: 'Águia Real', tipo: 'Celestial', subtipo: 'Águia' })).toBe('/criaturas/aguia_real.webp');
   });
 });
+
+describe('animais, parcela 2 (28/11/2026)', () => {
+  it.each([
+    ['Corvo-de-conti', 'Corvo', 'corvo'], ['Crocodilo-do-frefo', 'Crocodilo', 'crocodilo'],
+    ['Elefante Leva', 'Elefante', 'elefante'], ['Falcão-peregrino', 'Falcão', 'falcao'],
+    ['Gato-de-bengala', 'Gato', 'gato'], ['Gavião-peneira', 'Gavião', 'gaviao'],
+    ['Gorila das Montanhas', 'Gorila', 'gorila'], ['Gorila-ocidental', 'Gorila', 'gorila'],
+    ['Onça-pintada', 'Jaguar', 'jaguar'], ['Jaguatirica Dourada', 'Jaguatirica', 'jaguatirica'],
+    ['Javali Queixada', 'Javali', 'javali'],
+  ])('%s (%s) → %s', (nome, subtipo, arq) => {
+    expect(arteDaCriatura({ nome, tipo: 'Animal', subtipo })).toBe('/criaturas/' + arq + '.webp');
+  });
+});

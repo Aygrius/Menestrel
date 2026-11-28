@@ -50,6 +50,17 @@ const ARTE_ANIMAL = [
   ['cavalo', 'cavalo', 'Cavalo (Andaluz, Ardennes, do Rei, Élfico, Selvagem)'],
   ['cobra', 'cobra', 'Cobra (Sucuri)'],
   ['coruja', 'coruja', 'Coruja'],
+  // Parcela 2 (28/11/2026)
+  ['corvo', 'corvo', 'Corvo'],
+  ['crocodilo', 'crocodilo', 'Crocodilo'],
+  ['elefante', 'elefante', 'Elefante'],
+  ['falcao', 'falcao', 'Falcão'],
+  ['gato', 'gato', 'Gato'],
+  ['gaviao', 'gaviao', 'Gavião'],
+  ['gorila', 'gorila', 'Gorila (das Montanhas, Ocidental)'],
+  ['jaguar', 'jaguar', 'Jaguar (Onça-pintada)'],
+  ['jaguatirica', 'jaguatirica', 'Jaguatirica'],
+  ['javali', 'javali', 'Javali'],
 ];
 
 const _normal = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();

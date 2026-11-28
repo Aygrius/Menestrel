@@ -843,3 +843,21 @@ da base, salvo quando a base declara `arte` (Água → Karmaquoso). Voltaram:
 Algibeira Grande, Aljava Dupla, Equipamento de Viagem. O "Arco" (PM) usa
 `arte = arma-arco-leve` (scripts/sql/arco-pintura-leve-2026-11-28.sql). As
 túnicas usam a pintura do sobretudo (linho → algodão).
+
+## Rostos das criaturas — animais, parcela 2 (28/11/2026)
+
+| arquivo | serve a |
+|---|---|
+| ✔ corvo | Corvo-de-conti |
+| ✔ crocodilo | Crocodilo-do-frefo |
+| ✔ elefante | Elefante Leva |
+| ✔ falcao | Falcão-peregrino |
+| ✔ gato | Gato-de-bengala |
+| ✔ gaviao | Gavião-peneira |
+| ✔ gorila | Gorila das Montanhas, Gorila-ocidental |
+| ✔ jaguar | Onça-pintada |
+| ✔ jaguatirica | Jaguatirica Dourada |
+| ✔ javali | Javali Queixada |
+
+Próxima parcela: Leão, Lince, Lobo, Mamute, Morcego, Mula, Pombo, Pônei, Puma,
+Raposa (depois Rinoceronte, Serpente, Tigre, Touro, Tubarão, Urso, Vaca).
